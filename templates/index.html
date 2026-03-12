@@ -1,0 +1,3134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RecirQ Global — Victra RMA Shipment Check</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+--dark-green: #1B4D3E;
+--medium-green: #2E7D5B;
+--light-green: #E8F5E9;
+--accent-gold: #D4A843;
+--dark-gray: #333;
+--medium-gray: #ddd;
+--light-gray: #F5F5F5;
+--alert-red: #C62828;
+--alert-bg: #FFEBEE;
+--info-blue: #1565C0;
+--info-bg: #E3F2FD;
+--warn-orange: #E65100;
+--warn-bg: #FFF3E0;
+--success-green: #2E7D32;
+--success-bg: #E8F5E9;
+--critical-red: #B71C1C;
+--critical-bg: #FFCDD2;
+--bp-navy: #1A237E;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f0f4f3; color: var(--dark-gray); line-height: 1.6; }
+/* ── TOP BAR ── */
+.top-bar { background: var(--dark-green); color: white; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+.top-bar h1 { font-size: 18px; font-weight: 700; }
+.top-bar .subtitle { font-size: 11px; color: #B0D9C5; }
+.nav-tabs { display: flex; gap: 4px; }
+.nav-tabs button { background: rgba(255,255,255,.12); border: none; color: white; padding: 7px 16px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .2s; }
+.nav-tabs button:hover { background: rgba(255,255,255,.22); }
+.nav-tabs button.active { background: white; color: var(--dark-green); }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.section { display: none; }
+.section.active { display: block; }
+/* ── CARDS ── */
+.card { background: white; border-radius: 10px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+.card h2 { font-size: 18px; color: var(--dark-green); margin-bottom: 12px; }
+.card h3 { font-size: 15px; color: var(--dark-green); margin-bottom: 8px; }
+/* ── STATS ROW ── */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat-card { background: white; border-radius: 10px; padding: 16px; text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,.06); border-top: 3px solid var(--medium-green); }
+.stat-card.warn { border-top-color: var(--warn-orange); }
+.stat-card.fail { border-top-color: var(--alert-red); }
+.stat-card.info { border-top-color: var(--info-blue); }
+.stat-card .num { font-size: 28px; font-weight: 700; color: var(--dark-green); }
+.stat-card .label { font-size: 12px; color: #888; }
+/* ── TABLES ── */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--medium-gray); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { background: var(--dark-green); color: white; padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
+td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+tr:nth-child(even) { background: var(--light-gray); }
+tr:hover { background: #e0ede8; }
+tr.row-pass td:first-child { border-left: 3px solid var(--success-green); }
+tr.row-fail td:first-child { border-left: 3px solid var(--alert-red); }
+tr.row-warn td:first-child { border-left: 3px solid var(--warn-orange); }
+tr.row-review td:first-child { border-left: 3px solid var(--info-blue); }
+/* ── BADGES ── */
+.badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.badge-pass { background: var(--success-bg); color: var(--success-green); }
+.badge-fail { background: var(--critical-bg); color: var(--critical-red); }
+.badge-review { background: var(--info-bg); color: var(--info-blue); }
+.badge-hardstop { background: var(--critical-bg); color: var(--critical-red); font-size: 10px; }
+.badge-verizon { background: var(--dark-green); color: white; }
+.badge-brightpoint { background: var(--bp-navy); color: white; }
+.badge-pending { background: #FFF9C4; color: #F57F17; }
+/* ── BUTTONS ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.btn-primary { background: var(--medium-green); color: white; }
+.btn-primary:hover { background: var(--dark-green); }
+.btn-danger { background: var(--alert-red); color: white; }
+.btn-danger:hover { background: var(--critical-red); }
+.btn-outline { background: white; color: var(--medium-green); border: 2px solid var(--medium-green); }
+.btn-outline:hover { background: var(--light-green); }
+.btn-success { background: var(--success-green); color: white; }
+.btn-success:hover { background: #1B5E20; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+/* ── FORM ── */
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--dark-gray); margin-bottom: 6px; }
+.form-group input, .form-group select { width: 100%; padding: 10px 14px; border: 2px solid var(--medium-gray); border-radius: 8px; font-size: 14px; transition: border-color .2s; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--medium-green); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.upload-zone { border: 2px dashed var(--medium-gray); border-radius: 10px; padding: 28px; text-align: center; cursor: pointer; transition: all .2s; background: white; }
+.upload-zone:hover { border-color: var(--medium-green); background: var(--light-green); }
+.upload-zone.active { border-color: var(--medium-green); background: var(--light-green); }
+.upload-zone p { font-size: 14px; color: #888; margin-top: 8px; }
+.upload-zone .icon { font-size: 32px; }
+.file-name { font-size: 12px; color: var(--medium-green); font-weight: 600; margin-top: 6px; }
+/* ── CALLOUTS ── */
+.callout { padding: 12px 14px; border-radius: 8px; margin: 12px 0; font-size: 13px; border-left: 4px solid; }
+.callout.info { background: var(--info-bg); border-color: var(--info-blue); color: var(--info-blue); }
+.callout.warn { background: var(--warn-bg); border-color: var(--warn-orange); color: var(--warn-orange); }
+.callout.critical { background: var(--critical-bg); border-color: var(--critical-red); color: var(--critical-red); }
+.callout.success { background: var(--success-bg); border-color: var(--success-green); color: var(--success-green); }
+/* ── MODAL ── */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 200; display: none; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: white; border-radius: 12px; padding: 28px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+.modal h3 { color: var(--dark-green); margin-bottom: 12px; }
+/* ── CHECK RESULTS ── */
+.check-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+.check-item.pass { background: var(--success-bg); }
+.check-item.fail { background: var(--critical-bg); }
+.check-item.warn { background: var(--warn-bg); }
+.check-icon { font-size: 18px; }
+/* ── PACKED SUMMARY ── */
+.packed-summary { background: var(--light-gray); border-radius: 8px; padding: 16px; margin: 12px 0; }
+.packed-summary h4 { font-size: 14px; color: var(--dark-green); margin-bottom: 8px; }
+/* ── VENDOR TABS ── */
+.vendor-tabs { display: flex; gap: 0; margin-bottom: 0; }
+.vendor-tab { padding: 12px 24px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .2s; border-radius: 10px 10px 0 0; }
+.vendor-tab.vz { background: rgba(27,77,62,.15); color: var(--dark-green); }
+.vendor-tab.vz.active { background: var(--dark-green); color: white; }
+.vendor-tab.bp { background: rgba(26,35,126,.15); color: var(--bp-navy); }
+.vendor-tab.bp.active { background: var(--bp-navy); color: white; }
+.vendor-panel { display: none; }
+.vendor-panel.active { display: block; }
+/* ── PS upload list ── */
+.ps-list { list-style: none; margin: 8px 0; }
+.ps-list li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--light-green); border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
+.ps-list li .rma-tag { background: var(--dark-green); color: white; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+.ps-list li .remove-ps { color: var(--alert-red); cursor: pointer; margin-left: auto; font-weight: 700; }
+/* ── MISC ── */
+.empty-state { text-align: center; padding: 48px; color: #999; }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.divider { height: 1px; background: var(--medium-gray); margin: 16px 0; }
+.text-right { text-align: right; }
+.mt-12 { margin-top: 12px; }
+.mb-8 { margin-bottom: 8px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+@media (max-width: 768px) {
+.stats-row { grid-template-columns: repeat(2, 1fr); }
+.form-row { grid-template-columns: 1fr; }
+.container { padding: 12px; }
+}
+</style>
+</head>
+<body>
+<div class="top-bar">
+<div>
+<h1>Victra RMA Shipment Check</h1>
+<div class="subtitle">RecirQ Global — Automated Verification Tool</div>
+</div>
+<div style="display:flex;align-items:center;gap:12px;">
+<div class="nav-tabs">
+<button class="active" onclick="showSection('dashboard')">Dashboard</button>
+<button onclick="showSection('vendor-hub')">Shipment Check</button>
+<button onclick="showSection('history')">History</button>
+</div>
+<button onclick="toggleSlackSettings()" style="background:none;border:none;cursor:pointer;font-size:20px;color:white;opacity:.7;transition:opacity .2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7" title="Slack Settings">&#9881;</button>
+</div>
+</div>
+<!-- ═══ SLACK SETTINGS PANEL ═══ -->
+<div id="slack-settings" style="display:none;background:var(--info-bg);border-bottom:2px solid var(--info-blue);padding:14px 20px;">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+<h3 style="color:var(--info-blue);font-size:14px;">&#128268; Slack Integration Settings</h3>
+<button onclick="toggleSlackSettings()" style="background:none;border:none;cursor:pointer;font-size:16px;color:#888;">&times;</button>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+<div>
+<label style="font-size:12px;font-weight:600;color:#555;">Slack Incoming Webhook URL</label>
+<input type="text" id="slack-webhook-url" placeholder="https://hooks.slack.com/services/T.../B.../..." style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:12px;margin-top:4px;" oninput="saveSlackSettings()">
+<p style="font-size:10px;color:#888;margin-top:2px;">For sending text messages to <b>#victra-rtv-packing</b></p>
+</div>
+<div>
+<label style="font-size:12px;font-weight:600;color:#555;">Slack Bot Token (xoxb-...)</label>
+<input type="password" id="slack-bot-token" placeholder="xoxb-1234567890-..." style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:12px;margin-top:4px;" oninput="saveSlackSettings()">
+<p style="font-size:10px;color:#888;margin-top:2px;">For uploading PDF/CSV files to the channel</p>
+</div>
+</div>
+<div style="margin-top:8px;">
+<label style="font-size:12px;font-weight:600;color:#555;">Slack Channel ID</label>
+<input type="text" id="slack-channel-id" placeholder="C0XXXXXXX" style="width:280px;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:12px;margin-top:4px;" oninput="saveSlackSettings()">
+<p style="font-size:10px;color:#888;margin-top:2px;">Channel ID for file uploads (right-click channel → View channel details → copy ID at bottom)</p>
+</div>
+<div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+<button class="btn btn-sm btn-primary" onclick="testSlackConnection()" style="padding:5px 14px;">Test Connection</button>
+<span id="slack-test-status" style="font-size:12px;"></span>
+</div>
+</div>
+<div class="container">
+<!-- ═══════════ DASHBOARD ═══════════ -->
+<div id="sec-dashboard" class="section active">
+<div class="stats-row" id="stats-row">
+<div class="stat-card"><div class="num" id="stat-total">0</div><div class="label">Total Checks</div></div>
+<div class="stat-card"><div class="num" id="stat-passed" style="color:var(--success-green)">0</div><div class="label">Cleared</div></div>
+<div class="stat-card warn"><div class="num" id="stat-review" style="color:var(--warn-orange)">0</div><div class="label">Needs Review</div></div>
+<div class="stat-card fail"><div class="num" id="stat-failed" style="color:var(--alert-red)">0</div><div class="label">Hard-Stops</div></div>
+</div>
+<!-- Per-vendor summary -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;" id="vendor-summary-row">
+<div class="card" style="padding:16px;">
+<div class="flex-between mb-8">
+<h3><span class="badge badge-verizon">Verizon</span></h3>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--dark-green);" id="vz-tracking-count">0</div><div style="font-size:11px;color:#888;">Tracking #s Checked</div></div>
+<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--success-green);" id="vz-cleared-qty">0</div><div style="font-size:11px;color:#888;">Units Cleared to Ship</div></div>
+</div>
+</div>
+<div class="card" style="padding:16px;">
+<div class="flex-between mb-8">
+<h3><span class="badge badge-brightpoint">Brightpoint</span></h3>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--bp-navy);" id="bp-tracking-count">0</div><div style="font-size:11px;color:#888;">Tracking #s Checked</div></div>
+<div style="text-align:center;"><div style="font-size:22px;font-weight:700;color:var(--success-green);" id="bp-cleared-qty">0</div><div style="font-size:11px;color:#888;">Units Cleared to Ship</div></div>
+</div>
+</div>
+</div>
+<!-- Per-Tracking# Breakdown -->
+<div id="tracking-breakdown-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+<div class="card" style="padding:16px;max-height:280px;overflow-y:auto;">
+<h3 style="margin-bottom:8px;"><span class="badge badge-verizon">VZ</span> Tracking # Breakdown</h3>
+<div id="vz-tracking-detail" style="font-size:13px;"><div style="color:#aaa;text-align:center;padding:12px;">No data yet</div></div>
+</div>
+<div class="card" style="padding:16px;max-height:280px;overflow-y:auto;">
+<h3 style="margin-bottom:8px;"><span class="badge badge-brightpoint">BP</span> Tracking # Breakdown</h3>
+<div id="bp-tracking-detail" style="font-size:13px;"><div style="color:#aaa;text-align:center;padding:12px;">No data yet</div></div>
+</div>
+</div>
+<div class="card">
+<div class="flex-between mb-8">
+<h2>Recent Shipment Checks</h2>
+<button class="btn btn-primary" onclick="showSection('vendor-hub')">+ New Check</button>
+</div>
+<div id="batch-list">
+<div class="empty-state">
+<div class="icon">&#128230;</div>
+<p>No shipment checks yet. Click <b>Shipment Check</b> to start your first verification.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- ═══════════ VENDOR HUB — Two Independent Sections ═══════════ -->
+<div id="sec-vendor-hub" class="section">
+<div class="vendor-tabs">
+<button class="vendor-tab vz active" onclick="switchVendorTab('vz')">Verizon</button>
+<button class="vendor-tab bp" onclick="switchVendorTab('bp')">Brightpoint</button>
+</div>
+<!-- ─── VERIZON PANEL ─── -->
+<div id="panel-vz" class="vendor-panel active" style="background:white;border-radius:0 10px 10px 10px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);margin-bottom:16px;">
+<div id="vz-content"></div>
+</div>
+<!-- ─── BRIGHTPOINT PANEL ─── -->
+<div id="panel-bp" class="vendor-panel" style="background:white;border-radius:0 10px 10px 10px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);margin-bottom:16px;">
+<div id="bp-content"></div>
+</div>
+</div>
+<!-- ═══════════ HISTORY ═══════════ -->
+<div id="sec-history" class="section">
+<div class="card">
+<h2>Check History</h2>
+<div id="history-list">
+<div class="empty-state">
+<div class="icon">&#128197;</div>
+<p>No history yet. Run your first shipment check to see results here.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- ═══ FALLOUT MODAL ═══ -->
+<div class="modal-overlay" id="fallout-modal">
+<div class="modal">
+<h3>Log Fallout Reason</h3>
+<p style="font-size:13px;color:#888;margin-bottom:12px;" id="fallout-imei-display"></p>
+<div class="form-group">
+<label>Reason</label>
+<select id="fallout-reason-select">
+<option value="">Select reason...</option>
+<option value="Wrong Route (Reinspected)">Wrong Route (Reinspected)</option>
+<option value="Scratched Screen">Scratched Screen</option>
+<option value="Cosmetic failure">Cosmetic failure</option>
+<option value="AG">AG</option>
+<option value="CL2">CL2</option>
+<option value="Sold">Sold</option>
+<option value="Liquidate">Liquidate</option>
+</select>
+</div>
+<div class="form-group">
+<label>Notes (optional)</label>
+<input type="text" id="fallout-notes" placeholder="Additional details...">
+</div>
+<div style="display:flex;gap:8px;justify-content:flex-end;">
+<button class="btn btn-outline btn-sm" onclick="closeFalloutModal()">Cancel</button>
+<button class="btn btn-primary btn-sm" onclick="saveFallout()">Save Fallout</button>
+</div>
+</div>
+</div>
+<!-- ═══ ROUTE CORRECTION MODAL ═══ -->
+<div class="modal-overlay" id="route-modal">
+<div class="modal">
+<h3>Correct Route After Inspection</h3>
+<p style="font-size:13px;color:#888;margin-bottom:12px;" id="route-imei-display"></p>
+<div class="form-group">
+<label>Original Route</label>
+<input type="text" id="route-original" disabled style="background:#f5f5f5;">
+</div>
+<div class="form-group">
+<label>Corrected Route</label>
+<select id="route-corrected-select">
+<option value="">Select correct route...</option>
+<option value="Verizon">Verizon</option>
+<option value="Verizon South">Verizon South</option>
+<option value="Pre-RMA Verizon">Pre-RMA Verizon</option>
+<option value="Brightpoint">Brightpoint</option>
+</select>
+</div>
+<div class="form-group">
+<label>Reason for correction</label>
+<input type="text" id="route-correction-notes" placeholder="e.g., Reinspected — correct route confirmed">
+</div>
+<div style="display:flex;gap:8px;justify-content:flex-end;">
+<button class="btn btn-outline btn-sm" onclick="closeRouteModal()">Cancel</button>
+<button class="btn btn-primary btn-sm" onclick="saveRouteCorrection()">Save Correction</button>
+</div>
+</div>
+</div>
+<!-- ═══ PRE-RMA ACTION MODAL ═══ -->
+<div class="modal-overlay" id="prerma-modal">
+<div class="modal">
+<h3>Pre-RMA Aging — Management Decision</h3>
+<p style="font-size:13px;color:#888;margin-bottom:12px;" id="prerma-imei-display"></p>
+<div class="form-group">
+<label>Action</label>
+<select id="prerma-action-select">
+<option value="">Select action...</option>
+<option value="clear">Clear to Ship (management approved)</option>
+<option value="remove">Remove from Pallet (pull unit)</option>
+</select>
+</div>
+<div class="form-group">
+<label>Notes (who approved / reason)</label>
+<input type="text" id="prerma-notes" placeholder="e.g., Approved by [Name] — OK to ship">
+</div>
+<div style="display:flex;gap:8px;justify-content:flex-end;">
+<button class="btn btn-outline btn-sm" onclick="closePreRMAModal()">Cancel</button>
+<button class="btn btn-primary btn-sm" onclick="savePreRMAAction()">Save</button>
+</div>
+</div>
+</div>
+<!-- ═══ PACKING SLIP RMA TAG MODAL ═══ -->
+<div class="modal-overlay" id="ps-rma-modal">
+<div class="modal">
+<h3>Tag Packing Slip to RMA</h3>
+<p style="font-size:13px;color:#888;margin-bottom:12px;" id="ps-file-display"></p>
+<div class="form-group">
+<label>Which RMA# does this packing slip belong to?</label>
+<select id="ps-rma-select">
+<option value="">Select RMA#...</option>
+</select>
+</div>
+<div style="display:flex;gap:8px;justify-content:flex-end;">
+<button class="btn btn-outline btn-sm" onclick="closePSModal()">Cancel</button>
+<button class="btn btn-primary btn-sm" onclick="savePSTag()">Attach to RMA</button>
+</div>
+</div>
+</div>
+<!-- ═══ IMEI MISMATCH RESOLUTION MODAL ═══ -->
+<div class="modal-overlay" id="imei-resolve-modal">
+<div class="modal">
+<h3 style="color:var(--critical-red);">Resolve IMEI Mismatch</h3>
+<p style="font-size:13px;color:#888;margin-bottom:4px;" id="imei-resolve-display"></p>
+<p style="font-size:12px;color:var(--critical-red);margin-bottom:12px;" id="imei-resolve-context"></p>
+<div class="form-group">
+<label>Resolution Reason</label>
+<select id="imei-resolve-reason">
+<option value="">Select reason...</option>
+<option value="Not received">Not received</option>
+<option value="Wrong Route (Reinspected)">Wrong Route (Reinspected)</option>
+<option value="Scratched Screen">Scratched Screen</option>
+<option value="Cosmetic failure">Cosmetic failure</option>
+<option value="AG">AG</option>
+<option value="CL2">CL2</option>
+<option value="Sold">Sold</option>
+<option value="Liquidate">Liquidate</option>
+</select>
+</div>
+<div class="form-group">
+<label>Notes (optional)</label>
+<input type="text" id="imei-resolve-notes" placeholder="Additional details...">
+</div>
+<div style="display:flex;gap:8px;justify-content:flex-end;">
+<button class="btn btn-outline btn-sm" onclick="closeIMEIResolveModal()">Cancel</button>
+<button class="btn btn-primary btn-sm" onclick="saveIMEIResolution()">Resolve Mismatch</button>
+</div>
+</div>
+</div>
+<script>
+// ════════════════════════════════════
+// STATE
+// ════════════════════════════════════
+let vzBatches = []; // Independent Verizon batches
+let bpBatches = []; // Independent Brightpoint batches
+let falloutTarget = null;
+let routeCorrTarget = null;
+let prermaTarget = null;
+let imeiResolveTarget = null; // { batchId, imei, direction, vendor, rmaOrTracking }
+// Upload state per vendor
+let vzUpload = { rmaFile: null, rmaCSV: null, packingSlips: [], shipDate: '' };
+let bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], shipDate: '' };
+// Temp state for PS tagging (Verizon) and submitted IMEI tagging (Brightpoint)
+let pendingPSFile = null;
+// (pendingBPSubFile removed — single-file upload now handled inline)
+// ════════════════════════════════════
+// API PERSISTENCE LAYER
+// ════════════════════════════════════
+const API = '/api';
+async function saveBatchToServer(batch) {
+try {
+const resp = await fetch(`${API}/batches`, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(batch),
+});
+const data = await resp.json();
+return data;
+} catch (e) { console.warn('Save failed:', e); }
+}
+async function deleteBatchFromServer(batchId) {
+try {
+await fetch(`${API}/batches/${batchId}`, { method: 'DELETE' });
+} catch (e) { console.warn('Delete failed:', e); }
+}
+async function updateBatchStatusOnServer(batchId, status, clearedAt, counts) {
+try {
+const payload = { status };
+if (clearedAt) payload.clearedAt = clearedAt;
+if (counts) Object.assign(payload, counts);
+await fetch(`${API}/batches/${batchId}/status`, {
+method: 'PATCH',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(payload),
+});
+} catch (e) { console.warn('Status update failed:', e); }
+}
+async function loadBatchesFromServer() {
+try {
+const resp = await fetch(`${API}/batches`);
+const batches = await resp.json();
+vzBatches = [];
+bpBatches = [];
+batches.forEach(b => {
+b._viewing = false;
+if (b.vendor === 'VERIZON') vzBatches.push(b);
+else bpBatches.push(b);
+});
+refreshDashboard();
+renderVZPanel();
+renderBPPanel();
+} catch (e) { console.warn('Load failed:', e); }
+}
+async function saveSlackSettingsToServer(settings) {
+try {
+await fetch(`${API}/settings`, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(settings),
+});
+} catch (e) { console.warn('Settings save failed:', e); }
+}
+async function loadSlackSettingsFromServer() {
+try {
+const resp = await fetch(`${API}/settings`);
+return await resp.json();
+} catch (e) { return {}; }
+}
+// ════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════
+function showSection(id) {
+document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+document.getElementById('sec-' + id).classList.add('active');
+document.querySelectorAll('.nav-tabs button').forEach(b => b.classList.remove('active'));
+const map = { dashboard: 0, 'vendor-hub': 1, history: 2 };
+if (map[id] >= 0) document.querySelectorAll('.nav-tabs button')[map[id]].classList.add('active');
+if (id === 'dashboard') refreshDashboard();
+if (id === 'history') refreshHistory();
+if (id === 'vendor-hub') { renderVZPanel(); renderBPPanel(); }
+}
+function switchVendorTab(which) {
+document.querySelectorAll('.vendor-tab').forEach(t => t.classList.remove('active'));
+document.querySelectorAll('.vendor-panel').forEach(p => p.classList.remove('active'));
+if (which === 'vz') {
+document.querySelector('.vendor-tab.vz').classList.add('active');
+document.getElementById('panel-vz').classList.add('active');
+} else {
+document.querySelector('.vendor-tab.bp').classList.add('active');
+document.getElementById('panel-bp').classList.add('active');
+}
+}
+// ════════════════════════════════════
+// IMEI NORMALIZATION — strip leading zeros for consistent comparison
+// ════════════════════════════════════
+function normalizeIMEI(imei) {
+if (!imei) return '';
+return imei.toString().trim().replace(/^0+/, '') || '0';
+}
+// ════════════════════════════════════
+// CSV PARSER
+// ════════════════════════════════════
+function parseCSV(text) {
+const lines = text.trim().split('\n');
+if (lines.length < 2) return { headers: [], rows: [] };
+function splitRow(line) {
+const result = [];
+let current = '';
+let inQuotes = false;
+for (let i = 0; i < line.length; i++) {
+const c = line[i];
+if (c === '"') { inQuotes = !inQuotes; continue; }
+if (c === ',' && !inQuotes) { result.push(current.trim()); current = ''; continue; }
+if (c === '\t' && !inQuotes) { result.push(current.trim()); current = ''; continue; }
+current += c;
+}
+result.push(current.trim());
+return result;
+}
+const headers = splitRow(lines[0]);
+const rows = [];
+for (let i = 1; i < lines.length; i++) {
+if (!lines[i].trim()) continue;
+const vals = splitRow(lines[i]);
+const row = {};
+headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+rows.push(row);
+}
+return { headers, rows };
+}
+function readFile(file) {
+return new Promise((resolve, reject) => {
+const reader = new FileReader();
+reader.onload = e => resolve(e.target.result);
+reader.onerror = reject;
+reader.readAsText(file);
+});
+}
+// Read file as CSV object — auto-detects XLSX vs CSV/TSV
+function readFileAsCSV(file) {
+return new Promise((resolve, reject) => {
+const isXLSX = file.name.match(/\.xlsx?$/i) || file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const reader = new FileReader();
+reader.onerror = reject;
+reader.onload = e => {
+try {
+if (isXLSX || isXLSXBinary(e.target.result)) {
+// Parse as XLSX using SheetJS
+const data = new Uint8Array(e.target.result);
+const workbook = XLSX.read(data, { type: 'array' });
+const sheetName = workbook.SheetNames[0];
+const sheet = workbook.Sheets[sheetName];
+const csvText = XLSX.utils.sheet_to_csv(sheet);
+resolve(parseCSV(csvText));
+} else {
+// Parse as plain text CSV/TSV
+const decoder = new TextDecoder('utf-8');
+const text = decoder.decode(e.target.result);
+resolve(parseCSV(text));
+}
+} catch (err) {
+reject(err);
+}
+};
+reader.readAsArrayBuffer(file);
+});
+}
+// Detect if an ArrayBuffer contains XLSX (ZIP) magic bytes
+function isXLSXBinary(buffer) {
+const arr = new Uint8Array(buffer);
+// ZIP magic number: PK (0x50 0x4B)
+return arr.length > 4 && arr[0] === 0x50 && arr[1] === 0x4B;
+}
+// ════════════════════════════════════
+// COLUMN MAPPING
+// ════════════════════════════════════
+function findCol(headers, candidates) {
+for (const c of candidates) {
+const found = headers.find(h => h.toLowerCase().replace(/[^a-z0-9]/g, '').includes(c.toLowerCase().replace(/[^a-z0-9]/g, '')));
+if (found) return found;
+}
+return null;
+}
+function mapRMAColumns(headers) {
+return {
+route: findCol(headers, ['Route', 'route']),
+sku: findCol(headers, ['SKU', 'sku']),
+purchaseDate: findCol(headers, ['Purchase Date', 'PurchaseDate']),
+processedDate: findCol(headers, ['Processed Date', 'ProcessedDate']),
+imei: findCol(headers, ['RecirQ ESN', 'IMEI', 'ESN', 'RecirQESN']),
+transferId: findCol(headers, ['Transfer ID', 'TransferID']),
+trackingIn: findCol(headers, ['Tracking # In', 'Tracking In', 'TrackingIn']),
+box: findCol(headers, ['Box']),
+cable: findCol(headers, ['Cable']),
+wallCharger: findCol(headers, ['Wall Charger', 'WallCharger']),
+conditionCheck: findCol(headers, ['Condition Check', 'ConditionCheck']),
+datawipeStatus: findCol(headers, ['Datawipe Status', 'DatawipeStatus']),
+finalDescription: findCol(headers, ['Final Description', 'FinalDescription']),
+finalDisposition: findCol(headers, ['Final Disposition', 'FinalDisposition']),
+rmaNumber: findCol(headers, ['RMA#', 'RMA', 'RMANumber']),
+deliveryNumber: findCol(headers, ['Delivery #', 'Delivery Number', 'DeliveryNumber']),
+submissionDate: findCol(headers, ['RMA Submission Date', 'Submission Date', 'SubmissionDate']),
+trackingOut: findCol(headers, ['Tracking # Out', 'Tracking Out', 'TrackingOut']),
+shipDate: findCol(headers, ['Ship date', 'Ship Date', 'ShipDate']),
+};
+}
+function mapPSColumns(headers) {
+return {
+imei: findCol(headers, ['Device ID', 'IMEI', 'DeviceID', 'RecirQ ESN']),
+rmaNumber: findCol(headers, ['RMA Number', 'RMA#', 'RMA']),
+origSalesDate: findCol(headers, ['Orig. Sales Date', 'OrigSalesDate', 'Sales Date']),
+origShipDate: findCol(headers, ['Orig. Ship Date', 'OrigShipDate', 'Ship Date']),
+rmaDate: findCol(headers, ['RMA Date', 'RMADate']),
+deliveryNumber: findCol(headers, ['Delivery #', 'Delivery Number', 'DeliveryNumber', 'Delivery']),
+};
+}
+// ════════════════════════════════════
+// VERIFICATION ENGINE
+// ════════════════════════════════════
+function checkRoutes(units, vendor) {
+const results = [];
+const vendorLower = vendor.toLowerCase();
+units.forEach(u => {
+const route = (u.route || '').toLowerCase();
+const isValid = route.includes(vendorLower) || (vendor === 'VERIZON' && route.includes('pre-rma verizon'));
+u.routeStatus = isValid ? 'PASS' : 'FAIL';
+if (!isValid) {
+u.hardStop = true;
+u.hardStopReason = `Wrong route: "${u.route}" on ${vendor} tab`;
+results.push({ imei: u.imei, route: u.route, status: 'FAIL', reason: u.hardStopReason });
+} else {
+results.push({ imei: u.imei, route: u.route, status: 'PASS' });
+}
+});
+return results;
+}
+function checkPreRMAAging(units, shipDate) {
+const results = [];
+const shipDt = new Date(shipDate);
+units.forEach(u => {
+if (!u.submissionDate) { u.agingStatus = 'N/A'; return; }
+const subDt = new Date(u.submissionDate);
+if (isNaN(subDt.getTime())) { u.agingStatus = 'N/A'; return; }
+const days = Math.floor((shipDt - subDt) / (1000 * 60 * 60 * 24));
+u.daysSinceSubmission = days;
+const isPreRMA = (u.route || '').toLowerCase().includes('pre-rma');
+if (isPreRMA && days > 60) {
+u.agingStatus = 'FAIL';
+u.hardStop = true;
+u.hardStopReason = `Pre-RMA aged ${days} days (limit: 60)`;
+results.push({ imei: u.imei, rma: u.rmaNumber, days, status: 'FAIL' });
+} else if (isPreRMA && days > 50) {
+u.agingStatus = 'WARNING';
+results.push({ imei: u.imei, rma: u.rmaNumber, days, status: 'WARNING' });
+} else {
+u.agingStatus = 'PASS';
+}
+});
+return results;
+}
+function checkVerizonQuantities(units, packingSlips) {
+const packedByRMA = {};
+units.forEach(u => {
+if (!packedByRMA[u.rmaNumber]) packedByRMA[u.rmaNumber] = [];
+packedByRMA[u.rmaNumber].push(u);
+});
+const portalByRMA = {};
+packingSlips.forEach(ps => {
+if (!portalByRMA[ps.rmaNumber]) portalByRMA[ps.rmaNumber] = [];
+portalByRMA[ps.rmaNumber].push(ps);
+});
+const results = [];
+const allRMAs = new Set([...Object.keys(packedByRMA), ...Object.keys(portalByRMA)]);
+allRMAs.forEach(rma => {
+const packed = (packedByRMA[rma] || []).length;
+const portal = (portalByRMA[rma] || []).length;
+results.push({ rma, packedQty: packed, portalQty: portal, match: packed === portal, diff: packed - portal });
+});
+return results;
+}
+// NEW: Per-RMA IMEI-level cross-check for Verizon
+function checkVerizonIMEIMatch(units, packingSlips) {
+// Group packed IMEIs by RMA (normalized for comparison)
+const packedByRMA = {};
+units.forEach(u => {
+if (!packedByRMA[u.rmaNumber]) packedByRMA[u.rmaNumber] = new Set();
+packedByRMA[u.rmaNumber].add(normalizeIMEI(u.imei));
+});
+// Group packing slip IMEIs by RMA (normalized)
+const psByRMA = {};
+packingSlips.forEach(ps => {
+if (!psByRMA[ps.rmaNumber]) psByRMA[ps.rmaNumber] = new Set();
+psByRMA[ps.rmaNumber].add(normalizeIMEI(ps.imei));
+});
+const results = [];
+const allRMAs = new Set([...Object.keys(packedByRMA), ...Object.keys(psByRMA)]);
+allRMAs.forEach(rma => {
+const packed = packedByRMA[rma] || new Set();
+const ps = psByRMA[rma] || new Set();
+// IMEIs in packed but NOT in packing slip for this RMA
+const inPackedNotPS = [...packed].filter(imei => !ps.has(imei));
+// IMEIs in packing slip but NOT packed for this RMA
+const inPSNotPacked = [...ps].filter(imei => !packed.has(imei));
+// Matched
+const matched = [...packed].filter(imei => ps.has(imei));
+const isMatch = inPackedNotPS.length === 0 && inPSNotPacked.length === 0;
+results.push({
+rma,
+packedCount: packed.size,
+psCount: ps.size,
+matchedCount: matched.length,
+inPackedNotPS,
+inPSNotPacked,
+matched,
+isMatch,
+});
+});
+// Mark units with IMEI match hard-stop
+units.forEach(u => {
+const rmaResult = results.find(r => r.rma === u.rmaNumber);
+if (rmaResult && !rmaResult.isMatch) {
+const isMissing = rmaResult.inPackedNotPS.includes(normalizeIMEI(u.imei));
+if (isMissing) {
+u.imeiMismatch = true;
+u.imeiMismatchReason = `IMEI in PACKED but not on packing slip for RMA ${u.rmaNumber}`;
+if (!u.hardStop) {
+u.hardStop = true;
+u.hardStopReason = u.imeiMismatchReason;
+}
+}
+}
+});
+return results;
+}
+function checkBrightpointIMEIs(packedUnits, submittedIMEIs) {
+const packedSet = new Set(packedUnits.map(u => normalizeIMEI(u.imei)));
+const submittedSet = new Set(submittedIMEIs.map(i => normalizeIMEI(i)));
+const matched = [], unpackedSubmitted = [], extraPacked = [];
+submittedIMEIs.forEach(imei => {
+if (packedSet.has(normalizeIMEI(imei))) matched.push(imei); else unpackedSubmitted.push(imei);
+});
+packedUnits.forEach(u => {
+if (!submittedSet.has(normalizeIMEI(u.imei))) extraPacked.push(u.imei);
+});
+return { matched, unpackedSubmitted, extraPacked };
+}
+// NEW: Per-Tracking# IMEI cross-check for Brightpoint
+function checkBrightpointIMEIMatch(units, submittedFiles) {
+// Group packed IMEIs by Tracking # Out (normalized for comparison)
+const packedByTracking = {};
+units.forEach(u => {
+const tk = u.trackingOut || 'NO_TRACKING';
+if (!packedByTracking[tk]) packedByTracking[tk] = new Set();
+packedByTracking[tk].add(normalizeIMEI(u.imei));
+});
+// Group submitted IMEIs by Tracking # (normalized)
+const subByTracking = {};
+submittedFiles.forEach(sf => {
+if (!subByTracking[sf.trackingNumber]) subByTracking[sf.trackingNumber] = new Set();
+sf.imeis.forEach(imei => subByTracking[sf.trackingNumber].add(normalizeIMEI(imei)));
+});
+const results = [];
+const allTrackings = new Set([...Object.keys(packedByTracking), ...Object.keys(subByTracking)]);
+allTrackings.forEach(tk => {
+const packed = packedByTracking[tk] || new Set();
+const sub = subByTracking[tk] || new Set();
+const inPackedNotSub = [...packed].filter(imei => !sub.has(imei));
+const inSubNotPacked = [...sub].filter(imei => !packed.has(imei));
+const matched = [...packed].filter(imei => sub.has(imei));
+const isMatch = inPackedNotSub.length === 0 && inSubNotPacked.length === 0;
+results.push({
+trackingNumber: tk,
+packedCount: packed.size,
+subCount: sub.size,
+matchedCount: matched.length,
+inPackedNotSub,
+inSubNotPacked,
+matched,
+isMatch,
+});
+});
+// Mark units with IMEI match hard-stop
+units.forEach(u => {
+const tk = u.trackingOut || 'NO_TRACKING';
+const tkResult = results.find(r => r.trackingNumber === tk);
+if (tkResult && !tkResult.isMatch) {
+const isMissing = tkResult.inPackedNotSub.includes(normalizeIMEI(u.imei));
+if (isMissing) {
+u.imeiMismatch = true;
+u.imeiMismatchReason = `IMEI packed but not in submitted file for Tracking ${tk}`;
+if (!u.hardStop) {
+u.hardStop = true;
+u.hardStopReason = u.imeiMismatchReason;
+}
+}
+}
+});
+return results;
+}
+// ════════════════════════════════════
+// VERIZON PANEL — Upload + Results
+// ════════════════════════════════════
+function renderVZPanel() {
+const el = document.getElementById('vz-content');
+// Check if there's an active batch being reviewed
+const activeBatch = vzBatches.find(b => b._viewing);
+if (activeBatch) {
+el.innerHTML = renderVZResults(activeBatch);
+return;
+}
+let html = `<h2><span class="badge badge-verizon">Verizon</span> Shipment Check</h2>
+<p style="font-size:13px;color:#888;margin-bottom:16px;">Upload Verizon RMA data and packing slips (one per RMA). The app cross-checks every IMEI.</p>`;
+// Ship date
+html += `<div class="form-row">
+<div class="form-group">
+<label>Ship Date</label>
+<input type="date" id="vz-ship-date" value="${vzUpload.shipDate}" onchange="vzUpload.shipDate=this.value;checkVZReady()">
+</div>
+<div class="form-group"><label>&nbsp;</label><div style="padding-top:10px;font-size:12px;color:#888;">All checks will use this date for Pre-RMA aging.</div></div>
+</div>`;
+// RMA Data upload
+html += `<h3 style="margin:16px 0 8px;">Step 1: Upload RMA Submissions CSV</h3>
+<div class="form-group">
+<div class="upload-zone ${vzUpload.rmaFile ? 'active' : ''}" onclick="document.getElementById('vz-rma-input').click()">
+<div class="icon">&#128196;</div>
+<p>Click to upload Verizon tab export</p>
+<div class="file-name">${vzUpload.rmaFile ? vzUpload.rmaFile.name : ''}</div>
+</div>
+<input type="file" id="vz-rma-input" accept=".csv,.tsv,.txt" style="display:none" onchange="handleVZRma(this)">
+</div>`;
+// Packing Slips — one per RMA
+html += `<h3 style="margin:16px 0 8px;">Step 2: Upload Packing Slips (one file per RMA)</h3>
+<div class="callout info"><b>Each packing slip file corresponds to one RMA.</b> Upload one at a time — you will be asked to tag each file to its RMA#.</div>`;
+// Expected RMA checklist (only show after RMA CSV is uploaded)
+if (vzUpload.rmaCSV) {
+const colMap = mapRMAColumns(vzUpload.rmaCSV.headers);
+const expectedRMAs = [...new Set(vzUpload.rmaCSV.rows.map(r => r[colMap.rmaNumber]).filter(Boolean))];
+const uploadedRMAs = new Set(vzUpload.packingSlips.map(ps => ps.rmaNumber));
+const allUploaded = expectedRMAs.length > 0 && expectedRMAs.every(rma => uploadedRMAs.has(rma));
+html += `<div style="background:${allUploaded ? 'var(--pass-bg)' : '#f8f9fa'};border:1px solid ${allUploaded ? 'var(--success-green)' : '#e0e0e0'};border-radius:8px;padding:12px 16px;margin:10px 0;">
+<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:6px;">Expected packing slips (${uploadedRMAs.size}/${expectedRMAs.length}):</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;">`;
+expectedRMAs.forEach(rma => {
+const done = uploadedRMAs.has(rma);
+const unitCount = vzUpload.rmaCSV.rows.filter(r => r[colMap.rmaNumber] === rma).length;
+html += `<div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-size:12px;background:${done ? 'var(--pass-bg)' : 'white'};border:1px solid ${done ? 'var(--success-green)' : '#ccc'};">
+<span style="font-size:14px;">${done ? '&#9989;' : '&#9723;'}</span>
+<span style="font-weight:600;">${rma}</span>
+<span style="color:#888;font-size:11px;">(${unitCount} units)</span>
+</div>`;
+});
+html += `</div></div>`;
+}
+// List of attached packing slips
+if (vzUpload.packingSlips.length > 0) {
+html += `<ul class="ps-list">`;
+vzUpload.packingSlips.forEach((ps, i) => {
+html += `<li><span class="rma-tag">RMA: ${ps.rmaNumber}</span> ${ps.fileName} <span style="color:#888;font-size:11px;">(${ps.entries.length} IMEIs)</span>
+<span class="remove-ps" onclick="removeVZPS(${i})" title="Remove">&times;</span></li>`;
+});
+html += `</ul>`;
+} else if (vzUpload.rmaCSV) {
+html += `<p style="font-size:12px;color:#999;margin:8px 0;">No packing slips uploaded yet. Upload one for each RMA above.</p>`;
+} else {
+html += `<p style="font-size:12px;color:#999;margin:8px 0;">No packing slips uploaded yet.</p>`;
+}
+html += `<div class="form-group" style="margin-top:8px;">
+<div class="upload-zone" onclick="document.getElementById('vz-ps-input').click()" style="padding:18px;">
+<div class="icon" style="font-size:24px;">&#10133;</div>
+<p style="font-size:13px;">Add Packing Slip</p>
+</div>
+<input type="file" id="vz-ps-input" accept=".csv,.tsv,.txt" style="display:none" onchange="handleVZPSUpload(this)">
+</div>`;
+// Run button
+html += `<div class="divider"></div>
+<div class="text-right">
+<button class="btn btn-primary" id="vz-run-btn" onclick="runVZVerification()" disabled>Run Verizon Check</button>
+</div>`;
+el.innerHTML = html;
+checkVZReady();
+}
+async function handleVZRma(input) {
+if (!input.files.length) return;
+vzUpload.rmaFile = input.files[0];
+// Pre-parse to extract RMA numbers for the PS tagging modal
+const text = await readFile(input.files[0]);
+vzUpload.rmaCSV = parseCSV(text);
+renderVZPanel();
+}
+async function handleVZPSUpload(input) {
+if (!input.files.length) return;
+pendingPSFile = input.files[0];
+input.value = '';
+// If no RMA data uploaded yet, can't tag
+if (!vzUpload.rmaCSV) {
+alert('Please upload the RMA Submissions CSV first so the app can detect available RMA numbers.');
+return;
+}
+// Get unique RMAs from the RMA data
+const colMap = mapRMAColumns(vzUpload.rmaCSV.headers);
+const rmaNumbers = [...new Set(vzUpload.rmaCSV.rows.map(r => r[colMap.rmaNumber]).filter(Boolean))];
+// Also try to auto-detect RMA from the packing slip content
+const psText = await readFile(pendingPSFile);
+const psCSV = parseCSV(psText);
+const psMap = mapPSColumns(psCSV.headers);
+let detectedRMA = null;
+if (psMap.rmaNumber) {
+const rmasInPS = [...new Set(psCSV.rows.map(r => r[psMap.rmaNumber]).filter(Boolean))];
+if (rmasInPS.length === 1) detectedRMA = rmasInPS[0];
+}
+// Store parsed PS data for later
+pendingPSFile._parsed = psCSV;
+pendingPSFile._psMap = psMap;
+// Populate modal
+document.getElementById('ps-file-display').textContent = `File: ${pendingPSFile.name}`;
+const select = document.getElementById('ps-rma-select');
+select.innerHTML = '<option value="">Select RMA#...</option>';
+rmaNumbers.forEach(rma => {
+const opt = document.createElement('option');
+opt.value = rma;
+opt.textContent = rma;
+if (detectedRMA && rma === detectedRMA) opt.selected = true;
+select.appendChild(opt);
+});
+// If auto-detected, pre-select
+if (detectedRMA) select.value = detectedRMA;
+document.getElementById('ps-rma-modal').classList.add('show');
+}
+function closePSModal() {
+document.getElementById('ps-rma-modal').classList.remove('show');
+pendingPSFile = null;
+}
+function savePSTag() {
+const rma = document.getElementById('ps-rma-select').value;
+if (!rma) { alert('Please select which RMA# this packing slip belongs to.'); return; }
+const psCSV = pendingPSFile._parsed;
+const psMap = pendingPSFile._psMap;
+const entries = psCSV.rows.map(r => ({
+imei: r[psMap.imei] || '',
+rmaNumber: rma,
+deliveryNumber: psMap.deliveryNumber ? (r[psMap.deliveryNumber] || '') : '',
+})).filter(e => e.imei);
+// Extract delivery # (take first non-empty value from the file)
+const deliveryNumber = entries.find(e => e.deliveryNumber)?.deliveryNumber || '';
+vzUpload.packingSlips.push({
+rmaNumber: rma,
+fileName: pendingPSFile.name,
+deliveryNumber,
+entries,
+});
+closePSModal();
+renderVZPanel();
+}
+function removeVZPS(index) {
+vzUpload.packingSlips.splice(index, 1);
+renderVZPanel();
+}
+function checkVZReady() {
+const btn = document.getElementById('vz-run-btn');
+if (btn) btn.disabled = !(vzUpload.shipDate && vzUpload.rmaFile);
+}
+async function runVZVerification() {
+if (!vzUpload.rmaFile || !vzUpload.shipDate) return;
+const csv = vzUpload.rmaCSV || parseCSV(await readFile(vzUpload.rmaFile));
+const colMap = mapRMAColumns(csv.headers);
+const units = csv.rows.map((r, i) => ({
+index: i,
+route: r[colMap.route] || '',
+sku: r[colMap.sku] || '',
+imei: r[colMap.imei] || '',
+rmaNumber: r[colMap.rmaNumber] || '',
+submissionDate: r[colMap.submissionDate] || '',
+trackingOut: r[colMap.trackingOut] || '',
+routeStatus: null, agingStatus: null, hardStop: false, hardStopReason: null,
+falloutReason: null, falloutNotes: null,
+imeiMismatch: false, imeiMismatchReason: null,
+_raw: r,
+}));
+// Flatten all packing slip entries & build delivery # lookup
+const allPS = [];
+const deliveryByRMA = {};
+vzUpload.packingSlips.forEach(ps => {
+ps.entries.forEach(e => allPS.push(e));
+if (ps.deliveryNumber) deliveryByRMA[ps.rmaNumber] = ps.deliveryNumber;
+});
+// Run checks
+const routeResults = checkRoutes(units, 'VERIZON');
+const agingResults = checkPreRMAAging(units, vzUpload.shipDate);
+const qtyResults = allPS.length > 0 ? checkVerizonQuantities(units, allPS) : [];
+const imeiMatchResults = allPS.length > 0 ? checkVerizonIMEIMatch(units, allPS) : [];
+const batch = {
+id: Date.now(),
+vendor: 'VERIZON',
+shipDate: vzUpload.shipDate,
+createdAt: new Date().toISOString(),
+status: 'PENDING',
+_vzHeaders: csv.headers,
+_viewing: true,
+units,
+packingSlips: allPS,
+deliveryByRMA,
+packingSlipFiles: vzUpload.packingSlips.map(ps => ({ rma: ps.rmaNumber, name: ps.fileName, count: ps.entries.length })),
+routeResults,
+agingResults,
+qtyResults,
+imeiMatchResults,
+routeFailCount: routeResults.filter(r => r.status === 'FAIL').length,
+agingFailCount: agingResults.filter(r => r.status === 'FAIL').length,
+qtyMismatchCount: qtyResults.filter(r => !r.match).length,
+imeiMismatchCount: imeiMatchResults.filter(r => !r.isMatch).length,
+hardStopCount: units.filter(u => u.hardStop).length,
+};
+// Determine status
+batch.status = batch.hardStopCount > 0 || batch.imeiMismatchCount > 0 ? 'HARD-STOP' :
+batch.qtyMismatchCount > 0 ? 'REVIEW' : 'PASS';
+// Clear any other viewing flags
+vzBatches.forEach(b => b._viewing = false);
+vzBatches.unshift(batch);
+// Save to server
+saveBatchToServer(batch);
+// Reset upload state
+vzUpload = { rmaFile: null, rmaCSV: null, packingSlips: [], shipDate: '' };
+renderVZPanel();
+}
+function renderVZResults(batch) {
+let html = '';
+const statusClass = batch.status === 'PASS' || batch.status === 'CLEARED' ? 'pass' : batch.status === 'HARD-STOP' ? 'fail' : 'review';
+// Header
+html += `<div class="flex-between mb-8">
+<div>
+<h2><span class="badge badge-verizon">Verizon</span> Shipment Check: ${batch.shipDate}</h2>
+<p style="font-size:12px;color:#888;">${new Date(batch.createdAt).toLocaleString()}</p>
+</div>
+<span class="badge badge-${statusClass}" style="font-size:14px;padding:6px 16px;">${batch.status}</span>
+</div>`;
+// Automated Checks Summary
+html += `<div style="margin-bottom:16px;">`;
+html += renderCheckItem('Route Verification', batch.routeFailCount === 0 ? 'pass' : 'fail',
+batch.routeFailCount === 0 ? 'All routes are valid Verizon routes' : `${batch.routeFailCount} invalid route(s) — HARD-STOP`);
+html += renderCheckItem('Pre-RMA 60-Day Rule', batch.agingFailCount === 0 ? 'pass' : 'fail',
+batch.agingFailCount === 0 ? 'No expired Pre-RMAs' : `${batch.agingFailCount} Pre-RMA(s) exceed 60 days — HARD-STOP`);
+if (batch.qtyResults.length > 0) {
+html += renderCheckItem('QTY Match (PACKED vs Portal)', batch.qtyMismatchCount === 0 ? 'pass' : 'warn',
+batch.qtyMismatchCount === 0 ? 'All RMA quantities match' : `${batch.qtyMismatchCount} RMA(s) with quantity mismatch`);
+} else {
+html += renderCheckItem('QTY Match', 'warn', 'No packing slips uploaded — skipped');
+}
+if (batch.imeiMatchResults.length > 0) {
+const origMismatch = batch.imeiMatchResults.filter(r => !r.isMatch).length;
+const resolvedAll = origMismatch > 0 && batch.imeiMismatchCount === 0;
+const statusLevel = batch.imeiMismatchCount === 0 ? 'pass' : 'fail';
+const statusMsg = batch.imeiMismatchCount === 0
+? (resolvedAll ? `All IMEI mismatches resolved (${origMismatch} RMA(s) had mismatches)` : 'All IMEIs match their packing slips')
+: `${batch.imeiMismatchCount} RMA(s) with IMEI mismatch — HARD-STOP`;
+html += renderCheckItem('IMEI Cross-Check (Packed vs Packing Slip per RMA)', statusLevel, statusMsg);
+}
+html += `</div>`;
+// PACKED Summary
+html += renderPackedSummary(batch);
+// Unit detail table
+html += renderVerizonDetail(batch);
+// QTY Match
+if (batch.qtyResults.length > 0) html += renderQtyMatchTable(batch);
+// IMEI Mismatch Report (if any)
+if (batch.imeiMatchResults && batch.imeiMatchResults.some(r => !r.isMatch)) html += renderIMEIMismatchReport(batch);
+// Ship Advice Reports
+const isCleared = batch.status === 'CLEARED';
+html += `<div style="margin-top:16px;">
+<h3>&#128196; Ship Advice Reports</h3>
+${!isCleared ? '<p style="font-size:13px;color:#888;margin-bottom:12px;">Clear the shipment first to download reports.</p>' : '<p style="font-size:13px;color:var(--success-green);margin-bottom:12px;">Cleared — reports ready.</p>'}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+<button class="btn btn-outline" onclick="downloadVerizonUnits('${batch.id}')" ${!isCleared ? 'disabled' : ''} style="justify-content:center;">
+&#128203; Verizon Units</button>
+${batch.qtyResults.length > 0 ? `<button class="btn btn-outline" onclick="downloadVerizonQtyMatch('${batch.id}')" ${!isCleared ? 'disabled' : ''} style="justify-content:center;">
+&#128202; Verizon QTY Match</button>` : ''}
+${batch.units.some(u => isRemoved(u)) ? `<button class="btn btn-outline" onclick="downloadVerizonRemoved('${batch.id}')" ${!isCleared ? 'disabled' : ''} style="justify-content:center;">
+&#128683; Removed Units</button>` : ''}
+</div>
+</div>`;
+// Actions
+html += `<div class="divider"></div>
+<div class="flex-between">
+<div style="display:flex;gap:8px;">
+<button class="btn btn-outline" onclick="closeVZBatch('${batch.id}')">&#8592; New Verizon Check</button>
+<button class="btn btn-outline" onclick="deleteBatch('${batch.id}','VERIZON')" style="border-color:var(--alert-red);color:var(--alert-red);">&#128465; Delete Check</button>
+</div>
+<div style="display:flex;gap:8px;">
+<button class="btn btn-outline" onclick="copySlackMessage('${batch.id}','vz')">Copy Slack Message</button>
+<button class="btn btn-outline" id="share-slack-btn-${batch.id}" onclick="shareToSlack('${batch.id}')" style="border-color:var(--info-blue);color:var(--info-blue);">&#128268; Share to Slack</button>
+<button class="btn btn-success" onclick="clearVZBatch('${batch.id}')" ${batch.status === 'HARD-STOP' ? 'disabled title="Cannot clear — hard-stops detected"' : batch.status === 'CLEARED' ? 'disabled title="Already cleared"' : ''}>Clear to Ship</button>
+</div>
+</div>`;
+return html;
+}
+// ════════════════════════════════════
+// BRIGHTPOINT PANEL — Upload + Results
+// ════════════════════════════════════
+function renderBPPanel() {
+const el = document.getElementById('bp-content');
+const activeBatch = bpBatches.find(b => b._viewing);
+if (activeBatch) {
+el.innerHTML = renderBPResults(activeBatch);
+return;
+}
+let html = `<h2><span class="badge badge-brightpoint">Brightpoint</span> Shipment Check</h2>
+<p style="font-size:13px;color:#888;margin-bottom:16px;">Upload Brightpoint RMA data and submitted IMEI files (one per tracking #). The app cross-checks every IMEI per tracking number.</p>`;
+html += `<div class="form-row">
+<div class="form-group">
+<label>Ship Date</label>
+<input type="date" id="bp-ship-date" value="${bpUpload.shipDate}" onchange="bpUpload.shipDate=this.value;checkBPReady()">
+</div>
+<div class="form-group"><label>&nbsp;</label><div style="padding-top:10px;font-size:12px;color:#888;">Used for Pre-RMA aging check.</div></div>
+</div>`;
+// Step 1: RMA data
+html += `<h3 style="margin:16px 0 8px;">Step 1: Upload RMA Submissions CSV</h3>
+<div class="form-group">
+<div class="upload-zone ${bpUpload.rmaFile ? 'active' : ''}" onclick="document.getElementById('bp-rma-input').click()">
+<div class="icon">&#128196;</div>
+<p>Click to upload Brightpoint tab export</p>
+<div class="file-name">${bpUpload.rmaFile ? bpUpload.rmaFile.name : ''}</div>
+</div>
+<input type="file" id="bp-rma-input" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none" onchange="handleBPRma(this)">
+</div>`;
+// Step 2: Submitted RMA Request file (single CSV with Serial# and RMAs columns)
+html += `<h3 style="margin:16px 0 8px;">Step 2: Upload Submitted IMEI File</h3>
+<div class="callout info"><b>Upload the Victra RMA Request CSV</b> containing all submitted devices. Expected columns: <code>Serial#</code> (IMEI) and <code>RMAs</code> (RMA number). The app will auto-match each IMEI to its Tracking # via the RMA mapping from Step 1.</div>`;
+if (bpUpload.submittedFile) {
+const sf = bpUpload.submittedFile;
+html += `<div style="background:var(--pass-bg);border:1px solid var(--success-green);border-radius:8px;padding:12px 16px;margin:10px 0;">
+<div style="display:flex;align-items:center;justify-content:space-between;">
+<div>
+<span style="font-size:14px;">&#9989;</span>
+<span style="font-weight:600;margin-left:4px;">${sf.fileName}</span>
+<span style="color:#888;font-size:11px;margin-left:8px;">(${sf.totalIMEIs} IMEIs across ${sf.trackingCount} Tracking #s)</span>
+</div>
+<span class="remove-ps" onclick="removeBPSubFile()" title="Remove" style="cursor:pointer;font-size:18px;color:#c00;">&times;</span>
+</div>`;
+if (sf.unmatchedRMAs && sf.unmatchedRMAs.length > 0) {
+html += `<div style="margin-top:8px;padding:8px 12px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;font-size:12px;">
+<b>&#9888; ${sf.unmatchedRMAs.length} RMA(s) in submitted file not found in Step 1 data:</b>
+<div style="margin-top:4px;color:#856404;">${sf.unmatchedRMAs.join(', ')}</div>
+</div>`;
+}
+html += `</div>`;
+} else {
+html += `<p style="font-size:12px;color:#999;margin:8px 0;">No submitted IMEI file uploaded yet.</p>`;
+}
+html += `<div class="form-group" style="margin-top:8px;">
+<div class="upload-zone" onclick="document.getElementById('bp-sub-input').click()" style="padding:18px;">
+<div class="icon" style="font-size:24px;">${bpUpload.submittedFile ? '&#128260;' : '&#10133;'}</div>
+<p style="font-size:13px;">${bpUpload.submittedFile ? 'Replace Submitted IMEI File' : 'Upload Submitted IMEI File'}</p>
+</div>
+<input type="file" id="bp-sub-input" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none" onchange="handleBPSubUpload(this)">
+</div>`;
+html += `<div class="divider"></div>
+<div class="text-right">
+<button class="btn btn-primary" id="bp-run-btn" onclick="runBPVerification()" disabled>Run Brightpoint Check</button>
+</div>`;
+el.innerHTML = html;
+checkBPReady();
+}
+async function handleBPRma(input) {
+if (!input.files.length) return;
+bpUpload.rmaFile = input.files[0];
+bpUpload.rmaCSV = await readFileAsCSV(input.files[0]);
+renderBPPanel();
+}
+async function handleBPSubUpload(input) {
+if (!input.files.length) return;
+const file = input.files[0];
+input.value = '';
+if (!bpUpload.rmaCSV) {
+alert('Please upload the RMA Submissions CSV first so the app can map RMAs to Tracking numbers.');
+return;
+}
+// Parse the submitted file (supports CSV, TSV, and XLSX)
+const subCSV = await readFileAsCSV(file);
+// Find columns: Serial# (IMEI) and RMAs (RMA number)
+const imeiCol = findCol(subCSV.headers, ['Serial#', 'Serial', 'IMEI', 'ESN', 'RecirQ ESN', 'DeviceID']);
+const rmaCol = findCol(subCSV.headers, ['RMAs', 'RMA', 'RMA#', 'RMANumber']);
+if (!imeiCol) {
+alert('Could not find an IMEI/Serial# column in the submitted file.\nExpected column names: Serial#, Serial, IMEI, ESN, DeviceID');
+return;
+}
+// Build RMA → Tracking # mapping from Step 1 data
+const colMap = mapRMAColumns(bpUpload.rmaCSV.headers);
+const rmaToTracking = {};
+bpUpload.rmaCSV.rows.forEach(r => {
+const rma = (r[colMap.rmaNumber] || '').trim();
+const tk = (r[colMap.trackingOut] || '').trim();
+if (rma && tk) rmaToTracking[rma] = tk;
+});
+// Group submitted IMEIs by Tracking # via RMA mapping
+const byTracking = {};
+const allIMEIs = [];
+const unmatchedRMAs = [];
+subCSV.rows.forEach(r => {
+const imei = (r[imeiCol] || '').toString().trim();
+if (!imei) return;
+allIMEIs.push(imei);
+const rma = rmaCol ? (r[rmaCol] || '').toString().trim() : '';
+const tracking = rma ? rmaToTracking[rma] : null;
+if (tracking) {
+if (!byTracking[tracking]) byTracking[tracking] = [];
+byTracking[tracking].push(imei);
+} else if (rma) {
+// RMA exists in file but not found in Step 1
+if (!unmatchedRMAs.includes(rma)) unmatchedRMAs.push(rma);
+// Still add to a catch-all bucket so they appear in the overall check
+if (!byTracking['_UNMATCHED']) byTracking['_UNMATCHED'] = [];
+byTracking['_UNMATCHED'].push(imei);
+}
+});
+// Build submittedFiles array (grouped by tracking) for compatibility with existing match logic
+// Include _UNMATCHED as "UNMATCHED RMA" so they appear in the cross-check report
+const submittedFiles = [];
+Object.keys(byTracking).forEach(tk => {
+const label = tk === '_UNMATCHED' ? 'UNMATCHED RMA (submitted but RMA not in packed data)' : tk;
+submittedFiles.push({ trackingNumber: label, fileName: file.name, imeis: byTracking[tk] });
+});
+bpUpload.submittedFiles = submittedFiles;
+bpUpload.submittedFile = {
+fileName: file.name,
+totalIMEIs: allIMEIs.length,
+trackingCount: Object.keys(byTracking).filter(k => k !== '_UNMATCHED').length,
+unmatchedRMAs,
+allIMEIs,
+};
+renderBPPanel();
+}
+function removeBPSubFile() {
+bpUpload.submittedFile = null;
+bpUpload.submittedFiles = [];
+renderBPPanel();
+}
+function checkBPReady() {
+const btn = document.getElementById('bp-run-btn');
+if (btn) btn.disabled = !(bpUpload.shipDate && bpUpload.rmaFile);
+}
+async function runBPVerification() {
+if (!bpUpload.rmaFile || !bpUpload.shipDate) return;
+const csv = bpUpload.rmaCSV || (await readFileAsCSV(bpUpload.rmaFile));
+const colMap = mapRMAColumns(csv.headers);
+const units = csv.rows.map((r, i) => ({
+index: i,
+route: r[colMap.route] || '',
+sku: r[colMap.sku] || '',
+imei: r[colMap.imei] || '',
+rmaNumber: r[colMap.rmaNumber] || '',
+submissionDate: r[colMap.submissionDate] || '',
+trackingOut: r[colMap.trackingOut] || '',
+routeStatus: null, agingStatus: null, hardStop: false, hardStopReason: null,
+falloutReason: null, falloutNotes: null,
+imeiMismatch: false, imeiMismatchReason: null,
+_raw: r,
+}));
+const routeResults = checkRoutes(units, 'BRIGHTPOINT');
+// Flatten all submitted IMEIs for the overall comparison
+// Use allIMEIs from submittedFile (includes unmatched RMAs) so nothing is silently dropped
+const allSubmittedIMEIs = (bpUpload.submittedFile && bpUpload.submittedFile.allIMEIs)
+? [...bpUpload.submittedFile.allIMEIs]
+: [];
+if (allSubmittedIMEIs.length === 0) {
+bpUpload.submittedFiles.forEach(sf => {
+sf.imeis.forEach(imei => allSubmittedIMEIs.push(imei));
+});
+}
+// Overall IMEI comparison (packed vs all submitted)
+const imeiResults = allSubmittedIMEIs.length > 0 ? checkBrightpointIMEIs(units, allSubmittedIMEIs) : { matched: [], unpackedSubmitted: [], extraPacked: [] };
+const matchedSet = new Set(imeiResults.matched.map(i => normalizeIMEI(i)));
+units.forEach(u => { u.imeiMatch = matchedSet.has(normalizeIMEI(u.imei)); });
+// Per-Tracking# IMEI cross-check (like Verizon per-RMA check)
+const imeiMatchResults = bpUpload.submittedFiles.length > 0 ? checkBrightpointIMEIMatch(units, bpUpload.submittedFiles) : [];
+const batch = {
+id: Date.now(),
+vendor: 'BRIGHTPOINT',
+shipDate: bpUpload.shipDate,
+createdAt: new Date().toISOString(),
+status: 'PENDING',
+_bpHeaders: csv.headers,
+_viewing: true,
+units,
+submittedIMEIs: allSubmittedIMEIs,
+submittedFiles: bpUpload.submittedFiles.map(sf => ({ trackingNumber: sf.trackingNumber, fileName: sf.fileName, imeis: [...sf.imeis] })),
+submittedFileInfo: bpUpload.submittedFiles.map(sf => ({ tracking: sf.trackingNumber, name: sf.fileName, count: sf.imeis.length })),
+routeResults,
+imeiResults,
+imeiMatchResults,
+routeFailCount: routeResults.filter(r => r.status === 'FAIL').length,
+unpackedCount: imeiResults.unpackedSubmitted.length,
+imeiMismatchCount: imeiMatchResults.filter(r => !r.isMatch).length,
+hardStopCount: units.filter(u => u.hardStop).length,
+unpackedFallouts: {},
+recoveredIMEIs: [],
+};
+batch.status = batch.hardStopCount > 0 || batch.imeiMismatchCount > 0 ? 'HARD-STOP' :
+batch.unpackedCount > 0 ? 'REVIEW' : 'PASS';
+bpBatches.forEach(b => b._viewing = false);
+bpBatches.unshift(batch);
+// Save to server
+saveBatchToServer(batch);
+bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], shipDate: '' };
+renderBPPanel();
+}
+function renderBPResults(batch) {
+let html = '';
+const statusClass = batch.status === 'PASS' || batch.status === 'CLEARED' ? 'pass' : batch.status === 'HARD-STOP' ? 'fail' : 'review';
+html += `<div class="flex-between mb-8">
+<div>
+<h2><span class="badge badge-brightpoint">Brightpoint</span> Shipment Check: ${batch.shipDate}</h2>
+<p style="font-size:12px;color:#888;">${new Date(batch.createdAt).toLocaleString()}</p>
+</div>
+<span class="badge badge-${statusClass}" style="font-size:14px;padding:6px 16px;">${batch.status}</span>
+</div>`;
+// Checks summary
+html += `<div style="margin-bottom:16px;">`;
+html += renderCheckItem('Route Verification', batch.routeFailCount === 0 ? 'pass' : 'fail',
+batch.routeFailCount === 0 ? 'All routes are valid Brightpoint routes' : `${batch.routeFailCount} invalid route(s) — HARD-STOP`);
+if (batch.submittedIMEIs.length > 0) {
+html += renderCheckItem('IMEI Comparison (Packed vs Submitted)', batch.unpackedCount === 0 ? 'pass' : 'warn',
+batch.unpackedCount === 0 ? `All ${batch.imeiResults.matched.length} IMEIs match` : `${batch.unpackedCount} submitted IMEI(s) not packed — investigation needed`);
+} else {
+html += renderCheckItem('IMEI Comparison', 'warn', 'No submitted IMEI files uploaded — skipped');
+}
+if (batch.imeiMatchResults && batch.imeiMatchResults.length > 0) {
+const origMismatchBP = batch.imeiMatchResults.filter(r => !r.isMatch).length;
+const resolvedAllBP = origMismatchBP > 0 && batch.imeiMismatchCount === 0;
+const bpLevel = batch.imeiMismatchCount === 0 ? 'pass' : 'fail';
+const bpMsg = batch.imeiMismatchCount === 0
+? (resolvedAllBP ? `All IMEI mismatches resolved (${origMismatchBP} Tracking #(s) had mismatches)` : 'All IMEIs match their submitted files')
+: `${batch.imeiMismatchCount} Tracking #(s) with IMEI mismatch — HARD-STOP`;
+html += renderCheckItem('IMEI Cross-Check (Packed vs Submitted per Tracking #)', bpLevel, bpMsg);
+}
+html += `</div>`;
+// PACKED Summary (grouped by Tracking # for Brightpoint)
+html += renderPackedSummary(batch);
+// Unit detail
+html += renderBrightpointDetail(batch);
+// BP IMEI Mismatch Report (per Tracking #)
+if (batch.imeiMatchResults && batch.imeiMatchResults.some(r => !r.isMatch)) {
+html += renderBPIMEIMismatchReport(batch);
+}
+// Ship Advice Reports
+const isCleared = batch.status === 'CLEARED';
+const hasBPImei = batch.submittedIMEIs.length > 0;
+html += `<div style="margin-top:16px;">
+<h3>&#128196; Ship Advice Reports</h3>
+${!isCleared ? '<p style="font-size:13px;color:#888;margin-bottom:12px;">Clear the shipment first to download reports.</p>' : '<p style="font-size:13px;color:var(--success-green);margin-bottom:12px;">Cleared — reports ready.</p>'}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+<button class="btn btn-outline" onclick="downloadBrightpointUnits('${batch.id}')" ${!isCleared ? 'disabled' : ''} style="justify-content:center;${isCleared ? 'border-color:var(--bp-navy);color:var(--bp-navy);' : ''}">
+&#128203; Brightpoint Units</button>
+${hasBPImei ? `<button class="btn btn-outline" onclick="downloadBrightpointIMEIs('${batch.id}')" ${!isCleared ? 'disabled' : ''} style="justify-content:center;${isCleared ? 'border-color:var(--bp-navy);color:var(--bp-navy);' : ''}">
+&#128202; IMEI Comparison</button>` : ''}
+${batch.units.some(u => isRemoved(u)) ? `<button class="btn btn-outline" onclick="downloadBrightpointRemoved('${batch.id}')" ${!isCleared ? 'disabled' : ''} style="justify-content:center;${isCleared ? 'border-color:var(--bp-navy);color:var(--bp-navy);' : ''}">
+&#128683; Removed Units</button>` : ''}
+</div>
+</div>`;
+// Actions
+html += `<div class="divider"></div>
+<div class="flex-between">
+<div style="display:flex;gap:8px;">
+<button class="btn btn-outline" onclick="closeBPBatch('${batch.id}')">&#8592; New Brightpoint Check</button>
+<button class="btn btn-outline" onclick="deleteBatch('${batch.id}','BRIGHTPOINT')" style="border-color:var(--alert-red);color:var(--alert-red);">&#128465; Delete Check</button>
+</div>
+<div style="display:flex;gap:8px;">
+<button class="btn btn-outline" onclick="copySlackMessage('${batch.id}','bp')">Copy Slack Message</button>
+<button class="btn btn-outline" id="share-slack-btn-${batch.id}" onclick="shareToSlack('${batch.id}')" style="border-color:var(--info-blue);color:var(--info-blue);">&#128268; Share to Slack</button>
+<button class="btn btn-success" onclick="clearBPBatch('${batch.id}')" ${batch.status === 'HARD-STOP' ? 'disabled title="Cannot clear — hard-stops"' : batch.status === 'CLEARED' ? 'disabled title="Already cleared"' : ''}>Clear to Ship</button>
+</div>
+</div>`;
+return html;
+}
+// ════════════════════════════════════
+// SHARED RENDER HELPERS
+// ════════════════════════════════════
+function renderCheckItem(label, status, text) {
+const icon = status === 'pass' ? '&#10004;' : status === 'fail' ? '&#10008;' : '&#9888;';
+return `<div class="check-item ${status}"><span class="check-icon">${icon}</span><b>${label}:</b>&nbsp;${text}</div>`;
+}
+function renderPackedSummary(batch) {
+const isBP = batch.vendor === 'BRIGHTPOINT';
+let rows = '';
+let headerLabel = 'RMA#';
+if (isBP) {
+// Brightpoint: group by Tracking # Out
+headerLabel = 'Tracking # Out';
+const tkGroups = {};
+batch.units.forEach(u => {
+if (isRemoved(u)) return;
+const tk = u.trackingOut || 'NO TRACKING';
+if (!tkGroups[tk]) tkGroups[tk] = 0;
+tkGroups[tk]++;
+});
+for (const [tk, qty] of Object.entries(tkGroups)) {
+rows += `<tr><td>${tk}</td><td style="text-align:center">${qty}</td></tr>`;
+}
+} else {
+// Verizon: group by RMA#
+const rmaGroups = {};
+batch.units.forEach(u => {
+if (isRemoved(u)) return;
+if (!rmaGroups[u.rmaNumber]) rmaGroups[u.rmaNumber] = 0;
+rmaGroups[u.rmaNumber]++;
+});
+for (const [rma, qty] of Object.entries(rmaGroups)) {
+rows += `<tr><td>${rma}</td><td style="text-align:center">${qty}</td></tr>`;
+}
+}
+let buttons = '';
+if (isBP) {
+// Brightpoint: only Share to Slack
+buttons = `<button class="btn btn-sm" id="packed-slack-btn-${batch.id}" onclick="shareToSlack('${batch.id}')" style="background:var(--info-blue);color:#fff;border:none;">&#128268; Share to Slack</button>`;
+} else {
+// Verizon: full set
+buttons = `<button class="btn btn-outline btn-sm" onclick="copyPackedTable('${batch.id}')">Copy as Text</button>
+<button class="btn btn-primary btn-sm" onclick="downloadPackedPDF('${batch.id}')">&#128196; Download PDF</button>
+<button class="btn btn-sm" id="packed-slack-btn-${batch.id}" onclick="shareToSlack('${batch.id}')" style="background:var(--info-blue);color:#fff;border:none;">&#128268; Share to Slack</button>`;
+}
+return `<div style="margin-bottom:16px;">
+<h3>PACKED Summary (send to packing team)</h3>
+<div class="packed-summary">
+<div class="tbl-wrap"><table>
+<tr><th>${headerLabel}</th><th style="text-align:center">QTY</th></tr>
+${rows}
+</table></div>
+</div>
+<div style="display:flex;gap:8px;margin-top:12px;">
+${buttons}
+</div>
+</div>`;
+}
+function renderVerizonDetail(batch) {
+let rows = '';
+batch.units.forEach((u, i) => {
+const cls = u.hardStop ? 'row-fail' : u.falloutReason ? 'row-warn' : 'row-pass';
+const routeBadge = u.routeStatus === 'PASS' ? '<span class="badge badge-pass">OK</span>' : '<span class="badge badge-fail">FAIL</span>';
+const agingBadge = u.agingStatus === 'FAIL' ? `<span class="badge badge-fail">${u.daysSinceSubmission}d</span>` :
+u.agingStatus === 'WARNING' ? `<span class="badge badge-pending">${u.daysSinceSubmission}d</span>` : '—';
+let routeDisplay = u.routeCorrected ?
+`<span style="text-decoration:line-through;color:#999;font-size:11px;">${u.originalRoute}</span><br>
+<span style="color:var(--success-green);font-weight:600;">${u.route}</span>
+<span style="font-size:10px;color:#888;">(corrected)</span>` : u.route;
+// IMEI match status
+let imeiCol = '—';
+if (batch.imeiMatchResults.length > 0) {
+if (u.imeiMismatch) {
+imeiCol = `<span class="badge badge-fail">Mismatch</span>`;
+} else {
+imeiCol = `<span class="badge badge-pass">OK</span>`;
+}
+}
+let fallout = buildActionButtons(batch, u, i, 'vz');
+rows += `<tr class="${cls}">
+<td>${u.imei}</td><td>${u.rmaNumber}</td><td>${routeDisplay}</td><td>${routeBadge}</td><td>${agingBadge}</td><td>${imeiCol}</td>
+<td>${u.trackingOut}</td><td>${fallout}</td></tr>`;
+});
+return `<div style="margin-bottom:16px;">
+<h3>Unit Detail (${batch.units.length} units)</h3>
+<div class="tbl-wrap" style="max-height:400px;overflow-y:auto;"><table>
+<tr><th>IMEI</th><th>RMA#</th><th>Route</th><th>Route</th><th>Aging</th><th>IMEI</th><th>Tracking Out</th><th>Action</th></tr>
+${rows}
+</table></div>
+</div>`;
+}
+function renderBrightpointDetail(batch) {
+const hasMatchResults = batch.imeiMatchResults && batch.imeiMatchResults.length > 0;
+let rows = '';
+batch.units.forEach((u, i) => {
+const cls = u.hardStop ? 'row-fail' : !u.imeiMatch && batch.submittedIMEIs.length > 0 ? 'row-warn' : 'row-pass';
+const routeBadge = u.routeStatus === 'PASS' ? '<span class="badge badge-pass">OK</span>' : '<span class="badge badge-fail">FAIL</span>';
+const imeiStatus = batch.submittedIMEIs.length === 0 ? '—' : u.imeiMatch ? '<span class="badge badge-pass">Matched</span>' : '<span class="badge badge-review">Not in submitted</span>';
+// Per-tracking# cross-check status
+let crossCheckCol = '—';
+if (hasMatchResults) {
+if (u.imeiMismatch) {
+crossCheckCol = `<span class="badge badge-fail">Mismatch</span>`;
+} else {
+crossCheckCol = `<span class="badge badge-pass">OK</span>`;
+}
+}
+let routeDisplay = u.routeCorrected ?
+`<span style="text-decoration:line-through;color:#999;font-size:11px;">${u.originalRoute}</span><br>
+<span style="color:var(--success-green);font-weight:600;">${u.route}</span>
+<span style="font-size:10px;color:#888;">(corrected)</span>` : u.route;
+let fallout = buildActionButtons(batch, u, i, 'bp');
+rows += `<tr class="${cls}"><td>${u.imei}</td><td>${u.rmaNumber}</td><td>${u.trackingOut}</td><td>${routeDisplay}</td><td>${routeBadge}</td><td>${imeiStatus}</td>${hasMatchResults ? `<td>${crossCheckCol}</td>` : ''}<td>${fallout}</td></tr>`;
+});
+let html = `<div style="margin-bottom:16px;">
+<h3>Packed Units (${batch.units.length})</h3>
+<div class="tbl-wrap" style="max-height:400px;overflow-y:auto;"><table>
+<tr><th>IMEI</th><th>RMA#</th><th>Tracking Out</th><th>Route</th><th>Route</th><th>IMEI</th>${hasMatchResults ? '<th>Cross-Check</th>' : ''}<th>Action</th></tr>
+${rows}
+</table></div>
+</div>`;
+// Unpacked submitted IMEIs
+const uf = batch.unpackedFallouts || {};
+const recoveredIMEIs = batch.recoveredIMEIs || [];
+if (batch.imeiResults.unpackedSubmitted.length > 0 || recoveredIMEIs.length > 0) {
+let unpackedRows = '';
+batch.imeiResults.unpackedSubmitted.forEach(imei => {
+const isRecovered = recoveredIMEIs.some(r => r.imei === imei);
+if (isRecovered) {
+unpackedRows += `<tr class="row-pass"><td>${imei}</td><td><span class="badge badge-pass">Recovered — added to batch</span></td>
+<td><span style="font-size:11px;color:var(--success-green);">Included in Ship Advice</span></td></tr>`;
+} else if (uf[imei]) {
+unpackedRows += `<tr class="row-warn"><td>${imei}</td><td><span style="font-size:11px;color:var(--warn-orange);">${uf[imei]}</span></td>
+<td><button class="btn btn-sm btn-outline" onclick="openFalloutModalIMEI('${batch.id}','${imei}')" style="padding:2px 8px;font-size:10px;">Edit</button></td></tr>`;
+} else {
+unpackedRows += `<tr class="row-fail"><td>${imei}</td><td><span class="badge badge-fail">Submitted but NOT packed</span></td>
+<td><button class="btn btn-sm btn-danger" onclick="openFalloutModalIMEI('${batch.id}','${imei}')" style="padding:3px 10px;">Log Fallout</button>
+<button class="btn btn-sm btn-outline" onclick="openRecoverIMEI('${batch.id}','${imei}')" style="margin-left:4px;padding:3px 10px;border-color:var(--info-blue);color:var(--info-blue);">Add to Batch</button></td></tr>`;
+}
+});
+const unresolvedCount = batch.imeiResults.unpackedSubmitted.filter(imei =>
+!uf[imei] && !recoveredIMEIs.some(r => r.imei === imei)
+).length;
+const headerColor = unresolvedCount > 0 ? 'var(--alert-red)' : 'var(--success-green)';
+html += `<div style="margin-bottom:16px;">
+<h3 style="color:${headerColor};">Unpacked Submitted IMEIs (${batch.imeiResults.unpackedSubmitted.length})${unresolvedCount === 0 ? ' — All Resolved' : ''}</h3>
+<div class="callout ${unresolvedCount > 0 ? 'critical' : 'info'}"><b>${unresolvedCount > 0 ? 'These IMEIs were submitted but NOT found in packed data.' : 'All unpacked IMEIs resolved.'}</b></div>
+<div class="tbl-wrap"><table>
+<tr><th>IMEI</th><th>Status</th><th>Action</th></tr>
+${unpackedRows}
+</table></div>
+<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--medium-gray);">
+<p style="font-size:13px;font-weight:600;margin-bottom:8px;">Upload recovered unit CSV:</p>
+<div style="background:#f8f9fa;border:1px solid var(--medium-gray);border-radius:8px;padding:12px;margin-bottom:10px;font-size:11px;line-height:1.6;">
+<p style="font-weight:600;margin-bottom:4px;">Required format — same columns as the Brightpoint vendor tab:</p>
+<code style="display:block;background:#fff;padding:8px 10px;border-radius:4px;font-size:11px;color:var(--dark-gray);overflow-x:auto;white-space:nowrap;border:1px solid #e0e0e0;">Route,SKU,Purchase Date,Processed Date,RecirQ ESN,Transfer ID,Tracking # In,Box,Cable,Wall Charger,Condition Check,Datawipe Status,Final Description,Final Disposition,RMA#,RMA Submission Date,Tracking # Out</code>
+<p style="margin-top:6px;color:#666;">The <b>RecirQ ESN</b> column must contain the IMEI.</p>
+</div>
+<input type="file" id="recover-upload-${batch.id}" accept=".csv,.tsv,.txt" style="font-size:12px;"
+onchange="handleRecoverUpload('${batch.id}', this)">
+</div>
+</div>`;
+}
+return html;
+}
+function renderQtyMatchTable(batch) {
+// Count removed units per RMA
+const removedByRMA = {};
+batch.units.forEach(u => {
+if (isRemoved(u)) {
+if (!removedByRMA[u.rmaNumber]) removedByRMA[u.rmaNumber] = 0;
+removedByRMA[u.rmaNumber]++;
+}
+});
+const hasRemovals = Object.keys(removedByRMA).length > 0;
+let rows = '';
+batch.qtyResults.forEach(r => {
+const removed = removedByRMA[r.rma] || 0;
+const activeQty = r.packedQty - removed;
+const cls = r.match ? 'row-pass' : 'row-warn';
+const matchBadge = r.match ? '<span class="badge badge-pass">TRUE</span>' : '<span class="badge badge-fail">FALSE</span>';
+const packedDisplay = removed > 0 ? `${activeQty} <span style="font-size:11px;color:var(--alert-red);">(${r.packedQty} uploaded − ${removed} removed)</span>` : `${r.packedQty}`;
+rows += `<tr class="${cls}"><td>${r.rma}</td><td style="text-align:center">${packedDisplay}</td>
+<td style="text-align:center">${r.portalQty}</td><td>${matchBadge}</td>
+<td>${r.match ? '—' : (r.diff > 0 ? `+${r.diff} extra packed` : `${Math.abs(r.diff)} missing`)}</td></tr>`;
+});
+return `<div style="margin-bottom:16px;">
+<h3>CHECK: PACKED vs Portal Quantities</h3>
+<div class="tbl-wrap"><table>
+<tr><th>RMA#</th><th style="text-align:center">PACKED QTY</th><th style="text-align:center">PORTAL QTY</th><th>MATCH</th><th>Difference</th></tr>
+${rows}
+</table></div>
+</div>`;
+}
+function renderIMEIMismatchReport(batch) {
+// Check if all mismatches are resolved
+const hasUnresolved = batch.imeiMatchResults.filter(r => !r.isMatch).some(r => {
+const unresPacked = r.inPackedNotPS.filter(imei => !isIMEIResolved(batch, r.rma, imei, 'packed_not_portal'));
+const unresPortal = r.inPSNotPacked.filter(imei => !isIMEIResolved(batch, r.rma, imei, 'portal_not_packed'));
+return unresPacked.length > 0 || unresPortal.length > 0;
+});
+const headerColor = hasUnresolved ? 'var(--critical-red)' : 'var(--success-green)';
+const headerIcon = hasUnresolved ? '&#9888;' : '&#9989;';
+const headerStatus = hasUnresolved ? 'HARD-STOP' : 'ALL RESOLVED';
+let html = `<div style="margin-bottom:16px;">
+<h3 style="color:${headerColor};">${headerIcon} IMEI Mismatch Report — ${headerStatus}</h3>`;
+if (hasUnresolved) {
+html += `<div class="callout critical"><b>The following RMAs have IMEI mismatches between the packed data and packing slips. Resolve each mismatch to clear the HARD-STOP.</b></div>`;
+} else {
+html += `<div class="callout" style="background:#e8f5e9;border-left:4px solid var(--success-green);"><b>All IMEI mismatches have been resolved.</b></div>`;
+}
+batch.imeiMatchResults.filter(r => !r.isMatch).forEach(r => {
+const unresPacked = r.inPackedNotPS.filter(imei => !isIMEIResolved(batch, r.rma, imei, 'packed_not_portal'));
+const unresPortal = r.inPSNotPacked.filter(imei => !isIMEIResolved(batch, r.rma, imei, 'portal_not_packed'));
+const allResolved = unresPacked.length === 0 && unresPortal.length === 0;
+const bg = allResolved ? '#e8f5e9' : 'var(--alert-bg)';
+const titleColor = allResolved ? 'var(--success-green)' : 'var(--critical-red)';
+html += `<div style="background:${bg};border-radius:8px;padding:14px;margin:8px 0;">
+<h4 style="color:${titleColor};margin-bottom:8px;">RMA: ${r.rma} — ${r.packedCount} packed / ${r.psCount} on packing slip ${allResolved ? '&#9989; RESOLVED' : ''}</h4>`;
+if (r.inPackedNotPS.length > 0) {
+html += `<p style="font-size:12px;font-weight:600;color:var(--alert-red);margin-bottom:4px;">In PACKED but NOT on Packing Slip (${r.inPackedNotPS.length}):</p>
+<div style="margin:0 0 8px 0;">`;
+r.inPackedNotPS.forEach(imei => {
+const resolution = getIMEIResolution(batch, r.rma, imei, 'packed_not_portal');
+if (resolution) {
+html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin:2px 0;background:#e8f5e9;border-radius:4px;font-size:12px;">
+<span style="text-decoration:line-through;color:#888;">${imei}</span>
+<span class="badge badge-pass" style="font-size:10px;">Resolved</span>
+<span style="color:var(--success-green);font-size:11px;">${resolution.reason}</span>
+</div>`;
+} else {
+html += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 8px;margin:2px 0;font-size:12px;background:var(--alert-bg);border-radius:4px;">
+<span style="color:var(--critical-red);font-weight:600;">${imei}</span>
+<span style="color:#666;font-size:11px;">— Packed but not on packing slip</span>
+<div style="display:flex;gap:6px;margin-left:auto;">
+<button class="btn btn-sm btn-danger" onclick="removeErroneouslyPackedVZ('${batch.id}','${imei}','${r.rma}')" style="padding:2px 10px;font-size:10px;">&#10060; Remove from Batch</button>
+<button class="btn btn-sm" onclick="openIMEIResolveModal('${batch.id}','${imei}','packed_not_portal','VERIZON','${r.rma}')" style="padding:2px 10px;font-size:10px;border:1px solid var(--info-blue);color:var(--info-blue);">&#9998; Other Resolution</button>
+</div>
+</div>`;
+}
+});
+html += `</div>`;
+}
+if (r.inPSNotPacked.length > 0) {
+html += `<p style="font-size:12px;font-weight:600;color:var(--warn-orange);margin-bottom:4px;">On Packing Slip but NOT in PACKED (${r.inPSNotPacked.length}):</p>
+<div style="margin:0 0 8px 0;">`;
+r.inPSNotPacked.forEach(imei => {
+const resolution = getIMEIResolution(batch, r.rma, imei, 'portal_not_packed');
+const isRecovered = (batch.recoveredIMEIs || []).some(ri => ri.imei === imei);
+if (isRecovered) {
+html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin:2px 0;background:#e8f5e9;border-radius:4px;font-size:12px;">
+<span style="font-weight:600;color:var(--success-green);">${imei}</span>
+<span class="badge badge-pass" style="font-size:10px;">Added to Batch</span>
+</div>`;
+} else if (resolution) {
+html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin:2px 0;background:#e8f5e9;border-radius:4px;font-size:12px;">
+<span style="text-decoration:line-through;color:#888;">${imei}</span>
+<span class="badge badge-pass" style="font-size:10px;">Resolved</span>
+<span style="color:var(--success-green);font-size:11px;">${resolution.reason}</span>
+</div>`;
+} else {
+html += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 8px;margin:2px 0;font-size:12px;background:#fff8e1;border-radius:4px;">
+<span style="color:var(--warn-orange);font-weight:600;">${imei}</span>
+<span style="color:#666;font-size:11px;">— On packing slip but not packed</span>
+<div style="display:flex;gap:6px;margin-left:auto;">
+<button class="btn btn-sm" onclick="recoverVZIMEI('${batch.id}','${imei}','${r.rma}')" style="padding:2px 10px;font-size:10px;border:1px solid var(--info-blue);color:var(--info-blue);">&#10133; Add to Batch</button>
+<button class="btn btn-sm" onclick="openIMEIResolveModal('${batch.id}','${imei}','portal_not_packed','VERIZON','${r.rma}')" style="padding:2px 10px;font-size:10px;border:1px solid var(--warn-orange);color:var(--warn-orange);">&#128196; Log Reason</button>
+</div>
+</div>`;
+}
+});
+html += `</div>`;
+}
+html += `</div>`;
+});
+html += `<button class="btn btn-danger btn-sm" onclick="downloadIMEIMismatchReport('${batch.id}')" style="margin-top:8px;">&#128196; Download Mismatch Report CSV</button>`;
+html += `</div>`;
+return html;
+}
+// Brightpoint IMEI Mismatch Report (per Tracking #)
+function renderBPIMEIMismatchReport(batch) {
+const hasUnresolved = batch.imeiMatchResults.filter(r => !r.isMatch).some(r => {
+const unresPacked = (r.inPackedNotSub || []).filter(imei => !isIMEIResolved(batch, r.trackingNumber, imei, 'packed_not_portal'));
+const unresPortal = (r.inSubNotPacked || []).filter(imei => !isIMEIResolved(batch, r.trackingNumber, imei, 'portal_not_packed'));
+return unresPacked.length > 0 || unresPortal.length > 0;
+});
+const headerColor = hasUnresolved ? 'var(--critical-red)' : 'var(--success-green)';
+const headerIcon = hasUnresolved ? '&#9888;' : '&#9989;';
+const headerStatus = hasUnresolved ? 'HARD-STOP' : 'ALL RESOLVED';
+let html = `<div style="margin-bottom:16px;">
+<h3 style="color:${headerColor};">${headerIcon} IMEI Mismatch Report (per Tracking #) — ${headerStatus}</h3>`;
+if (hasUnresolved) {
+html += `<div class="callout critical"><b>The following Tracking #s have IMEI mismatches between packed data and submitted IMEI files. Resolve each mismatch to clear the HARD-STOP.</b></div>`;
+} else {
+html += `<div class="callout" style="background:#e8f5e9;border-left:4px solid var(--success-green);"><b>All IMEI mismatches have been resolved.</b></div>`;
+}
+batch.imeiMatchResults.filter(r => !r.isMatch).forEach(r => {
+const unresPacked = (r.inPackedNotSub || []).filter(imei => !isIMEIResolved(batch, r.trackingNumber, imei, 'packed_not_portal'));
+const unresPortal = (r.inSubNotPacked || []).filter(imei => !isIMEIResolved(batch, r.trackingNumber, imei, 'portal_not_packed'));
+const allResolved = unresPacked.length === 0 && unresPortal.length === 0;
+const bg = allResolved ? '#e8f5e9' : 'var(--alert-bg)';
+const titleColor = allResolved ? 'var(--success-green)' : 'var(--critical-red)';
+html += `<div style="background:${bg};border-radius:8px;padding:14px;margin:8px 0;">
+<h4 style="color:${titleColor};margin-bottom:8px;">Tracking: ${r.trackingNumber} — ${r.packedCount} packed / ${r.subCount} submitted ${allResolved ? '&#9989; RESOLVED' : ''}</h4>`;
+if (r.inPackedNotSub && r.inPackedNotSub.length > 0) {
+html += `<p style="font-size:12px;font-weight:600;color:var(--alert-red);margin-bottom:4px;">In PACKED but NOT in Submitted file (${r.inPackedNotSub.length}):</p>
+<div style="margin:0 0 8px 0;">`;
+r.inPackedNotSub.forEach(imei => {
+const resolution = getIMEIResolution(batch, r.trackingNumber, imei, 'packed_not_portal');
+if (resolution) {
+html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin:2px 0;background:#e8f5e9;border-radius:4px;font-size:12px;">
+<span style="text-decoration:line-through;color:#888;">${imei}</span>
+<span class="badge badge-pass" style="font-size:10px;">Resolved</span>
+<span style="color:var(--success-green);font-size:11px;">${resolution.reason}</span>
+</div>`;
+} else {
+html += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 8px;margin:2px 0;font-size:12px;background:var(--alert-bg);border-radius:4px;">
+<span style="color:var(--critical-red);font-weight:600;">${imei}</span>
+<span style="color:#666;font-size:11px;">— Packed but not submitted to vendor</span>
+<div style="display:flex;gap:6px;margin-left:auto;">
+<button class="btn btn-sm btn-danger" onclick="removeErroneouslyPacked('${batch.id}','${imei}','${r.trackingNumber}')" style="padding:2px 10px;font-size:10px;">&#10060; Remove from Batch</button>
+<button class="btn btn-sm" onclick="reuploadSubmittedFile('${batch.id}')" style="padding:2px 10px;font-size:10px;border:1px solid var(--info-blue);color:var(--info-blue);">&#128196; Re-upload Submitted File</button>
+</div>
+</div>`;
+}
+});
+html += `</div>`;
+}
+if (r.inSubNotPacked && r.inSubNotPacked.length > 0) {
+html += `<p style="font-size:12px;font-weight:600;color:var(--warn-orange);margin-bottom:4px;">In Submitted file but NOT in PACKED (${r.inSubNotPacked.length}):</p>
+<div style="margin:0 0 8px 0;">`;
+r.inSubNotPacked.forEach(imei => {
+const resolution = getIMEIResolution(batch, r.trackingNumber, imei, 'portal_not_packed');
+const isRecovered = (batch.recoveredIMEIs || []).some(ri => ri.imei === imei);
+if (isRecovered) {
+html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin:2px 0;background:#e8f5e9;border-radius:4px;font-size:12px;">
+<span style="font-weight:600;color:var(--success-green);">${imei}</span>
+<span class="badge badge-pass" style="font-size:10px;">Added to Batch</span>
+</div>`;
+} else if (resolution) {
+html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin:2px 0;background:#e8f5e9;border-radius:4px;font-size:12px;">
+<span style="text-decoration:line-through;color:#888;">${imei}</span>
+<span class="badge badge-pass" style="font-size:10px;">Resolved</span>
+<span style="color:var(--success-green);font-size:11px;">${resolution.reason}</span>
+</div>`;
+} else {
+html += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 8px;margin:2px 0;font-size:12px;background:#fff8e1;border-radius:4px;">
+<span style="color:var(--warn-orange);font-weight:600;">${imei}</span>
+<span style="color:#666;font-size:11px;">— Submitted but not packed</span>
+<div style="display:flex;gap:6px;margin-left:auto;">
+<button class="btn btn-sm" onclick="openRecoverIMEI('${batch.id}','${imei}')" style="padding:2px 10px;font-size:10px;border:1px solid var(--info-blue);color:var(--info-blue);">&#10133; Add to Batch</button>
+<button class="btn btn-sm" onclick="openIMEIResolveModal('${batch.id}','${imei}','portal_not_packed','BRIGHTPOINT','${r.trackingNumber}')" style="padding:2px 10px;font-size:10px;border:1px solid var(--warn-orange);color:var(--warn-orange);">&#128196; Log Reason</button>
+</div>
+</div>`;
+}
+});
+html += `</div>`;
+}
+html += `</div>`;
+});
+html += `<button class="btn btn-danger btn-sm" onclick="downloadBPIMEIMismatchReport('${batch.id}')" style="margin-top:8px;">&#128196; Download Mismatch Report CSV</button>`;
+html += `</div>`;
+return html;
+}
+// Build action buttons based on unit state
+function buildActionButtons(batch, u, i, vendorKey) {
+const bId = batch.id;
+const isRouteFail = u.routeStatus === 'FAIL' && !u.routeCorrected;
+const isAgingFail = u.agingStatus === 'FAIL' && !u.agingCleared;
+const isIMEIMismatch = u.imeiMismatch && !u.falloutReason;
+if (u.agingCleared) {
+return `<span style="font-size:11px;color:var(--success-green);">${u.agingClearedNotes}</span>
+<button class="btn btn-sm btn-outline" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="margin-left:6px;padding:2px 8px;font-size:10px;">Log</button>`;
+}
+if (u.falloutReason) {
+return `<span style="font-size:11px;color:var(--warn-orange);">${u.falloutReason}</span>
+<button class="btn btn-sm btn-outline" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="margin-left:6px;padding:2px 8px;font-size:10px;">Edit</button>`;
+}
+if (isRouteFail && isAgingFail) {
+return `<span class="badge badge-hardstop">${u.hardStopReason}</span><br>
+<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+<button class="btn btn-sm btn-primary" onclick="openRouteCorrection('${bId}',${i},'${vendorKey}')" style="padding:3px 10px;">Correct Route</button>
+<button class="btn btn-sm btn-outline" onclick="openPreRMAAction('${bId}',${i},'${vendorKey}')" style="padding:3px 10px;border-color:var(--warn-orange);color:var(--warn-orange);">Pre-RMA Action</button>
+<button class="btn btn-sm btn-danger" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="padding:3px 10px;">Log Fallout</button>
+</div>`;
+}
+if (isRouteFail) {
+return `<span class="badge badge-hardstop">${u.hardStopReason}</span><br>
+<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+<button class="btn btn-sm btn-primary" onclick="openRouteCorrection('${bId}',${i},'${vendorKey}')" style="padding:3px 10px;">Correct Route</button>
+<button class="btn btn-sm btn-danger" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="padding:3px 10px;">Log Fallout</button>
+</div>`;
+}
+if (isAgingFail) {
+return `<span class="badge badge-hardstop">${u.hardStopReason}</span><br>
+<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+<button class="btn btn-sm btn-success" onclick="openPreRMAAction('${bId}',${i},'${vendorKey}')" style="padding:3px 10px;">Clear / Remove</button>
+<button class="btn btn-sm btn-danger" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="padding:3px 10px;">Log Fallout</button>
+</div>`;
+}
+if (isIMEIMismatch) {
+return `<span class="badge badge-hardstop">${u.hardStopReason}</span><br>
+<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;">
+<button class="btn btn-sm btn-danger" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="padding:3px 10px;">Log Fallout</button>
+</div>`;
+}
+if (u.hardStop) {
+return `<span class="badge badge-hardstop">${u.hardStopReason}</span>
+<button class="btn btn-sm btn-danger" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="margin-left:6px;padding:3px 10px;">Resolve</button>`;
+}
+return `<button class="btn btn-sm btn-outline" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')">Log</button>`;
+}
+// ════════════════════════════════════
+// BATCH HELPERS
+// ════════════════════════════════════
+function findBatch(batchId) {
+const id = typeof batchId === 'string' ? parseInt(batchId) : batchId;
+return vzBatches.find(b => b.id === id) || bpBatches.find(b => b.id === id);
+}
+function isRemoved(u) {
+return u.removedFromShipment || !!u.falloutReason;
+}
+function closeVZBatch(batchId) {
+const b = findBatch(batchId);
+if (b) b._viewing = false;
+vzUpload = { rmaFile: null, rmaCSV: null, packingSlips: [], shipDate: '' };
+renderVZPanel();
+}
+function closeBPBatch(batchId) {
+const b = findBatch(batchId);
+if (b) b._viewing = false;
+bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], shipDate: '' };
+renderBPPanel();
+}
+function recalcBatchStatus(batch) {
+let hasHardStop = batch.units.some(u => u.hardStop && !u.falloutReason);
+let hasReview = false;
+// Recalculate IMEI mismatch count using resolutions
+recalcIMEIMismatchCount(batch);
+if (batch.vendor === 'VERIZON') {
+if (batch.qtyResults && batch.qtyResults.some(r => !r.match)) hasReview = true;
+if (batch.imeiMismatchCount > 0) hasHardStop = true;
+}
+if (batch.vendor === 'BRIGHTPOINT') {
+if (batch.imeiResults?.unpackedSubmitted?.length > 0) {
+const recoveredSet = new Set((batch.recoveredIMEIs || []).map(r => r.imei));
+const uf = batch.unpackedFallouts || {};
+const stillUnresolved = batch.imeiResults.unpackedSubmitted.some(imei => !recoveredSet.has(imei) && !uf[imei]);
+if (stillUnresolved) hasReview = true;
+}
+if (batch.imeiMismatchCount > 0) hasHardStop = true;
+}
+if (batch.status !== 'CLEARED') {
+batch.status = hasHardStop ? 'HARD-STOP' : hasReview ? 'REVIEW' : 'PASS';
+}
+}
+// ════════════════════════════════════
+// CLEAR TO SHIP (independent per vendor)
+// ════════════════════════════════════
+function clearVZBatch(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+let unresolved = 0, details = [];
+const hsUnresolved = batch.units.filter(u => u.hardStop && !u.falloutReason);
+unresolved += hsUnresolved.length;
+if (hsUnresolved.length > 0) details.push(`${hsUnresolved.length} hard-stop(s) without fallout`);
+if (unresolved > 0) {
+alert(`Cannot clear Verizon: ${unresolved} unresolved item(s).\n\n${details.join('\n')}\n\nResolve each with a fallout reason or correction.`);
+return;
+}
+batch.status = 'CLEARED';
+batch.clearedAt = new Date().toISOString();
+saveBatchToServer(batch);
+renderVZPanel();
+// Auto-send clearance message to Slack
+sendClearanceMessage(batch);
+}
+function clearBPBatch(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+let unresolved = 0, details = [];
+const hsUnresolved = batch.units.filter(u => u.hardStop && !u.falloutReason);
+unresolved += hsUnresolved.length;
+if (hsUnresolved.length > 0) details.push(`${hsUnresolved.length} hard-stop(s) without fallout`);
+const uf = batch.unpackedFallouts || {};
+const recovered = batch.recoveredIMEIs || [];
+const recoveredSet = new Set(recovered.map(r => r.imei));
+const unpackedUnresolved = (batch.imeiResults?.unpackedSubmitted || []).filter(
+imei => !uf[imei] && !recoveredSet.has(imei)
+);
+unresolved += unpackedUnresolved.length;
+if (unpackedUnresolved.length > 0) details.push(`${unpackedUnresolved.length} unpacked IMEI(s)`);
+if (unresolved > 0) {
+alert(`Cannot clear Brightpoint: ${unresolved} unresolved item(s).\n\n${details.join('\n')}`);
+return;
+}
+batch.status = 'CLEARED';
+batch.clearedAt = new Date().toISOString();
+saveBatchToServer(batch);
+renderBPPanel();
+// Auto-send clearance message to Slack
+sendClearanceMessage(batch);
+}
+function deleteBatch(batchId, vendor) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const unitCount = batch.units.length;
+const statusLabel = batch.status === 'CLEARED' ? 'CLEARED' : batch.status;
+const msg = `⚠️ DELETE SHIPMENT CHECK\n\nYou are about to permanently delete this ${vendor} check:\n• Ship Date: ${batch.shipDate}\n• Units: ${unitCount}\n• Status: ${statusLabel}\n• Created: ${new Date(batch.createdAt).toLocaleString()}\n\nThis action CANNOT be undone. All verification results, fallout logs, and reports for this check will be lost.\n\nAre you sure you want to delete this check?`;
+if (!confirm(msg)) return;
+deleteBatchFromServer(batch.id);
+if (vendor === 'VERIZON') {
+vzBatches = vzBatches.filter(b => b.id !== batch.id);
+renderVZPanel();
+} else {
+bpBatches = bpBatches.filter(b => b.id !== batch.id);
+renderBPPanel();
+}
+refreshDashboard();
+refreshHistory();
+}
+// ════════════════════════════════════
+// FALLOUT MODAL
+// ════════════════════════════════════
+function openFalloutModal(batchId, unitIndex, vendorKey) {
+falloutTarget = { batchId: parseInt(batchId), unitIndex, vendorKey, type: 'unit' };
+const batch = findBatch(batchId);
+const unit = batch.units[unitIndex];
+document.getElementById('fallout-imei-display').textContent = `IMEI: ${unit.imei} | RMA: ${unit.rmaNumber}`;
+// Pre-fill if editing
+if (unit.falloutReason) {
+const parts = unit.falloutReason.split(' — ');
+const reasonSelect = document.getElementById('fallout-reason-select');
+const matchOption = [...reasonSelect.options].find(o => o.value === parts[0]);
+if (matchOption) reasonSelect.value = parts[0]; else reasonSelect.value = 'Other';
+document.getElementById('fallout-notes').value = parts.slice(1).join(' — ') || '';
+}
+document.getElementById('fallout-modal').classList.add('show');
+}
+function openFalloutModalIMEI(batchId, imei) {
+falloutTarget = { batchId: parseInt(batchId), imei, type: 'unpacked' };
+document.getElementById('fallout-imei-display').textContent = `IMEI: ${imei} (Submitted but not packed)`;
+document.getElementById('fallout-modal').classList.add('show');
+}
+function closeFalloutModal() {
+document.getElementById('fallout-modal').classList.remove('show');
+document.getElementById('fallout-reason-select').value = '';
+document.getElementById('fallout-notes').value = '';
+falloutTarget = null;
+}
+function saveFallout() {
+const reason = document.getElementById('fallout-reason-select').value;
+const notes = document.getElementById('fallout-notes').value;
+if (!reason) { alert('Please select a reason.'); return; }
+const fullReason = notes ? `${reason} — ${notes}` : reason;
+const batch = findBatch(falloutTarget.batchId);
+if (falloutTarget.type === 'unit') {
+batch.units[falloutTarget.unitIndex].falloutReason = fullReason;
+} else if (falloutTarget.type === 'unpacked') {
+if (!batch.unpackedFallouts) batch.unpackedFallouts = {};
+batch.unpackedFallouts[falloutTarget.imei] = fullReason;
+}
+recalcBatchStatus(batch);
+saveBatchToServer(batch);
+closeFalloutModal();
+if (batch.vendor === 'VERIZON') renderVZPanel();
+else renderBPPanel();
+}
+// ════════════════════════════════════
+// IMEI MISMATCH RESOLUTION
+// ════════════════════════════════════
+function openIMEIResolveModal(batchId, imei, direction, vendor, rmaOrTracking) {
+imeiResolveTarget = { batchId: parseInt(batchId), imei, direction, vendor, rmaOrTracking };
+const label = vendor === 'VERIZON' ? `RMA: ${rmaOrTracking}` : `Tracking: ${rmaOrTracking}`;
+document.getElementById('imei-resolve-display').textContent = `IMEI: ${imei} | ${label}`;
+const ctx = direction === 'packed_not_portal'
+? 'This IMEI is in PACKED data but NOT on the packing slip / submitted file.'
+: 'This IMEI is on the packing slip / submitted file but NOT in PACKED data.';
+document.getElementById('imei-resolve-context').textContent = ctx;
+document.getElementById('imei-resolve-reason').value = '';
+document.getElementById('imei-resolve-notes').value = '';
+document.getElementById('imei-resolve-modal').classList.add('show');
+}
+function closeIMEIResolveModal() {
+document.getElementById('imei-resolve-modal').classList.remove('show');
+imeiResolveTarget = null;
+}
+function saveIMEIResolution() {
+const reason = document.getElementById('imei-resolve-reason').value;
+const notes = document.getElementById('imei-resolve-notes').value;
+if (!reason) { alert('Please select a resolution reason.'); return; }
+const fullReason = notes ? `${reason} — ${notes}` : reason;
+const t = imeiResolveTarget;
+const batch = findBatch(t.batchId);
+if (!batch) return;
+// Store resolution on batch
+if (!batch.imeiMismatchResolutions) batch.imeiMismatchResolutions = {};
+const key = `${t.rmaOrTracking}::${t.imei}::${t.direction}`;
+batch.imeiMismatchResolutions[key] = {
+imei: t.imei,
+rmaOrTracking: t.rmaOrTracking,
+direction: t.direction,
+reason: fullReason,
+resolvedAt: new Date().toISOString(),
+};
+// If this is a "packed_not_portal" IMEI, clear the unit-level mismatch flags
+// but do NOT set falloutReason (that would mark it as "removed" from shipment)
+if (t.direction === 'packed_not_portal') {
+const unit = batch.units.find(u => u.imei === t.imei);
+if (unit && unit.imeiMismatch) {
+unit.imeiMismatch = false;
+unit.imeiMismatchReason = null;
+unit.imeiResolved = fullReason;
+if (unit.hardStopReason && (unit.hardStopReason.includes('not on packing slip') || unit.hardStopReason.includes('not in submitted file'))) {
+unit.hardStop = false;
+unit.hardStopReason = null;
+}
+}
+}
+// Recalculate effective mismatch count accounting for resolutions
+recalcIMEIMismatchCount(batch);
+recalcBatchStatus(batch);
+saveBatchToServer(batch);
+closeIMEIResolveModal();
+if (batch.vendor === 'VERIZON') renderVZPanel();
+else renderBPPanel();
+}
+function recalcIMEIMismatchCount(batch) {
+if (!batch.imeiMatchResults) return;
+const res = batch.imeiMismatchResolutions || {};
+let unresolvedRMAs = 0;
+batch.imeiMatchResults.filter(r => !r.isMatch).forEach(r => {
+const rmaOrTk = r.rma || r.trackingNumber;
+const packedKey = batch.vendor === 'VERIZON' ? 'inPackedNotPS' : 'inPackedNotSub';
+const portalKey = batch.vendor === 'VERIZON' ? 'inPSNotPacked' : 'inSubNotPacked';
+const unresolvedPacked = (r[packedKey] || []).filter(imei => !res[`${rmaOrTk}::${imei}::packed_not_portal`]);
+const unresolvedPortal = (r[portalKey] || []).filter(imei => !res[`${rmaOrTk}::${imei}::portal_not_packed`]);
+if (unresolvedPacked.length > 0 || unresolvedPortal.length > 0) unresolvedRMAs++;
+});
+batch.imeiMismatchCount = unresolvedRMAs;
+}
+function isIMEIResolved(batch, rmaOrTracking, imei, direction) {
+if (!batch.imeiMismatchResolutions) return false;
+return !!batch.imeiMismatchResolutions[`${rmaOrTracking}::${imei}::${direction}`];
+}
+function getIMEIResolution(batch, rmaOrTracking, imei, direction) {
+if (!batch.imeiMismatchResolutions) return null;
+return batch.imeiMismatchResolutions[`${rmaOrTracking}::${imei}::${direction}`] || null;
+}
+// Remove erroneously packed IMEI (packed but never submitted to vendor)
+function removeErroneouslyPacked(batchId, imei, trackingNumber) {
+const batch = findBatch(batchId);
+if (!batch) return;
+// Auto-resolve with fixed reason
+if (!batch.imeiMismatchResolutions) batch.imeiMismatchResolutions = {};
+const key = `${trackingNumber}::${imei}::packed_not_portal`;
+batch.imeiMismatchResolutions[key] = {
+imei,
+rmaOrTracking: trackingNumber,
+direction: 'packed_not_portal',
+reason: 'Removed — erroneously packed, not submitted to vendor',
+resolvedAt: new Date().toISOString(),
+};
+// Mark the unit as removed from the batch
+const unit = batch.units.find(u => normalizeIMEI(u.imei) === normalizeIMEI(imei));
+if (unit) {
+unit.imeiMismatch = false;
+unit.imeiMismatchReason = null;
+unit.imeiResolved = 'Removed — erroneously packed, not submitted to vendor';
+unit.falloutReason = 'Erroneously packed — not submitted to vendor';
+if (unit.hardStopReason && (unit.hardStopReason.includes('not on packing slip') || unit.hardStopReason.includes('not in submitted file'))) {
+unit.hardStop = false;
+unit.hardStopReason = null;
+}
+}
+recalcIMEIMismatchCount(batch);
+recalcBatchStatus(batch);
+saveBatchToServer(batch);
+renderBPPanel();
+}
+// Remove erroneously packed IMEI for Verizon (packed but not on packing slip)
+function removeErroneouslyPackedVZ(batchId, imei, rma) {
+const batch = findBatch(batchId);
+if (!batch) return;
+if (!batch.imeiMismatchResolutions) batch.imeiMismatchResolutions = {};
+const key = `${rma}::${imei}::packed_not_portal`;
+batch.imeiMismatchResolutions[key] = {
+imei,
+rmaOrTracking: rma,
+direction: 'packed_not_portal',
+reason: 'Removed — erroneously packed, not on packing slip',
+resolvedAt: new Date().toISOString(),
+};
+const unit = batch.units.find(u => normalizeIMEI(u.imei) === normalizeIMEI(imei));
+if (unit) {
+unit.imeiMismatch = false;
+unit.imeiMismatchReason = null;
+unit.imeiResolved = 'Removed — erroneously packed, not on packing slip';
+unit.falloutReason = 'Erroneously packed — not on packing slip';
+if (unit.hardStopReason && (unit.hardStopReason.includes('not on packing slip') || unit.hardStopReason.includes('not in submitted file'))) {
+unit.hardStop = false;
+unit.hardStopReason = null;
+}
+}
+recalcIMEIMismatchCount(batch);
+recalcBatchStatus(batch);
+saveBatchToServer(batch);
+renderVZPanel();
+}
+// Re-upload submitted file — goes back to upload form with Step 1 data intact
+function reuploadSubmittedFile(batchId) {
+// Keep Step 1 data but clear submitted file so user can re-upload the corrected one
+bpUpload.submittedFile = null;
+bpUpload.submittedFiles = [];
+// Remove the batch from viewing so the upload form shows
+const batch = findBatch(batchId);
+if (batch) {
+batch._viewing = false;
+// Remove batch from list (it will be re-created on next verification run)
+const idx = bpBatches.indexOf(batch);
+if (idx > -1) bpBatches.splice(idx, 1);
+}
+renderBPPanel();
+// Scroll to the Step 2 upload area
+setTimeout(() => {
+const step2El = document.getElementById('bp-sub-input');
+if (step2El) step2El.closest('.form-group').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}, 100);
+}
+// ════════════════════════════════════
+// ROUTE CORRECTION
+// ════════════════════════════════════
+function openRouteCorrection(batchId, unitIndex, vendorKey) {
+routeCorrTarget = { batchId: parseInt(batchId), unitIndex, vendorKey };
+const batch = findBatch(batchId);
+const unit = batch.units[unitIndex];
+document.getElementById('route-imei-display').textContent = `IMEI: ${unit.imei} | RMA: ${unit.rmaNumber}`;
+document.getElementById('route-original').value = unit.route;
+document.getElementById('route-corrected-select').value = '';
+document.getElementById('route-correction-notes').value = '';
+document.getElementById('route-modal').classList.add('show');
+}
+function closeRouteModal() {
+document.getElementById('route-modal').classList.remove('show');
+routeCorrTarget = null;
+}
+function saveRouteCorrection() {
+const newRoute = document.getElementById('route-corrected-select').value;
+const notes = document.getElementById('route-correction-notes').value;
+if (!newRoute) { alert('Please select the corrected route.'); return; }
+const batch = findBatch(routeCorrTarget.batchId);
+const unit = batch.units[routeCorrTarget.unitIndex];
+unit.originalRoute = unit.route;
+unit.route = newRoute;
+unit.routeCorrected = true;
+unit.routeCorrectionNotes = notes || `Route corrected: ${unit.originalRoute} → ${newRoute}`;
+const vendorName = batch.vendor;
+const routeLower = newRoute.toLowerCase();
+const isValid = routeLower.includes(vendorName.toLowerCase()) ||
+(vendorName === 'VERIZON' && routeLower.includes('pre-rma verizon'));
+unit.routeStatus = isValid ? 'PASS' : 'FAIL';
+if (isValid && unit.hardStopReason && unit.hardStopReason.startsWith('Wrong route')) {
+unit.hardStop = false;
+unit.hardStopReason = null;
+}
+if (unit._raw) {
+const routeKey = Object.keys(unit._raw).find(k => k.toLowerCase().includes('route'));
+if (routeKey) unit._raw[routeKey] = newRoute;
+}
+recalcBatchStatus(batch);
+saveBatchToServer(batch);
+closeRouteModal();
+if (batch.vendor === 'VERIZON') renderVZPanel();
+else renderBPPanel();
+}
+// ════════════════════════════════════
+// PRE-RMA AGING ACTION
+// ════════════════════════════════════
+function openPreRMAAction(batchId, unitIndex, vendorKey) {
+prermaTarget = { batchId: parseInt(batchId), unitIndex, vendorKey };
+const batch = findBatch(batchId);
+const unit = batch.units[unitIndex];
+document.getElementById('prerma-imei-display').textContent = `IMEI: ${unit.imei} | RMA: ${unit.rmaNumber} | ${unit.daysSinceSubmission} days since submission`;
+document.getElementById('prerma-action-select').value = '';
+document.getElementById('prerma-notes').value = '';
+document.getElementById('prerma-modal').classList.add('show');
+}
+function closePreRMAModal() {
+document.getElementById('prerma-modal').classList.remove('show');
+prermaTarget = null;
+}
+function savePreRMAAction() {
+const action = document.getElementById('prerma-action-select').value;
+const notes = document.getElementById('prerma-notes').value;
+if (!action) { alert('Please select an action.'); return; }
+if (!notes.trim()) { alert('Please provide notes.'); return; }
+const batch = findBatch(prermaTarget.batchId);
+const unit = batch.units[prermaTarget.unitIndex];
+if (action === 'clear') {
+unit.hardStop = false;
+unit.hardStopReason = null;
+unit.agingStatus = 'PASS';
+unit.agingCleared = true;
+unit.agingClearedNotes = `Cleared by management — ${notes}`;
+unit.falloutReason = null;
+} else if (action === 'remove') {
+unit.falloutReason = `Pre-RMA aging (${unit.daysSinceSubmission}d) — Removed: ${notes}`;
+unit.removedFromShipment = true;
+}
+recalcBatchStatus(batch);
+saveBatchToServer(batch);
+closePreRMAModal();
+if (batch.vendor === 'VERIZON') renderVZPanel();
+else renderBPPanel();
+}
+// ════════════════════════════════════
+// RECOVER UNPACKED IMEI (Brightpoint)
+// ════════════════════════════════════
+function refreshBPCrossCheck(batch) {
+if (!batch.submittedFiles || batch.submittedFiles.length === 0) return;
+// Combine original units + recovered IMEIs into one list for cross-check
+const allUnits = [...batch.units];
+(batch.recoveredIMEIs || []).forEach(r => {
+allUnits.push({ imei: r.imei, trackingOut: r.trackingOut || batch.units[0]?.trackingOut || '', rmaNumber: r.rmaNumber });
+});
+// Clear old mismatch flags
+batch.units.forEach(u => {
+if (u.imeiMismatch) {
+u.imeiMismatch = false;
+if (u.hardStopReason && u.hardStopReason.includes('not in submitted file')) {
+u.hardStop = false;
+u.hardStopReason = null;
+}
+}
+});
+// Re-run cross-check with combined units
+batch.imeiMatchResults = checkBrightpointIMEIMatch(allUnits, batch.submittedFiles);
+batch.imeiMismatchCount = batch.imeiMatchResults.filter(r => !r.isMatch).length;
+recalcBatchStatus(batch);
+}
+function openRecoverIMEI(batchId, imei) {
+const batch = findBatch(batchId);
+if (!batch) return;
+if (confirm(`Add IMEI ${imei} back to the batch?\n\nMake sure the unit has been physically packed.`)) {
+if (!batch.recoveredIMEIs) batch.recoveredIMEIs = [];
+batch.recoveredIMEIs.push({ imei, rmaNumber: batch.units[0]?.rmaNumber || '', trackingOut: batch.units[0]?.trackingOut || '', addedManually: true, _raw: null });
+if (batch.vendor === 'BRIGHTPOINT') {
+refreshBPCrossCheck(batch);
+saveBatchToServer(batch);
+renderBPPanel();
+} else {
+refreshVZCrossCheck(batch);
+saveBatchToServer(batch);
+renderVZPanel();
+}
+}
+}
+function recoverVZIMEI(batchId, imei, rma) {
+const batch = findBatch(batchId);
+if (!batch) return;
+if (confirm(`Add IMEI ${imei} to the Verizon batch?\n\nMake sure the unit has been physically packed.`)) {
+if (!batch.recoveredIMEIs) batch.recoveredIMEIs = [];
+batch.recoveredIMEIs.push({ imei, rmaNumber: rma, addedManually: true, _raw: null });
+refreshVZCrossCheck(batch);
+saveBatchToServer(batch);
+renderVZPanel();
+}
+}
+function refreshVZCrossCheck(batch) {
+const allUnits = [...batch.units];
+(batch.recoveredIMEIs || []).forEach(r => {
+allUnits.push({ imei: r.imei, rmaNumber: r.rmaNumber });
+});
+// Clear old mismatch flags
+batch.units.forEach(u => {
+if (u.imeiMismatch) {
+u.imeiMismatch = false;
+if (u.hardStopReason && u.hardStopReason.includes('not on packing slip')) {
+u.hardStop = false;
+u.hardStopReason = null;
+}
+}
+});
+// Re-run cross-check with combined units
+batch.imeiMatchResults = checkVerizonIMEIMatch(allUnits, batch.packingSlips);
+batch.imeiMismatchCount = batch.imeiMatchResults.filter(r => !r.isMatch).length;
+recalcBatchStatus(batch);
+}
+async function handleRecoverUpload(batchId, input) {
+const batch = findBatch(batchId);
+if (!batch || !input.files.length) return;
+const text = await readFile(input.files[0]);
+const csv = parseCSV(text);
+const colMap = mapRMAColumns(csv.headers);
+if (!batch.recoveredIMEIs) batch.recoveredIMEIs = [];
+let addedCount = 0, updatedCount = 0;
+csv.rows.forEach(r => {
+const imei = r[colMap.imei] || '';
+if (!imei) return;
+const isUnpacked = batch.imeiResults.unpackedSubmitted.includes(imei);
+if (!isUnpacked) return;
+const existingIdx = batch.recoveredIMEIs.findIndex(x => x.imei === imei);
+const richRecord = {
+imei,
+route: r[colMap.route] || '',
+sku: r[colMap.sku] || '',
+rmaNumber: r[colMap.rmaNumber] || '',
+submissionDate: r[colMap.submissionDate] || '',
+trackingOut: r[colMap.trackingOut] || '',
+addedManually: false,
+_raw: r,
+};
+if (existingIdx >= 0) {
+batch.recoveredIMEIs[existingIdx] = richRecord;
+updatedCount++;
+} else {
+batch.recoveredIMEIs.push(richRecord);
+addedCount++;
+}
+});
+if (!batch._bpRecoverHeaders && csv.headers.length > 0) batch._bpRecoverHeaders = csv.headers;
+let msg = '';
+if (addedCount > 0) msg += `${addedCount} IMEI(s) recovered.`;
+if (updatedCount > 0) msg += `${msg ? '\n' : ''}${updatedCount} IMEI(s) updated with full CSV data.`;
+if (!msg) msg = 'No matching unpacked IMEIs found.';
+alert(msg);
+input.value = '';
+refreshBPCrossCheck(batch);
+saveBatchToServer(batch);
+renderBPPanel();
+}
+// ════════════════════════════════════
+// PACKED SUMMARY PDF
+// ════════════════════════════════════
+function downloadPackedPDF(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const { jsPDF } = window.jspdf;
+const doc = new jsPDF();
+const darkGreen = [27, 77, 62];
+const gold = [212, 168, 67];
+doc.setFillColor(...darkGreen);
+doc.rect(0, 0, 210, 32, 'F');
+doc.setFontSize(16);
+doc.setTextColor(255, 255, 255);
+doc.setFont('helvetica', 'bold');
+doc.text('RecirQ Global', 14, 14);
+doc.setFontSize(10);
+doc.setFont('helvetica', 'normal');
+doc.setTextColor(...gold);
+doc.text('PACKED Summary — Send to Packing Team', 14, 22);
+doc.setTextColor(180, 210, 195);
+doc.text(`Ship Date: ${batch.shipDate}`, 14, 28);
+doc.setTextColor(60, 60, 60);
+doc.setFontSize(10);
+let y = 42;
+doc.setFont('helvetica', 'bold');
+doc.text('Vendor:', 14, y);
+doc.setFont('helvetica', 'normal');
+doc.text(batch.vendor, 40, y);
+doc.setFont('helvetica', 'bold');
+doc.text('Status:', 100, y);
+doc.setFont('helvetica', 'normal');
+doc.text(batch.status, 122, y);
+doc.setFont('helvetica', 'bold');
+doc.text('Generated:', 14, y + 7);
+doc.setFont('helvetica', 'normal');
+doc.text(new Date().toLocaleString(), 45, y + 7);
+y = 58;
+const _isBP = batch.vendor === 'BRIGHTPOINT';
+const _groupLabel = _isBP ? 'Tracking # Out' : 'RMA#';
+const _groups = {};
+batch.units.forEach(u => {
+if (isRemoved(u)) return;
+const key = _isBP ? (u.trackingOut || 'NO TRACKING') : u.rmaNumber;
+if (!_groups[key]) _groups[key] = 0;
+_groups[key]++;
+});
+const tableData = Object.entries(_groups).map(([k, qty]) => [k, String(qty)]);
+const totalUnits = Object.values(_groups).reduce((a, b) => a + b, 0);
+tableData.push(['TOTAL', String(totalUnits)]);
+doc.autoTable({
+startY: y,
+head: [[_groupLabel, 'QTY']],
+body: tableData,
+theme: 'grid',
+headStyles: { fillColor: darkGreen, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 11 },
+bodyStyles: { fontSize: 10 },
+columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 40, halign: 'center' } },
+didParseCell: function(data) {
+if (data.section === 'body' && data.row.index === tableData.length - 1) {
+data.cell.styles.fontStyle = 'bold';
+data.cell.styles.fillColor = [232, 245, 233];
+}
+},
+margin: { left: 14, right: 14 },
+});
+const fallouts = batch.units.filter(u => u.falloutReason);
+if (fallouts.length > 0) {
+let fy = doc.lastAutoTable.finalY + 12;
+doc.setFontSize(11);
+doc.setFont('helvetica', 'bold');
+doc.setTextColor(...darkGreen);
+doc.text(`Fallouts (${fallouts.length})`, 14, fy);
+fy += 2;
+doc.autoTable({
+startY: fy,
+head: [['IMEI', 'RMA#', 'Reason']],
+body: fallouts.map(u => [u.imei, u.rmaNumber, u.falloutReason]),
+theme: 'grid',
+headStyles: { fillColor: [198, 40, 40], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+bodyStyles: { fontSize: 9 },
+margin: { left: 14, right: 14 },
+});
+}
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+doc.setPage(i);
+doc.setFontSize(8);
+doc.setTextColor(150, 150, 150);
+doc.text(`RecirQ Global — PACKED Summary — ${batch.shipDate}`, 14, 290);
+doc.text(`Page ${i} of ${pageCount}`, 180, 290);
+}
+doc.save(`PACKED Summary - ${batch.vendor} - ${batch.shipDate}.pdf`);
+}
+function copyPackedTable(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const isBP = batch.vendor === 'BRIGHTPOINT';
+const label = isBP ? 'Tracking # Out' : 'RMA#';
+const groups = {};
+batch.units.forEach(u => {
+if (isRemoved(u)) return;
+const key = isBP ? (u.trackingOut || 'NO TRACKING') : u.rmaNumber;
+if (!groups[key]) groups[key] = 0;
+groups[key]++;
+});
+let text = `PACKED Summary\n${label}\tQTY\n`;
+for (const [k, qty] of Object.entries(groups)) text += `${k}\t${qty}\n`;
+navigator.clipboard.writeText(text).then(() => alert('Copied!')).catch(() => {});
+}
+// ════════════════════════════════════
+// SHIP ADVICE CSV EXPORTS
+// ════════════════════════════════════
+function escapeCSV(val) {
+const s = String(val == null ? '' : val);
+if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+return s;
+}
+function triggerDownload(filename, csvContent) {
+const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url; a.download = filename; a.style.display = 'none';
+document.body.appendChild(a); a.click();
+document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function downloadVerizonUnits(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const headers = batch._vzHeaders;
+const colMap = mapRMAColumns(headers);
+const rows = [headers.map(escapeCSV).join(',')];
+batch.units.forEach(u => {
+if (u._raw && !isRemoved(u)) {
+// Fill in Delivery # from packing slip data
+if (colMap.deliveryNumber && batch.deliveryByRMA && batch.deliveryByRMA[u.rmaNumber]) {
+u._raw[colMap.deliveryNumber] = batch.deliveryByRMA[u.rmaNumber];
+}
+// Fill in Ship date from batch
+if (colMap.shipDate) {
+u._raw[colMap.shipDate] = batch.shipDate;
+}
+rows.push(headers.map(h => escapeCSV(u._raw[h])).join(','));
+}
+});
+triggerDownload(`Ship Advice - Verizon Units - ${batch.shipDate}.csv`, rows.join('\n'));
+}
+function downloadVerizonRemoved(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const removed = batch.units.filter(u => isRemoved(u));
+if (removed.length === 0) { alert('No removed units.'); return; }
+const headers = ['IMEI', 'RMA#', 'Route', 'Tracking Out', 'Reason', 'Days Since Submission'];
+const rows = [headers.map(escapeCSV).join(',')];
+removed.forEach(u => {
+rows.push([
+escapeCSV(u.imei), escapeCSV(u.rmaNumber), escapeCSV(u.route),
+escapeCSV(u.trackingOut), escapeCSV(u.falloutReason || ''),
+escapeCSV(u.daysSinceSubmission || '')
+].join(','));
+});
+triggerDownload(`Ship Advice - Verizon Removed Units - ${batch.shipDate}.csv`, rows.join('\n'));
+}
+function downloadVerizonQtyMatch(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const removedByRMA = {};
+batch.units.forEach(u => { if (isRemoved(u)) { removedByRMA[u.rmaNumber] = (removedByRMA[u.rmaNumber] || 0) + 1; } });
+const headers = ['RMA#', 'Uploaded QTY', 'Removed', 'Active QTY', 'Portal QTY', 'MATCH', 'Difference'];
+const rows = [headers.map(escapeCSV).join(',')];
+batch.qtyResults.forEach(r => {
+const removed = removedByRMA[r.rma] || 0;
+const activeQty = r.packedQty - removed;
+rows.push([escapeCSV(r.rma), escapeCSV(r.packedQty), escapeCSV(removed), escapeCSV(activeQty), escapeCSV(r.portalQty),
+escapeCSV(r.match ? 'TRUE' : 'FALSE'),
+escapeCSV(r.match ? '' : (r.diff > 0 ? `+${r.diff} extra packed` : `${Math.abs(r.diff)} missing`)),
+].join(','));
+});
+triggerDownload(`Ship Advice - Verizon QTY Match - ${batch.shipDate}.csv`, rows.join('\n'));
+}
+function downloadBrightpointUnits(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const headers = batch._bpHeaders;
+const rows = [headers.map(escapeCSV).join(',')];
+batch.units.forEach(u => {
+if (u._raw && !isRemoved(u)) rows.push(headers.map(h => escapeCSV(u._raw[h])).join(','));
+});
+const recovered = batch.recoveredIMEIs || [];
+recovered.forEach(u => {
+if (u._raw) {
+rows.push(headers.map(h => escapeCSV(u._raw[h] || '')).join(','));
+} else {
+const colMap = mapRMAColumns(headers);
+rows.push(headers.map(h => {
+if (h === colMap.imei) return escapeCSV(u.imei);
+if (h === colMap.rmaNumber) return escapeCSV(u.rmaNumber);
+return '';
+}).join(','));
+}
+});
+triggerDownload(`Ship Advice - Brightpoint Units - ${batch.shipDate}.csv`, rows.join('\n'));
+}
+function downloadBrightpointIMEIs(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const ir = batch.imeiResults;
+const uf = batch.unpackedFallouts || {};
+const recovered = batch.recoveredIMEIs || [];
+const recoveredSet = new Set(recovered.map(r => r.imei));
+const rows = ['IMEI,Status'];
+ir.matched.forEach(imei => rows.push([escapeCSV(imei), 'Matched'].join(',')));
+ir.unpackedSubmitted.forEach(imei => {
+if (recoveredSet.has(imei)) rows.push([escapeCSV(imei), 'Recovered'].join(','));
+else if (uf[imei]) rows.push([escapeCSV(imei), escapeCSV(`Fallout: ${uf[imei]}`)].join(','));
+else rows.push([escapeCSV(imei), 'Submitted but NOT packed'].join(','));
+});
+ir.extraPacked.forEach(imei => rows.push([escapeCSV(imei), 'Packed but NOT submitted'].join(',')));
+triggerDownload(`Ship Advice - Brightpoint IMEI Comparison - ${batch.shipDate}.csv`, rows.join('\n'));
+}
+function downloadBrightpointRemoved(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const removed = batch.units.filter(u => isRemoved(u));
+if (removed.length === 0) { alert('No removed units.'); return; }
+const colMap = batch._bpHeaders ? mapRMAColumns(batch._bpHeaders) : null;
+const headerRow = ['Serial#', 'SKU', 'SKU Description', 'RMAs'].map(escapeCSV).join(',');
+// Group removed units by Tracking # Out
+const byTracking = {};
+removed.forEach(u => {
+const tk = u.trackingOut || 'NO_TRACKING';
+if (!byTracking[tk]) byTracking[tk] = [];
+byTracking[tk].push(u);
+});
+const trackings = Object.keys(byTracking);
+// Download one CSV per Tracking # Out with staggered delays
+trackings.forEach((tk, idx) => {
+const rows = [headerRow];
+byTracking[tk].forEach(u => {
+const skuDesc = (colMap && u._raw) ? (u._raw[colMap.finalDescription] || '') : '';
+rows.push([
+escapeCSV(u.imei),
+escapeCSV(u.sku || ''),
+escapeCSV(skuDesc),
+escapeCSV(u.rmaNumber || '')
+].join(','));
+});
+const safeTk = tk.replace(/[^a-zA-Z0-9_-]/g, '_');
+setTimeout(() => {
+triggerDownload(`${safeTk} Removed Units - ${batch.shipDate}.csv`, rows.join('\n'));
+}, idx * 300);
+});
+}
+// Download IMEI mismatch report for Verizon (per RMA)
+function downloadIMEIMismatchReport(batchId) {
+const batch = findBatch(batchId);
+if (!batch || !batch.imeiMatchResults) return;
+const rows = ['RMA#,Type,IMEI'];
+batch.imeiMatchResults.filter(r => !r.isMatch).forEach(r => {
+r.inPackedNotPS.forEach(imei => rows.push([escapeCSV(r.rma), 'In PACKED not on Packing Slip', escapeCSV(imei)].join(',')));
+r.inPSNotPacked.forEach(imei => rows.push([escapeCSV(r.rma), 'On Packing Slip not in PACKED', escapeCSV(imei)].join(',')));
+});
+triggerDownload(`IMEI Mismatch Report - Verizon - ${batch.shipDate}.csv`, rows.join('\n'));
+}
+// Download IMEI mismatch report for Brightpoint (per Tracking #)
+function downloadBPIMEIMismatchReport(batchId) {
+const batch = findBatch(batchId);
+if (!batch || !batch.imeiMatchResults) return;
+const rows = ['Tracking #,Type,IMEI'];
+batch.imeiMatchResults.filter(r => !r.isMatch).forEach(r => {
+r.inPackedNotSub.forEach(imei => rows.push([escapeCSV(r.trackingNumber), 'In PACKED not in Submitted', escapeCSV(imei)].join(',')));
+r.inSubNotPacked.forEach(imei => rows.push([escapeCSV(r.trackingNumber), 'In Submitted not in PACKED', escapeCSV(imei)].join(',')));
+});
+triggerDownload(`IMEI Mismatch Report - Brightpoint - ${batch.shipDate}.csv`, rows.join('\n'));
+}
+// ════════════════════════════════════
+// SLACK MESSAGE
+// ════════════════════════════════════
+function copySlackMessage(batchId, vendorKey) {
+const batch = findBatch(batchId);
+if (!batch) return;
+let msg = `*Shipment Check Complete — ${batch.vendor} — ${batch.shipDate}*\n`;
+const rmas = [...new Set(batch.units.map(u => u.rmaNumber))];
+const fallouts = batch.units.filter(u => u.falloutReason);
+msg += `${batch.units.length} units, ${rmas.length} RMA(s)`;
+if (fallouts.length > 0) {
+msg += ` | ${fallouts.length} fallout(s)`;
+fallouts.forEach(u => { msg += `\n  • ${u.imei} — ${u.falloutReason}`; });
+}
+msg += `\nStatus: ${batch.status === 'CLEARED' ? 'CLEARED TO SHIP' : batch.status}`;
+navigator.clipboard.writeText(msg).then(() => alert('Slack message copied!')).catch(() => {
+const ta = document.createElement('textarea');
+ta.value = msg; document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+document.body.removeChild(ta); alert('Slack message copied!');
+});
+}
+// ════════════════════════════════════
+// DASHBOARD + HISTORY
+// ════════════════════════════════════
+function refreshDashboard() {
+const all = [...vzBatches, ...bpBatches];
+document.getElementById('stat-total').textContent = all.length;
+document.getElementById('stat-passed').textContent = all.filter(b => b.status === 'PASS' || b.status === 'CLEARED').length;
+document.getElementById('stat-review').textContent = all.filter(b => b.status === 'REVIEW').length;
+document.getElementById('stat-failed').textContent = all.filter(b => b.status === 'HARD-STOP').length;
+// Vendor summary cards
+const vzTrackings = new Set();
+let vzCleared = 0;
+vzBatches.forEach(b => {
+b.units.forEach(u => { if (u.trackingOut) vzTrackings.add(u.trackingOut); });
+if (b.status === 'CLEARED') vzCleared += b.units.filter(u => !isRemoved(u)).length;
+});
+document.getElementById('vz-tracking-count').textContent = vzTrackings.size;
+document.getElementById('vz-cleared-qty').textContent = vzCleared;
+const bpTrackings = new Set();
+let bpCleared = 0;
+bpBatches.forEach(b => {
+b.units.forEach(u => { if (u.trackingOut) bpTrackings.add(u.trackingOut); });
+if (b.status === 'CLEARED') bpCleared += b.units.filter(u => !isRemoved(u)).length;
+});
+document.getElementById('bp-tracking-count').textContent = bpTrackings.size;
+document.getElementById('bp-cleared-qty').textContent = bpCleared;
+// Per-Tracking# breakdown
+{
+// Verizon breakdown
+const vzByTracking = {};
+vzBatches.forEach(b => {
+b.units.forEach(u => {
+const tk = u.trackingOut || 'NO TRACKING';
+if (!vzByTracking[tk]) vzByTracking[tk] = { total: 0, cleared: 0 };
+vzByTracking[tk].total++;
+if (b.status === 'CLEARED' && !isRemoved(u)) vzByTracking[tk].cleared++;
+});
+});
+const vzDetail = document.getElementById('vz-tracking-detail');
+const vzKeys = Object.keys(vzByTracking);
+if (vzKeys.length === 0) {
+vzDetail.innerHTML = '<div style="color:#aaa;text-align:center;padding:12px;">No data yet</div>';
+} else {
+let vzHTML = '<table style="width:100%;font-size:12px;"><tr><th style="text-align:left;padding:4px;">Tracking #</th><th style="text-align:center;padding:4px;">Units</th><th style="text-align:center;padding:4px;">Cleared</th><th style="text-align:center;padding:4px;">Status</th></tr>';
+vzKeys.forEach(tk => {
+const d = vzByTracking[tk];
+const isCleared = d.cleared === d.total && d.total > 0;
+const badge = isCleared ? '<span class="badge badge-pass">CLEARED</span>' : d.cleared > 0 ? '<span class="badge badge-review">PARTIAL</span>' : '<span class="badge" style="background:#eee;color:#888;">PENDING</span>';
+vzHTML += `<tr><td style="padding:4px;font-family:monospace;font-size:11px;">${tk}</td><td style="text-align:center;padding:4px;">${d.total}</td><td style="text-align:center;padding:4px;font-weight:600;color:var(--success-green);">${d.cleared}</td><td style="text-align:center;padding:4px;">${badge}</td></tr>`;
+});
+vzHTML += '</table>';
+vzDetail.innerHTML = vzHTML;
+}
+// Brightpoint breakdown
+const bpByTracking = {};
+bpBatches.forEach(b => {
+b.units.forEach(u => {
+const tk = u.trackingOut || 'NO TRACKING';
+if (!bpByTracking[tk]) bpByTracking[tk] = { total: 0, cleared: 0 };
+bpByTracking[tk].total++;
+if (b.status === 'CLEARED' && !isRemoved(u)) bpByTracking[tk].cleared++;
+});
+});
+const bpDetail = document.getElementById('bp-tracking-detail');
+const bpKeys = Object.keys(bpByTracking);
+if (bpKeys.length === 0) {
+bpDetail.innerHTML = '<div style="color:#aaa;text-align:center;padding:12px;">No data yet</div>';
+} else {
+let bpHTML = '<table style="width:100%;font-size:12px;"><tr><th style="text-align:left;padding:4px;">Tracking #</th><th style="text-align:center;padding:4px;">Units</th><th style="text-align:center;padding:4px;">Cleared</th><th style="text-align:center;padding:4px;">Status</th></tr>';
+bpKeys.forEach(tk => {
+const d = bpByTracking[tk];
+const isCleared = d.cleared === d.total && d.total > 0;
+const badge = isCleared ? '<span class="badge badge-pass">CLEARED</span>' : d.cleared > 0 ? '<span class="badge badge-review">PARTIAL</span>' : '<span class="badge" style="background:#eee;color:#888;">PENDING</span>';
+bpHTML += `<tr><td style="padding:4px;font-family:monospace;font-size:11px;">${tk}</td><td style="text-align:center;padding:4px;">${d.total}</td><td style="text-align:center;padding:4px;font-weight:600;color:var(--success-green);">${d.cleared}</td><td style="text-align:center;padding:4px;">${badge}</td></tr>`;
+});
+bpHTML += '</table>';
+bpDetail.innerHTML = bpHTML;
+}
+}
+const list = document.getElementById('batch-list');
+if (all.length === 0) {
+list.innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><p>No shipment checks yet. Click <b>Shipment Check</b> to start.</p></div>';
+return;
+}
+// Sort by creation date desc
+all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+let rows = '';
+all.forEach(b => {
+const statusClass = b.status === 'PASS' || b.status === 'CLEARED' ? 'pass' : b.status === 'HARD-STOP' ? 'fail' : 'review';
+const vendorBadge = b.vendor === 'VERIZON' ? '<span class="badge badge-verizon">VZ</span>' : '<span class="badge badge-brightpoint">BP</span>';
+const batchTrackings = [...new Set(b.units.map(u => u.trackingOut).filter(Boolean))];
+const trackingDisplay = batchTrackings.length <= 3 ? batchTrackings.join(', ') : batchTrackings.slice(0,3).join(', ') + ` +${batchTrackings.length - 3}`;
+rows += `<tr onclick="viewBatchFromDash('${b.id}','${b.vendor}')" style="cursor:pointer;">
+<td>${b.shipDate}</td><td>${vendorBadge}</td><td style="font-size:12px;">${trackingDisplay || '—'}</td><td>${b.units.length}</td>
+<td><span class="badge badge-${statusClass}">${b.status}</span></td>
+<td>${new Date(b.createdAt).toLocaleString()}</td>
+<td><button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button></td>
+</tr>`;
+});
+list.innerHTML = `<div class="tbl-wrap"><table>
+<tr><th>Ship Date</th><th>Vendor</th><th>Tracking #s</th><th>Units</th><th>Status</th><th>Created</th><th></th></tr>
+${rows}
+</table></div>`;
+}
+function viewBatchFromDash(batchId, vendor) {
+const batch = findBatch(batchId);
+if (!batch) return;
+// Clear other viewing flags for same vendor
+if (vendor === 'VERIZON') {
+vzBatches.forEach(b => b._viewing = false);
+} else {
+bpBatches.forEach(b => b._viewing = false);
+}
+batch._viewing = true;
+showSection('vendor-hub');
+if (vendor === 'VERIZON') switchVendorTab('vz');
+else switchVendorTab('bp');
+if (vendor === 'VERIZON') renderVZPanel();
+else renderBPPanel();
+}
+function refreshHistory() {
+const list = document.getElementById('history-list');
+const all = [...vzBatches, ...bpBatches];
+if (all.length === 0) {
+list.innerHTML = '<div class="empty-state"><div class="icon">&#128197;</div><p>No history yet.</p></div>';
+return;
+}
+all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+let rows = '';
+all.forEach(b => {
+const statusClass = b.status === 'PASS' || b.status === 'CLEARED' ? 'pass' : b.status === 'HARD-STOP' ? 'fail' : 'review';
+const vendorBadge = b.vendor === 'VERIZON' ? '<span class="badge badge-verizon">VZ</span>' : '<span class="badge badge-brightpoint">BP</span>';
+const batchTrackings = [...new Set(b.units.map(u => u.trackingOut).filter(Boolean))];
+const trackingDisplay = batchTrackings.length <= 3 ? batchTrackings.join(', ') : batchTrackings.slice(0,3).join(', ') + ` +${batchTrackings.length - 3}`;
+rows += `<tr onclick="viewBatchFromDash('${b.id}','${b.vendor}')" style="cursor:pointer;">
+<td>${b.shipDate}</td><td>${vendorBadge}</td><td style="font-size:12px;">${trackingDisplay || '—'}</td><td>${b.units.length}</td>
+<td><span class="badge badge-${statusClass}">${b.status}</span></td>
+<td>${new Date(b.createdAt).toLocaleString()}</td>
+<td><button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button></td>
+</tr>`;
+});
+list.innerHTML = `<div class="tbl-wrap"><table>
+<tr><th>Ship Date</th><th>Vendor</th><th>Tracking #s</th><th>Units</th><th>Status</th><th>Created</th><th></th></tr>
+${rows}
+</table></div>`;
+}
+// ════════════════════════════════════
+// SLACK INTEGRATION
+// ════════════════════════════════════
+function toggleSlackSettings() {
+const el = document.getElementById('slack-settings');
+el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function saveSlackSettings() {
+const settings = {
+webhookUrl: document.getElementById('slack-webhook-url').value.trim(),
+botToken: document.getElementById('slack-bot-token').value.trim(),
+channelId: document.getElementById('slack-channel-id').value.trim(),
+};
+// Save to server (async, fire-and-forget)
+saveSlackSettingsToServer(settings);
+// Also cache locally for immediate reads
+window._slackSettings = settings;
+}
+function loadSlackSettings() {
+return window._slackSettings || { webhookUrl: '', botToken: '', channelId: '' };
+}
+async function initSlackSettings() {
+const serverSettings = await loadSlackSettingsFromServer();
+window._slackSettings = {
+webhookUrl: serverSettings.webhookUrl || '',
+botToken: serverSettings.botToken || '',
+channelId: serverSettings.channelId || '',
+};
+const s = window._slackSettings;
+document.getElementById('slack-webhook-url').value = s.webhookUrl || '';
+document.getElementById('slack-bot-token').value = s.botToken || '';
+document.getElementById('slack-channel-id').value = s.channelId || '';
+}
+function getSlackConfig() {
+return loadSlackSettings();
+}
+function isSlackConfigured() {
+const s = getSlackConfig();
+return !!s.webhookUrl;
+}
+function isSlackFileConfigured() {
+const s = getSlackConfig();
+return !!s.botToken && !!s.channelId;
+}
+// ─── SLACK SEND HELPER (CORS-safe) ───
+// Browsers block fetch() to Slack from local file:// pages (CORS).
+// Solution: use a hidden form POST for webhooks (no CORS preflight),
+// and an iframe-based form for file uploads via bot token.
+function slackWebhookPost(webhookUrl, payload) {
+return new Promise((resolve) => {
+// Use a hidden iframe + form to bypass CORS
+const iframe = document.createElement('iframe');
+iframe.name = 'slack_webhook_frame_' + Date.now();
+iframe.style.display = 'none';
+document.body.appendChild(iframe);
+const form = document.createElement('form');
+form.method = 'POST';
+form.action = webhookUrl;
+form.target = iframe.name;
+form.style.display = 'none';
+const input = document.createElement('input');
+input.type = 'hidden';
+input.name = 'payload';
+input.value = JSON.stringify(payload);
+form.appendChild(input);
+document.body.appendChild(form);
+// We can't read the response from cross-origin iframe,
+// but the message IS sent. Resolve after a short delay.
+iframe.onload = () => {
+setTimeout(() => {
+document.body.removeChild(form);
+document.body.removeChild(iframe);
+resolve(true);
+}, 500);
+};
+// Timeout fallback
+setTimeout(() => {
+try { document.body.removeChild(form); } catch(e) {}
+try { document.body.removeChild(iframe); } catch(e) {}
+resolve(true); // Assume sent
+}, 3000);
+form.submit();
+});
+}
+async function testSlackConnection() {
+const statusEl = document.getElementById('slack-test-status');
+const s = getSlackConfig();
+if (!s.webhookUrl) {
+statusEl.innerHTML = '<span style="color:var(--alert-red);">Please enter a webhook URL first.</span>';
+return;
+}
+statusEl.innerHTML = '<span style="color:var(--info-blue);">Sending test message...</span>';
+try {
+await slackWebhookPost(s.webhookUrl, { text: '\u2705 RecirQ Shipment Check \u2014 Slack connection test successful!' });
+statusEl.innerHTML = '<span style="color:var(--success-green);">\u2705 Test message sent! Check #victra-rtv-packing in Slack.</span>';
+} catch (e) {
+statusEl.innerHTML = `<span style="color:var(--alert-red);">\u274c Failed to send: ${e.message}</span>`;
+}
+// Test bot token via file upload test (lightweight)
+if (s.botToken && s.channelId) {
+statusEl.innerHTML += '<br><span style="color:var(--info-blue);">Bot token configured \u2014 file uploads will use token + channel ID.</span>';
+}
+}
+// Send a text message via webhook (CORS-safe)
+async function sendSlackMessage(text) {
+const s = getSlackConfig();
+if (!s.webhookUrl) {
+alert('Slack webhook URL not configured. Click the \u2699 gear icon to set it up.');
+return false;
+}
+try {
+return await slackWebhookPost(s.webhookUrl, { text });
+} catch (e) {
+console.error('Slack webhook error:', e);
+return false;
+}
+}
+// Upload a file via Slack Bot Token
+// Uses XMLHttpRequest which can bypass some CORS restrictions for file uploads
+async function uploadSlackFile(fileBlob, filename, title, initialComment) {
+const s = getSlackConfig();
+if (!s.botToken || !s.channelId) {
+console.warn('Slack bot token/channel not configured, skipping file upload');
+return false;
+}
+return new Promise((resolve) => {
+const formData = new FormData();
+formData.append('file', fileBlob, filename);
+formData.append('channels', s.channelId);
+formData.append('title', title);
+if (initialComment) formData.append('initial_comment', initialComment);
+const xhr = new XMLHttpRequest();
+xhr.open('POST', 'https://slack.com/api/files.upload', true);
+xhr.setRequestHeader('Authorization', `Bearer ${s.botToken}`);
+xhr.onload = function() {
+try {
+const data = JSON.parse(xhr.responseText);
+resolve(data.ok === true);
+} catch (e) {
+// If we can't parse the response (CORS opaque), assume it worked if status is 200
+resolve(xhr.status === 200 || xhr.status === 0);
+}
+};
+xhr.onerror = function() {
+console.warn('Slack file upload CORS error - falling back to download');
+resolve(false);
+};
+xhr.ontimeout = function() {
+resolve(false);
+};
+xhr.timeout = 15000;
+xhr.send(formData);
+});
+}
+// Generate PACKED Summary PDF as a Blob (same as downloadPackedPDF but returns blob)
+function generatePackedPDFBlob(batch) {
+const { jsPDF } = window.jspdf;
+const doc = new jsPDF();
+const darkGreen = [27, 77, 62];
+const gold = [212, 168, 67];
+doc.setFillColor(...darkGreen);
+doc.rect(0, 0, 210, 32, 'F');
+doc.setFontSize(16);
+doc.setTextColor(255, 255, 255);
+doc.setFont('helvetica', 'bold');
+doc.text('RecirQ Global', 14, 14);
+doc.setFontSize(10);
+doc.setFont('helvetica', 'normal');
+doc.setTextColor(...gold);
+doc.text('PACKED Summary — Send to Packing Team', 14, 22);
+doc.setTextColor(180, 210, 195);
+doc.text(`Ship Date: ${batch.shipDate}`, 14, 28);
+doc.setTextColor(60, 60, 60);
+doc.setFontSize(10);
+let y = 42;
+doc.setFont('helvetica', 'bold');
+doc.text('Vendor:', 14, y);
+doc.setFont('helvetica', 'normal');
+doc.text(batch.vendor, 40, y);
+doc.setFont('helvetica', 'bold');
+doc.text('Status:', 100, y);
+doc.setFont('helvetica', 'normal');
+doc.text(batch.status, 122, y);
+doc.setFont('helvetica', 'bold');
+doc.text('Generated:', 14, y + 7);
+doc.setFont('helvetica', 'normal');
+doc.text(new Date().toLocaleString(), 45, y + 7);
+y = 58;
+const _isBP = batch.vendor === 'BRIGHTPOINT';
+const _groupLabel = _isBP ? 'Tracking # Out' : 'RMA#';
+const _groups = {};
+batch.units.forEach(u => {
+if (isRemoved(u)) return;
+const key = _isBP ? (u.trackingOut || 'NO TRACKING') : u.rmaNumber;
+if (!_groups[key]) _groups[key] = 0;
+_groups[key]++;
+});
+const tableData = Object.entries(_groups).map(([k, qty]) => [k, String(qty)]);
+const totalUnits = Object.values(_groups).reduce((a, b) => a + b, 0);
+tableData.push(['TOTAL', String(totalUnits)]);
+doc.autoTable({
+startY: y,
+head: [[_groupLabel, 'QTY']],
+body: tableData,
+theme: 'grid',
+headStyles: { fillColor: darkGreen, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 11 },
+bodyStyles: { fontSize: 10 },
+columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 40, halign: 'center' } },
+didParseCell: function(data) {
+if (data.section === 'body' && data.row.index === tableData.length - 1) {
+data.cell.styles.fontStyle = 'bold';
+data.cell.styles.fillColor = [232, 245, 233];
+}
+},
+margin: { left: 14, right: 14 },
+});
+const fallouts = batch.units.filter(u => u.falloutReason);
+if (fallouts.length > 0) {
+let fy = doc.lastAutoTable.finalY + 12;
+doc.setFontSize(11);
+doc.setFont('helvetica', 'bold');
+doc.setTextColor(...darkGreen);
+doc.text(`Fallouts (${fallouts.length})`, 14, fy);
+fy += 2;
+doc.autoTable({
+startY: fy,
+head: [['IMEI', 'RMA#', 'Reason']],
+body: fallouts.map(u => [u.imei, u.rmaNumber, u.falloutReason]),
+theme: 'grid',
+headStyles: { fillColor: [198, 40, 40], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+bodyStyles: { fontSize: 9 },
+margin: { left: 14, right: 14 },
+});
+}
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+doc.setPage(i);
+doc.setFontSize(8);
+doc.setTextColor(150, 150, 150);
+doc.text(`RecirQ Global — PACKED Summary — ${batch.shipDate}`, 14, 290);
+doc.text(`Page ${i} of ${pageCount}`, 180, 290);
+}
+return doc.output('blob');
+}
+// Generate Mismatch Report CSV as Blob
+function generateMismatchCSVBlob(batch) {
+if (!batch.imeiMatchResults) return null;
+const mismatched = batch.imeiMatchResults.filter(r => !r.isMatch);
+if (mismatched.length === 0) return null;
+const isVZ = batch.vendor === 'VERIZON';
+const headerLabel = isVZ ? 'RMA#' : 'Tracking #';
+const rows = [`${headerLabel},Type,IMEI,Resolved,Resolution`];
+mismatched.forEach(r => {
+const key = isVZ ? r.rma : r.trackingNumber;
+const packedArr = isVZ ? r.inPackedNotPS : (r.inPackedNotSub || []);
+const portalArr = isVZ ? r.inPSNotPacked : (r.inSubNotPacked || []);
+const packedLabel = isVZ ? 'In PACKED not on Packing Slip' : 'In PACKED not in Submitted';
+const portalLabel = isVZ ? 'On Packing Slip not in PACKED' : 'In Submitted not in PACKED';
+packedArr.forEach(imei => {
+const res = getIMEIResolution(batch, key, imei, 'packed_not_portal');
+rows.push([escapeCSV(key), packedLabel, escapeCSV(imei), res ? 'Yes' : 'No', escapeCSV(res ? res.reason : '')].join(','));
+});
+portalArr.forEach(imei => {
+const res = getIMEIResolution(batch, key, imei, 'portal_not_packed');
+rows.push([escapeCSV(key), portalLabel, escapeCSV(imei), res ? 'Yes' : 'No', escapeCSV(res ? res.reason : '')].join(','));
+});
+});
+return new Blob([rows.join('\n')], { type: 'text/csv' });
+}
+// Generate Removed Units CSV as Blob
+function generateRemovedCSVBlob(batch) {
+const removed = batch.units.filter(u => isRemoved(u));
+if (removed.length === 0) return null;
+const rows = ['IMEI,RMA#,Route,Tracking Out,Reason,Days Since Submission'];
+removed.forEach(u => {
+rows.push([escapeCSV(u.imei), escapeCSV(u.rmaNumber), escapeCSV(u.route),
+escapeCSV(u.trackingOut), escapeCSV(u.falloutReason || ''),
+escapeCSV(u.daysSinceSubmission || '')].join(','));
+});
+return new Blob([rows.join('\n')], { type: 'text/csv' });
+}
+// ─── SHARE TO SLACK (reports — available anytime) ───
+async function shareToSlack(batchId) {
+const batch = findBatch(batchId);
+if (!batch) return;
+const s = getSlackConfig();
+if (!s.webhookUrl) {
+alert('Slack not configured. Click the ⚙ gear icon in the top bar to set up your webhook URL and bot token.');
+return;
+}
+// Build status summary message
+const rmas = [...new Set(batch.units.map(u => u.rmaNumber))];
+const trackings = [...new Set(batch.units.map(u => u.trackingOut).filter(Boolean))];
+const removed = batch.units.filter(u => isRemoved(u));
+const hasMismatch = batch.imeiMatchResults && batch.imeiMatchResults.some(r => !r.isMatch);
+let msg = `📦 *${batch.vendor} Shipment Check — ${batch.shipDate}*\n`;
+msg += `• *Units:* ${batch.units.length} | *RMAs:* ${rmas.length} | *Tracking #s:* ${trackings.length}\n`;
+if (trackings.length > 0) msg += `• *Tracking:* ${trackings.map(t => '`' + t + '`').join(', ')}\n`;
+msg += `• *Status:* ${batch.status}`;
+if (removed.length > 0) msg += ` | *Removed:* ${removed.length}`;
+if (hasMismatch) msg += ` | *IMEI Mismatches:* ${batch.imeiMismatchCount} unresolved`;
+msg += '\n_Reports attached below._';
+// Show progress on both buttons (action bar + PACKED Summary)
+const btnEls = [document.getElementById(`share-slack-btn-${batchId}`), document.getElementById(`packed-slack-btn-${batchId}`)].filter(Boolean);
+btnEls.forEach(b => { b.disabled = true; b.textContent = '⏳ Sending...'; });
+let sent = 0, failed = 0;
+// 1. Send text message via webhook
+const msgOk = await sendSlackMessage(msg);
+if (msgOk) sent++; else failed++;
+// 2. Upload files via bot token
+let fileUploadFailed = false;
+if (isSlackFileConfigured()) {
+const pdfBlob = generatePackedPDFBlob(batch);
+const pdfOk = await uploadSlackFile(pdfBlob, `PACKED Summary - ${batch.vendor} - ${batch.shipDate}.pdf`,
+`PACKED Summary \u2014 ${batch.vendor} \u2014 ${batch.shipDate}`, null);
+if (pdfOk) sent++; else { failed++; fileUploadFailed = true; }
+if (!fileUploadFailed) {
+const mismatchBlob = generateMismatchCSVBlob(batch);
+if (mismatchBlob) {
+const mOk = await uploadSlackFile(mismatchBlob, `IMEI Mismatch Report - ${batch.vendor} - ${batch.shipDate}.csv`,
+`IMEI Mismatch Report \u2014 ${batch.vendor} \u2014 ${batch.shipDate}`, null);
+if (mOk) sent++; else { failed++; fileUploadFailed = true; }
+}
+const removedBlob = generateRemovedCSVBlob(batch);
+if (removedBlob) {
+const rOk = await uploadSlackFile(removedBlob, `Removed Units - ${batch.vendor} - ${batch.shipDate}.csv`,
+`Removed Units \u2014 ${batch.vendor} \u2014 ${batch.shipDate}`, null);
+if (rOk) sent++; else { failed++; fileUploadFailed = true; }
+}
+}
+}
+// If file uploads failed (CORS), notify and offer to download files manually to drag into Slack
+if (fileUploadFailed || (!isSlackFileConfigured() && s.webhookUrl)) {
+await sendSlackMessage('_\u2139\ufe0f Reports are being uploaded separately by the team._');
+}
+btnEls.forEach(b => {
+b.disabled = false;
+if (failed === 0) {
+b.innerHTML = '\u2705 Sent to Slack';
+setTimeout(() => { b.innerHTML = '&#128268; Share to Slack'; }, 3000);
+} else if (fileUploadFailed) {
+b.innerHTML = '\u2705 Message sent (files: drag to Slack)';
+setTimeout(() => { b.innerHTML = '&#128268; Share to Slack'; }, 5000);
+} else {
+b.innerHTML = `\u26a0 ${sent} sent, ${failed} failed`;
+setTimeout(() => { b.innerHTML = '&#128268; Share to Slack'; }, 4000);
+}
+});
+if (fileUploadFailed) downloadPackedPDF(batchId);
+}
+// ─── CLEAR TO SHIP → AUTO-SEND CLEARANCE MESSAGE ───
+async function sendClearanceMessage(batch) {
+if (!isSlackConfigured()) return; // silently skip if not configured
+const rmas = [...new Set(batch.units.map(u => u.rmaNumber))];
+const trackings = [...new Set(batch.units.map(u => u.trackingOut).filter(Boolean))];
+const activeUnits = batch.units.filter(u => !isRemoved(u)).length;
+const removed = batch.units.filter(u => isRemoved(u));
+const fallouts = batch.units.filter(u => u.falloutReason && !u.removedFromShipment);
+let msg = `✅ *CLEARED TO SHIP — ${batch.vendor} — ${batch.shipDate}*\n`;
+msg += `• *${activeUnits} units* across *${rmas.length} RMA(s)* — *${trackings.length} Tracking #(s)*\n`;
+if (trackings.length > 0) msg += `• *Tracking:* ${trackings.map(t => '`' + t + '`').join(', ')}\n`;
+if (removed.length > 0) msg += `• *${removed.length} unit(s) removed* from shipment\n`;
+if (fallouts.length > 0) {
+msg += `• *${fallouts.length} fallout(s):*\n`;
+fallouts.forEach(u => { msg += `  — \`${u.imei}\` ${u.falloutReason}\n`; });
+}
+msg += `_Cleared at ${new Date().toLocaleString()}_`;
+await sendSlackMessage(msg);
+}
+// Init — load from server
+(async function init() {
+await initSlackSettings();
+await loadBatchesFromServer();
+})();
+</script>
+</body>
+</html>
