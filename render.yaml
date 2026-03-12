@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: recirq-shipment-check
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+    disk:
+      name: recirq-data
+      mountPath: /data
+      sizeGB: 1
