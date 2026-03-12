@@ -1,0 +1,119 @@
+"""
+RecirQ Global — Shipment Check Server
+Flask web server that serves the Shipment Check app and persists data to SQLite.
+"""
+from flask import Flask, render_template, request, jsonify, send_from_directory
+import database as db
+import os
+import json
+
+app = Flask(__name__, template_folder='templates', static_folder='static')
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
+
+
+# PAGE ROUTES
+
+@app.route('/')
+def index():
+    """Serve the main application."""
+    return render_template('index.html')
+
+
+# BATCH API
+
+@app.route('/api/batches', methods=['GET'])
+def get_batches():
+    """Get all batches (optionally filtered by vendor)."""
+    vendor = request.args.get('vendor')
+    if vendor:
+        batches = db.load_batches_by_vendor(vendor.upper())
+    else:
+        batches = db.load_all_batches()
+    return jsonify(batches)
+
+
+@app.route('/api/batches/<int:batch_id>', methods=['GET'])
+def get_batch(batch_id):
+    """Get a single batch with all its data."""
+    batch = db.load_batch(batch_id)
+    if not batch:
+        return jsonify({'error': 'Batch not found'}), 404
+    return jsonify(batch)
+
+
+@app.route('/api/batches', methods=['POST'])
+def create_batch():
+    """Save a new batch (or update an existing one)."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    batch_id = db.save_batch(data)
+    return jsonify({'id': batch_id, 'status': 'saved'})
+
+
+@app.route('/api/batches/<int:batch_id>', methods=['PUT'])
+def update_batch(batch_id):
+    """Update an existing batch (full replacement)."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    data['id'] = batch_id
+    db.save_batch(data)
+    return jsonify({'id': batch_id, 'status': 'updated'})
+
+
+@app.route('/api/batches/<int:batch_id>', methods=['DELETE'])
+def delete_batch_route(batch_id):
+    """Delete a batch and all related data."""
+    db.delete_batch(batch_id)
+    return jsonify({'status': 'deleted'})
+
+
+@app.route('/api/batches/<int:batch_id>/status', methods=['PATCH'])
+def patch_batch_status(batch_id):
+    """Update batch status (e.g., clear to ship)."""
+    data = request.get_json()
+    status = data.get('status')
+    cleared_at = data.get('clearedAt')
+    if status:
+        db.update_batch_status(batch_id, status, cleared_at)
+    counts = {k: v for k, v in data.items() if k in (
+        'routeFailCount', 'agingFailCount', 'qtyMismatchCount',
+        'imeiMismatchCount', 'hardStopCount', 'unpackedCount'
+    )}
+    if counts:
+        db.update_batch_counts(batch_id, counts)
+    return jsonify({'status': 'updated'})
+
+
+# SETTINGS API
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """Get all app settings."""
+    return jsonify(db.get_all_settings())
+
+
+@app.route('/api/settings', methods=['POST'])
+def save_settings():
+    """Save app settings (key-value pairs)."""
+    data = request.get_json()
+    for key, value in data.items():
+        db.set_setting(key, value)
+    return jsonify({'status': 'saved'})
+
+
+# STARTUP
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') != 'production'
+    print("\n" + "=" * 56)
+    print("  RecirQ Global — Victra RMA Shipment Check Server")
+    print("=" * 56)
+    print(f"  Database: {db.DB_PATH}")
+    print(f"  Open in your browser: http://localhost:{port}")
+    print(f"  For other devices on your network, use:")
+    print(f"    http://<this-computer-ip>:{port}")
+    print("=" * 56 + "\n")
+    app.run(host='0.0.0.0', port=port, debug=debug)
