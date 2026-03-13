@@ -410,7 +410,7 @@ let prermaTarget = null;
 let imeiResolveTarget = null; // { batchId, imei, direction, vendor, rmaOrTracking }
 // Upload state per vendor
 let vzUpload = { rmaFile: null, rmaCSV: null, packingSlips: [], shipDate: '' };
-let bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], shipDate: '' };
+let bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], submittedFilesList: [], shipDate: '' };
 // Temp state for PS tagging (Verizon) and submitted IMEI tagging (Brightpoint)
 let pendingPSFile = null;
 // (pendingBPSubFile removed — single-file upload now handled inline)
@@ -669,6 +669,32 @@ u.agingStatus = 'PASS';
 });
 return results;
 }
+
+    // Brightpoint 20-Day Shipping Rule:
+    // Flag any IMEI/RMA being shipped more than 20 days after submission date.
+    function checkBrightpointAging(units, shipDate) {
+      const results = [];
+      const shipDt = new Date(shipDate);
+      units.forEach(u => {
+        if (!u.submissionDate) { u.agingStatus = 'N/A'; return; }
+        const subDt = new Date(u.submissionDate);
+        if (isNaN(subDt.getTime())) { u.agingStatus = 'N/A'; return; }
+        const days = Math.floor((shipDt - subDt) / (1000 * 60 * 60 * 24));
+        u.daysSinceSubmission = days;
+        if (days > 20) {
+          u.agingStatus = 'FAIL';
+          u.hardStop = true;
+          u.hardStopReason = `Shipped ${days} days after submission (limit: 20)`;
+          results.push({ imei: u.imei, rma: u.rmaNumber, days, status: 'FAIL' });
+        } else if (days > 15) {
+          u.agingStatus = 'WARNING';
+          results.push({ imei: u.imei, rma: u.rmaNumber, days, status: 'WARNING' });
+        } else {
+          u.agingStatus = 'PASS';
+        }
+      });
+      return results;
+    }
 function checkVerizonQuantities(units, packingSlips) {
 const packedByRMA = {};
 units.forEach(u => {
@@ -1120,7 +1146,7 @@ html += `<div class="form-row">
 <label>Ship Date</label>
 <input type="date" id="bp-ship-date" value="${bpUpload.shipDate}" onchange="bpUpload.shipDate=this.value;checkBPReady()">
 </div>
-<div class="form-group"><label>&nbsp;</label><div style="padding-top:10px;font-size:12px;color:#888;">Used for Pre-RMA aging check.</div></div>
+<div class="form-group"><label>&nbsp;</label><div style="padding-top:10px;font-size:12px;color:#888;">RMAs shipped 20+ days after submission will be flagged.</div></div>
 </div>`;
 // Step 1: RMA data
 html += `<h3 style="margin:16px 0 8px;">Step 1: Upload RMA Submissions CSV</h3>
@@ -1132,37 +1158,41 @@ html += `<h3 style="margin:16px 0 8px;">Step 1: Upload RMA Submissions CSV</h3>
 </div>
 <input type="file" id="bp-rma-input" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none" onchange="handleBPRma(this)">
 </div>`;
-// Step 2: Submitted RMA Request file (single CSV with Serial# and RMAs columns)
-html += `<h3 style="margin:16px 0 8px;">Step 2: Upload Submitted IMEI File</h3>
-<div class="callout info"><b>Upload the Victra RMA Request CSV</b> containing all submitted devices. Expected columns: <code>Serial#</code> (IMEI) and <code>RMAs</code> (RMA number). The app will auto-match each IMEI to its Tracking # via the RMA mapping from Step 1.</div>`;
-if (bpUpload.submittedFile) {
-const sf = bpUpload.submittedFile;
-html += `<div style="background:var(--pass-bg);border:1px solid var(--success-green);border-radius:8px;padding:12px 16px;margin:10px 0;">
-<div style="display:flex;align-items:center;justify-content:space-between;">
-<div>
-<span style="font-size:14px;">&#9989;</span>
-<span style="font-weight:600;margin-left:4px;">${sf.fileName}</span>
-<span style="color:#888;font-size:11px;margin-left:8px;">(${sf.totalIMEIs} IMEIs across ${sf.trackingCount} Tracking #s)</span>
-</div>
-<span class="remove-ps" onclick="removeBPSubFile()" title="Remove" style="cursor:pointer;font-size:18px;color:#c00;">&times;</span>
-</div>`;
-if (sf.unmatchedRMAs && sf.unmatchedRMAs.length > 0) {
-html += `<div style="margin-top:8px;padding:8px 12px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;font-size:12px;">
-<b>&#9888; ${sf.unmatchedRMAs.length} RMA(s) in submitted file not found in Step 1 data:</b>
-<div style="margin-top:4px;color:#856404;">${sf.unmatchedRMAs.join(', ')}</div>
-</div>`;
-}
-html += `</div>`;
-} else {
-html += `<p style="font-size:12px;color:#999;margin:8px 0;">No submitted IMEI file uploaded yet.</p>`;
-}
-html += `<div class="form-group" style="margin-top:8px;">
-<div class="upload-zone" onclick="document.getElementById('bp-sub-input').click()" style="padding:18px;">
-<div class="icon" style="font-size:24px;">${bpUpload.submittedFile ? '&#128260;' : '&#10133;'}</div>
-<p style="font-size:13px;">${bpUpload.submittedFile ? 'Replace Submitted IMEI File' : 'Upload Submitted IMEI File'}</p>
-</div>
-<input type="file" id="bp-sub-input" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none" onchange="handleBPSubUpload(this)">
-</div>`;
+  // Step 2: Submitted RMA Request files (multiple CSV uploads supported)
+  html += `<h3 style="margin:16px 0 8px;">Step 2: Upload Submitted IMEI File(s)</h3>
+    <div class="callout info"><b>Upload the Victra RMA Request CSV(s)</b> containing all submitted devices. Expected columns: <code>Serial#</code> (IMEI) and <code>RMAs</code> (RMA number). The app will auto-match each IMEI to its Tracking # via the RMA mapping from Step 1. You can upload multiple files.</div>`;
+
+  const filesList = bpUpload.submittedFilesList || [];
+  if (filesList.length > 0) {
+    filesList.forEach((sf, idx) => {
+      html += `<div style="background:var(--pass-bg);border:1px solid var(--success-green);border-radius:8px;padding:12px 16px;margin:10px 0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span style="font-size:14px;">&#9989;</span>
+            <span style="font-weight:600;margin-left:4px;">${sf.fileName}</span>
+            <span style="color:#888;font-size:11px;margin-left:8px;">(${sf.totalIMEIs} IMEIs across ${sf.trackingCount} Tracking #s)</span>
+          </div>
+          <span class="remove-ps" onclick="removeBPSubFileAt(${idx})" title="Remove" style="cursor:pointer;font-size:18px;color:#c00;">&times;</span>
+        </div>`;
+      if (sf.unmatchedRMAs && sf.unmatchedRMAs.length > 0) {
+        html += `<div style="margin-top:8px;padding:8px 12px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;font-size:12px;">
+          <b>&#9888; ${sf.unmatchedRMAs.length} RMA(s) in submitted file not found in Step 1 data:</b>
+          <div style="margin-top:4px;color:#856404;">${sf.unmatchedRMAs.join(', ')}</div>
+        </div>`;
+      }
+      html += `</div>`;
+    });
+  } else {
+    html += `<p style="font-size:12px;color:#999;margin:8px 0;">No submitted IMEI files uploaded yet.</p>`;
+  }
+
+  html += `<div class="form-group" style="margin-top:8px;">
+    <div class="upload-zone" onclick="document.getElementById('bp-sub-input').click()" style="padding:18px;">
+      <div class="icon" style="font-size:24px;">&#10133;</div>
+      <p style="font-size:13px;">${filesList.length > 0 ? 'Add Another IMEI File' : 'Upload Submitted IMEI File'}</p>
+    </div>
+    <input type="file" id="bp-sub-input" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none" onchange="handleBPSubUpload(this)">
+  </div>`;
 html += `<div class="divider"></div>
 <div class="text-right">
 <button class="btn btn-primary" id="bp-run-btn" onclick="runBPVerification()" disabled>Run Brightpoint Check</button>
@@ -1177,73 +1207,124 @@ bpUpload.rmaCSV = await readFileAsCSV(input.files[0]);
 renderBPPanel();
 }
 async function handleBPSubUpload(input) {
-if (!input.files.length) return;
-const file = input.files[0];
-input.value = '';
-if (!bpUpload.rmaCSV) {
-alert('Please upload the RMA Submissions CSV first so the app can map RMAs to Tracking numbers.');
-return;
+  if (!input.files.length) return;
+  const file = input.files[0];
+  input.value = '';
+
+  if (!bpUpload.rmaCSV) {
+    alert('Please upload the RMA Submissions CSV first so the app can map RMAs to Tracking numbers.');
+    return;
+  }
+
+  // Parse the submitted file (supports CSV, TSV, and XLSX)
+  const subCSV = await readFileAsCSV(file);
+
+  // Find columns: Serial# (IMEI) and RMAs (RMA number)
+  const imeiCol = findCol(subCSV.headers, ['Serial#', 'Serial', 'IMEI', 'ESN', 'RecirQ ESN', 'DeviceID']);
+  const rmaCol = findCol(subCSV.headers, ['RMAs', 'RMA', 'RMA#', 'RMANumber']);
+
+  if (!imeiCol) {
+    alert('Could not find an IMEI/Serial# column in the submitted file.\nExpected column names: Serial#, Serial, IMEI, ESN, DeviceID');
+    return;
+  }
+
+  // Build RMA → Tracking # mapping from Step 1 data
+  const colMap = mapRMAColumns(bpUpload.rmaCSV.headers);
+  const rmaToTracking = {};
+  bpUpload.rmaCSV.rows.forEach(r => {
+    const rma = (r[colMap.rmaNumber] || '').trim();
+    const tk = (r[colMap.trackingOut] || '').trim();
+    if (rma && tk) rmaToTracking[rma] = tk;
+  });
+
+  // Group submitted IMEIs by Tracking # via RMA mapping
+  const byTracking = {};
+  const allIMEIs = [];
+  const unmatchedRMAs = [];
+
+  subCSV.rows.forEach(r => {
+    const imei = (r[imeiCol] || '').toString().trim();
+    if (!imei) return;
+    allIMEIs.push(imei);
+
+    const rma = rmaCol ? (r[rmaCol] || '').toString().trim() : '';
+    const tracking = rma ? rmaToTracking[rma] : null;
+
+    if (tracking) {
+      if (!byTracking[tracking]) byTracking[tracking] = [];
+      byTracking[tracking].push(imei);
+    } else if (rma) {
+      // RMA exists in file but not found in Step 1
+      if (!unmatchedRMAs.includes(rma)) unmatchedRMAs.push(rma);
+      // Still add to a catch-all bucket so they appear in the overall check
+      if (!byTracking['_UNMATCHED']) byTracking['_UNMATCHED'] = [];
+      byTracking['_UNMATCHED'].push(imei);
+    }
+  });
+
+  // Build submittedFiles array (grouped by tracking) for compatibility with existing match logic
+  // Include _UNMATCHED as "UNMATCHED RMA" so they appear in the cross-check report
+  const submittedFiles = [];
+  Object.keys(byTracking).forEach(tk => {
+    const label = tk === '_UNMATCHED' ? 'UNMATCHED RMA (submitted but RMA not in packed data)' : tk;
+    submittedFiles.push({ trackingNumber: label, fileName: file.name, imeis: byTracking[tk] });
+  });
+
+  // Append to the files list (support multiple uploads)
+  if (!bpUpload.submittedFilesList) bpUpload.submittedFilesList = [];
+  bpUpload.submittedFilesList.push({
+    fileName: file.name,
+    totalIMEIs: allIMEIs.length,
+    trackingCount: Object.keys(byTracking).filter(k => k !== '_UNMATCHED').length,
+    unmatchedRMAs,
+    allIMEIs,
+    submittedFiles,
+  });
+
+  // Rebuild combined submittedFiles from all uploaded files
+  rebuildBPSubmittedFiles();
+  renderBPPanel();
 }
-// Parse the submitted file (supports CSV, TSV, and XLSX)
-const subCSV = await readFileAsCSV(file);
-// Find columns: Serial# (IMEI) and RMAs (RMA number)
-const imeiCol = findCol(subCSV.headers, ['Serial#', 'Serial', 'IMEI', 'ESN', 'RecirQ ESN', 'DeviceID']);
-const rmaCol = findCol(subCSV.headers, ['RMAs', 'RMA', 'RMA#', 'RMANumber']);
-if (!imeiCol) {
-alert('Could not find an IMEI/Serial# column in the submitted file.\nExpected column names: Serial#, Serial, IMEI, ESN, DeviceID');
-return;
+
+function rebuildBPSubmittedFiles() {
+  const allFiles = bpUpload.submittedFilesList || [];
+  const combined = [];
+  allFiles.forEach(f => {
+    f.submittedFiles.forEach(sf => combined.push(sf));
+  });
+  bpUpload.submittedFiles = combined;
+  // Build a combined submittedFile summary for backward compatibility
+  const allIMEIs = [];
+  const allUnmatched = [];
+  let trackingSet = new Set();
+  allFiles.forEach(f => {
+    f.allIMEIs.forEach(imei => allIMEIs.push(imei));
+    f.unmatchedRMAs.forEach(r => { if (!allUnmatched.includes(r)) allUnmatched.push(r); });
+    f.submittedFiles.forEach(sf => { if (sf.trackingNumber !== 'UNMATCHED RMA (submitted but RMA not in packed data)') trackingSet.add(sf.trackingNumber); });
+  });
+  bpUpload.submittedFile = allFiles.length > 0 ? {
+    fileName: allFiles.map(f => f.fileName).join(', '),
+    totalIMEIs: allIMEIs.length,
+    trackingCount: trackingSet.size,
+    unmatchedRMAs: allUnmatched,
+    allIMEIs,
+  } : null;
 }
-// Build RMA → Tracking # mapping from Step 1 data
-const colMap = mapRMAColumns(bpUpload.rmaCSV.headers);
-const rmaToTracking = {};
-bpUpload.rmaCSV.rows.forEach(r => {
-const rma = (r[colMap.rmaNumber] || '').trim();
-const tk = (r[colMap.trackingOut] || '').trim();
-if (rma && tk) rmaToTracking[rma] = tk;
-});
-// Group submitted IMEIs by Tracking # via RMA mapping
-const byTracking = {};
-const allIMEIs = [];
-const unmatchedRMAs = [];
-subCSV.rows.forEach(r => {
-const imei = (r[imeiCol] || '').toString().trim();
-if (!imei) return;
-allIMEIs.push(imei);
-const rma = rmaCol ? (r[rmaCol] || '').toString().trim() : '';
-const tracking = rma ? rmaToTracking[rma] : null;
-if (tracking) {
-if (!byTracking[tracking]) byTracking[tracking] = [];
-byTracking[tracking].push(imei);
-} else if (rma) {
-// RMA exists in file but not found in Step 1
-if (!unmatchedRMAs.includes(rma)) unmatchedRMAs.push(rma);
-// Still add to a catch-all bucket so they appear in the overall check
-if (!byTracking['_UNMATCHED']) byTracking['_UNMATCHED'] = [];
-byTracking['_UNMATCHED'].push(imei);
+
+function removeBPSubFileAt(index) {
+  if (!bpUpload.submittedFilesList) return;
+  bpUpload.submittedFilesList.splice(index, 1);
+  rebuildBPSubmittedFiles();
+  renderBPPanel();
 }
-});
-// Build submittedFiles array (grouped by tracking) for compatibility with existing match logic
-// Include _UNMATCHED as "UNMATCHED RMA" so they appear in the cross-check report
-const submittedFiles = [];
-Object.keys(byTracking).forEach(tk => {
-const label = tk === '_UNMATCHED' ? 'UNMATCHED RMA (submitted but RMA not in packed data)' : tk;
-submittedFiles.push({ trackingNumber: label, fileName: file.name, imeis: byTracking[tk] });
-});
-bpUpload.submittedFiles = submittedFiles;
-bpUpload.submittedFile = {
-fileName: file.name,
-totalIMEIs: allIMEIs.length,
-trackingCount: Object.keys(byTracking).filter(k => k !== '_UNMATCHED').length,
-unmatchedRMAs,
-allIMEIs,
-};
-renderBPPanel();
-}
+
 function removeBPSubFile() {
-bpUpload.submittedFile = null;
-bpUpload.submittedFiles = [];
-renderBPPanel();
+  bpUpload.submittedFilesList = [];
+  bpUpload.submittedFile = null;
+  bpUpload.submittedFiles = [];
+  renderBPPanel();
 }
+
 function checkBPReady() {
 const btn = document.getElementById('bp-run-btn');
 if (btn) btn.disabled = !(bpUpload.shipDate && bpUpload.rmaFile);
@@ -1266,6 +1347,8 @@ imeiMismatch: false, imeiMismatchReason: null,
 _raw: r,
 }));
 const routeResults = checkRoutes(units, 'BRIGHTPOINT');
+      // Brightpoint 20-day aging check
+      const agingResults = checkBrightpointAging(units, bpUpload.shipDate);
 // Flatten all submitted IMEIs for the overall comparison
 // Use allIMEIs from submittedFile (includes unmatched RMAs) so nothing is silently dropped
 const allSubmittedIMEIs = (bpUpload.submittedFile && bpUpload.submittedFile.allIMEIs)
@@ -1295,9 +1378,11 @@ submittedIMEIs: allSubmittedIMEIs,
 submittedFiles: bpUpload.submittedFiles.map(sf => ({ trackingNumber: sf.trackingNumber, fileName: sf.fileName, imeis: [...sf.imeis] })),
 submittedFileInfo: bpUpload.submittedFiles.map(sf => ({ tracking: sf.trackingNumber, name: sf.fileName, count: sf.imeis.length })),
 routeResults,
+        agingResults,
 imeiResults,
 imeiMatchResults,
 routeFailCount: routeResults.filter(r => r.status === 'FAIL').length,
+        agingFailCount: agingResults.filter(r => r.status === 'FAIL').length,
 unpackedCount: imeiResults.unpackedSubmitted.length,
 imeiMismatchCount: imeiMatchResults.filter(r => !r.isMatch).length,
 hardStopCount: units.filter(u => u.hardStop).length,
@@ -1310,7 +1395,7 @@ bpBatches.forEach(b => b._viewing = false);
 bpBatches.unshift(batch);
 // Save to server
 saveBatchToServer(batch);
-bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], shipDate: '' };
+bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], submittedFilesList: [], shipDate: '' };
 renderBPPanel();
 }
 function renderBPResults(batch) {
@@ -1327,6 +1412,8 @@ html += `<div class="flex-between mb-8">
 html += `<div style="margin-bottom:16px;">`;
 html += renderCheckItem('Route Verification', batch.routeFailCount === 0 ? 'pass' : 'fail',
 batch.routeFailCount === 0 ? 'All routes are valid Brightpoint routes' : `${batch.routeFailCount} invalid route(s) — HARD-STOP`);
+      html += renderCheckItem('20-Day Shipping Rule', batch.agingFailCount === 0 ? 'pass' : 'fail',
+        batch.agingFailCount === 0 ? 'No units exceed 20 days since submission' : `${batch.agingFailCount} unit(s) exceed 20 days since submission \u2014 HARD-STOP`);
 if (batch.submittedIMEIs.length > 0) {
 html += renderCheckItem('IMEI Comparison (Packed vs Submitted)', batch.unpackedCount === 0 ? 'pass' : 'warn',
 batch.unpackedCount === 0 ? `All ${batch.imeiResults.matched.length} IMEIs match` : `${batch.unpackedCount} submitted IMEI(s) not packed — investigation needed`);
@@ -1479,6 +1566,9 @@ let rows = '';
 batch.units.forEach((u, i) => {
 const cls = u.hardStop ? 'row-fail' : !u.imeiMatch && batch.submittedIMEIs.length > 0 ? 'row-warn' : 'row-pass';
 const routeBadge = u.routeStatus === 'PASS' ? '<span class="badge badge-pass">OK</span>' : '<span class="badge badge-fail">FAIL</span>';
+        const agingBadge = u.agingStatus === 'FAIL' ? `<span class="badge badge-fail">${u.daysSinceSubmission}d</span>` :
+                           u.agingStatus === 'WARNING' ? `<span class="badge badge-pending">${u.daysSinceSubmission}d</span>` :
+                           u.daysSinceSubmission !== undefined ? `<span style="color:#888;font-size:11px;">${u.daysSinceSubmission}d</span>` : '\u2014';
 const imeiStatus = batch.submittedIMEIs.length === 0 ? '—' : u.imeiMatch ? '<span class="badge badge-pass">Matched</span>' : '<span class="badge badge-review">Not in submitted</span>';
 // Per-tracking# cross-check status
 let crossCheckCol = '—';
@@ -1494,12 +1584,13 @@ let routeDisplay = u.routeCorrected ?
 <span style="color:var(--success-green);font-weight:600;">${u.route}</span>
 <span style="font-size:10px;color:#888;">(corrected)</span>` : u.route;
 let fallout = buildActionButtons(batch, u, i, 'bp');
-rows += `<tr class="${cls}"><td>${u.imei}</td><td>${u.rmaNumber}</td><td>${u.trackingOut}</td><td>${routeDisplay}</td><td>${routeBadge}</td><td>${imeiStatus}</td>${hasMatchResults ? `<td>${crossCheckCol}</td>` : ''}<td>${fallout}</td></tr>`;
+rows += `<tr class="${cls}"><td>${u.imei}</td><td>${u.rmaNumber}</td><td>${u.trackingOut}</td><td>${routeDisplay}</td><td>${routeBadge}</td>
+            <td>${agingBadge}</td><td>${imeiStatus}</td>${hasMatchResults ? `<td>${crossCheckCol}</td>` : ''}<td>${fallout}</td></tr>`;
 });
 let html = `<div style="margin-bottom:16px;">
 <h3>Packed Units (${batch.units.length})</h3>
 <div class="tbl-wrap" style="max-height:400px;overflow-y:auto;"><table>
-<tr><th>IMEI</th><th>RMA#</th><th>Tracking Out</th><th>Route</th><th>Route</th><th>IMEI</th>${hasMatchResults ? '<th>Cross-Check</th>' : ''}<th>Action</th></tr>
+<tr><th>IMEI</th><th>RMA#</th><th>Tracking Out</th><th>Route</th><th>Aging</th><th>Route</th><th>IMEI</th>${hasMatchResults ? '<th>Cross-Check</th>' : ''}<th>Action</th></tr>
 ${rows}
 </table></div>
 </div>`;
@@ -1813,7 +1904,7 @@ renderVZPanel();
 function closeBPBatch(batchId) {
 const b = findBatch(batchId);
 if (b) b._viewing = false;
-bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], shipDate: '' };
+bpUpload = { rmaFile: null, rmaCSV: null, submittedFile: null, submittedFiles: [], submittedFilesList: [], shipDate: '' };
 renderBPPanel();
 }
 function recalcBatchStatus(batch) {
