@@ -173,10 +173,19 @@ def init_db():
     )''')
 
     # Ensure role column exists for databases created before this migration
-    try:
-        c.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
-    except Exception:
-        pass  # Column already exists
+    if DATABASE_URL:
+        # PostgreSQL: use savepoint so a failed ALTER doesn't abort the transaction
+        c.execute("SAVEPOINT sp_role_migration")
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
+        except Exception:
+            c.execute("ROLLBACK TO SAVEPOINT sp_role_migration")
+        c.execute("RELEASE SAVEPOINT sp_role_migration")
+    else:
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
+        except Exception:
+            pass  # Column already exists
 
     # Ensure at least one admin exists — promote the first active user if none
     c.execute("SELECT COUNT(*) as cnt FROM users WHERE role='admin' AND is_active=1")
