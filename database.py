@@ -63,12 +63,14 @@ def init_db():
     # Use SERIAL for PostgreSQL, INTEGER PRIMARY KEY for SQLite auto-increment
     if DATABASE_URL:
         serial = 'SERIAL PRIMARY KEY'
-        int_pk = 'INTEGER PRIMARY KEY'  # batches.id is user-supplied
+        int_pk = 'BIGINT PRIMARY KEY'  # batches.id is user-supplied (Date.now() timestamp)
+        batch_ref = 'BIGINT NOT NULL REFERENCES batches(id) ON DELETE CASCADE'
         bool_default = 'INTEGER DEFAULT 0'
         on_conflict = ''  # handled differently
     else:
         serial = 'INTEGER PRIMARY KEY AUTOINCREMENT'
         int_pk = 'INTEGER PRIMARY KEY'
+        batch_ref = 'INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE'
         bool_default = 'INTEGER DEFAULT 0'
 
     c.execute(f'''CREATE TABLE IF NOT EXISTS batches (
@@ -100,7 +102,7 @@ def init_db():
 
     c.execute(f'''CREATE TABLE IF NOT EXISTS units (
         id {serial},
-        batch_id INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+        batch_id {batch_ref},
         unit_index INTEGER NOT NULL,
         route TEXT,
         sku TEXT,
@@ -130,7 +132,7 @@ def init_db():
 
     c.execute(f'''CREATE TABLE IF NOT EXISTS imei_resolutions (
         id {serial},
-        batch_id INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+        batch_id {batch_ref},
         rma_or_tracking TEXT NOT NULL,
         imei TEXT NOT NULL,
         direction TEXT NOT NULL,
@@ -141,7 +143,7 @@ def init_db():
 
     c.execute(f'''CREATE TABLE IF NOT EXISTS unpacked_fallouts (
         id {serial},
-        batch_id INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+        batch_id {batch_ref},
         imei TEXT NOT NULL,
         reason TEXT NOT NULL,
         UNIQUE(batch_id, imei)
@@ -149,7 +151,7 @@ def init_db():
 
     c.execute(f'''CREATE TABLE IF NOT EXISTS recovered_imeis (
         id {serial},
-        batch_id INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+        batch_id {batch_ref},
         imei TEXT NOT NULL,
         rma_number TEXT,
         tracking_out TEXT,
@@ -187,6 +189,20 @@ def init_db():
         except Exception:
             pass  # Column already exists
 
+    # Migrate batches.id from INTEGER to BIGINT (Date.now() exceeds 32-bit INTEGER range)
+    if DATABASE_URL:
+        c.execute("SAVEPOINT sp_bigint_migration")
+        try:
+            c.execute("ALTER TABLE batches ALTER COLUMN id TYPE BIGINT")
+            c.execute("ALTER TABLE units ALTER COLUMN batch_id TYPE BIGINT")
+            c.execute("ALTER TABLE imei_resolutions ALTER COLUMN batch_id TYPE BIGINT")
+            c.execute("ALTER TABLE unpacked_fallouts ALTER COLUMN batch_id TYPE BIGINT")
+            c.execute("ALTER TABLE recovered_imeis ALTER COLUMN batch_id TYPE BIGINT")
+            c.execute("ALTER TABLE activity_log ALTER COLUMN batch_id TYPE BIGINT")
+        except Exception:
+            c.execute("ROLLBACK TO SAVEPOINT sp_bigint_migration")
+        c.execute("RELEASE SAVEPOINT sp_bigint_migration")
+
     # Ensure at least one admin exists — promote the first active user if none
     c.execute("SELECT COUNT(*) as cnt FROM users WHERE role='admin' AND is_active=1")
     admin_row = c.fetchone()
@@ -203,7 +219,7 @@ def init_db():
         user_id INTEGER REFERENCES users(id),
         username TEXT NOT NULL,
         action TEXT NOT NULL,
-        batch_id INTEGER REFERENCES batches(id),
+        batch_id {'BIGINT' if DATABASE_URL else 'INTEGER'} REFERENCES batches(id),
         details TEXT,
         created_at TEXT NOT NULL
     )''')

@@ -1132,20 +1132,20 @@ function findCol(headers, candidates) {
 
 function mapRMAColumns(headers) {
   return {
-    route: findCol(headers, ['Route', 'route']),
+    route: findCol(headers, ['Route', 'route', 'Vendor', 'vendor']),
     sku: findCol(headers, ['SKU', 'sku']),
     purchaseDate: findCol(headers, ['Purchase Date', 'PurchaseDate']),
-    processedDate: findCol(headers, ['Processed Date', 'ProcessedDate']),
-    imei: findCol(headers, ['RecirQ ESN', 'IMEI', 'ESN', 'RecirQESN']),
+    processedDate: findCol(headers, ['Processed Date', 'ProcessedDate', 'Processed date']),
+    imei: findCol(headers, ['RecirQ ESN', 'IMEI', 'ESN', 'RecirQESN', 'IMEIExport', 'imei']),
     transferId: findCol(headers, ['Transfer ID', 'TransferID']),
     trackingIn: findCol(headers, ['Tracking # In', 'Tracking In', 'TrackingIn']),
     box: findCol(headers, ['Box']),
     cable: findCol(headers, ['Cable']),
     wallCharger: findCol(headers, ['Wall Charger', 'WallCharger']),
     conditionCheck: findCol(headers, ['Condition Check', 'ConditionCheck']),
-    datawipeStatus: findCol(headers, ['Datawipe Status', 'DatawipeStatus']),
+    datawipeStatus: findCol(headers, ['Datawipe Status', 'DatawipeStatus', 'Datawipe status']),
     finalDescription: findCol(headers, ['Final Description', 'FinalDescription']),
-    finalDisposition: findCol(headers, ['Final Disposition', 'FinalDisposition']),
+    finalDisposition: findCol(headers, ['Final Disposition', 'FinalDisposition', 'Grade', 'grade']),
     rmaNumber: findCol(headers, ['RMA#', 'RMA', 'RMANumber']),
     deliveryNumber: findCol(headers, ['Delivery #', 'Delivery Number', 'DeliveryNumber']),
     submissionDate: findCol(headers, ['RMA Submission Date', 'Submission Date', 'SubmissionDate']),
@@ -1418,7 +1418,7 @@ function renderVZPanel() {
   </div>`;
 
   // RMA Data upload
-  html += `<h3 style="margin:16px 0 8px;">Step 1: Upload RMA Submissions CSV
+  html += `<h3 style="margin:16px 0 8px;">RMA Packed: Upload RMA Submissions CSV
     <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadTemplate('vz-step1')" style="margin-left:10px;font-size:10px;padding:2px 8px;vertical-align:middle;" title="Download blank CSV template">&#11015; Template</button></h3>
     <div class="form-group">
       <div class="upload-zone ${vzUpload.rmaFile ? 'active' : ''}" onclick="document.getElementById('vz-rma-input').click()">
@@ -1679,7 +1679,7 @@ function renderVZResults(batch) {
   // Header
   html += `<div class="flex-between mb-8">
     <div>
-      <h2><span class="badge badge-verizon">Verizon</span> Shipment Check: ${batch.shipDate}</h2>
+      <h2><span class="badge badge-verizon">Verizon</span> Shipment Check: ${fmtDate(batch.shipDate)}</h2>
       <p style="font-size:12px;color:#888;">${new Date(batch.createdAt).toLocaleString()}</p>
     </div>
     <span class="badge badge-${statusClass}" style="font-size:14px;padding:6px 16px;">${batch.status}</span>
@@ -1782,8 +1782,8 @@ function renderBPPanel() {
     <div class="form-group"><label>&nbsp;</label><div style="padding-top:10px;font-size:12px;color:#888;">${selected3PLVendor === 'Brightpoint' ? 'RMAs shipped 20+ days after submission will be flagged.' : 'Used for report labeling and tracking.'}</div></div>
   </div>`;
 
-  // Step 1: RMA data
-  html += `<h3 style="margin:16px 0 8px;">Step 1: Upload RMA Submissions CSV
+  // RMA Packed: RMA data
+  html += `<h3 style="margin:16px 0 8px;">RMA Packed: Upload RMA Submissions CSV
     <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadTemplate('bp-step1')" style="margin-left:10px;font-size:10px;padding:2px 8px;vertical-align:middle;" title="Download blank CSV template">&#11015; Template</button></h3>
     <div class="form-group">
       <div class="upload-zone ${bpUpload.rmaFile ? 'active' : ''}" onclick="document.getElementById('bp-rma-input').click()">
@@ -1836,7 +1836,7 @@ function renderBPPanel() {
         </div>`;
       if (sf.unmatchedRMAs && sf.unmatchedRMAs.length > 0) {
         html += `<div style="margin-top:8px;padding:8px 12px;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;font-size:12px;">
-          <b>&#9888; ${sf.unmatchedRMAs.length} RMA(s) in submitted file not found in Step 1 data:</b>
+          <b>&#9888; ${sf.unmatchedRMAs.length} RMA(s) in submitted file not found in RMA Packed data:</b>
           <div style="margin-top:4px;color:#856404;">${sf.unmatchedRMAs.join(', ')}</div>
         </div>`;
       }
@@ -1930,7 +1930,7 @@ async function handleBPSubUpload(input) {
       extras[key] = extraColValues[key] ? (r[extraColValues[key]] || '').toString().trim() : '';
     });
 
-    // Validate: check if RMA exists in Step 1 data
+    // Validate: check if RMA exists in RMA Packed data
     if (rma && !step1RMAs.has(rma) && !unmatchedRMAs.includes(rma)) {
       unmatchedRMAs.push(rma);
     }
@@ -2118,7 +2118,7 @@ function renderBPResults(batch) {
 
   html += `<div class="flex-between mb-8">
     <div>
-      <h2><span class="badge badge-3pl">${vLabel}</span> Shipment Check: ${batch.shipDate}</h2>
+      <h2><span class="badge badge-3pl">${vLabel}</span> Shipment Check: ${fmtDate(batch.shipDate)}</h2>
       <p style="font-size:12px;color:#888;">${new Date(batch.createdAt).toLocaleString()}</p>
     </div>
     <span class="badge badge-${statusClass}" style="font-size:14px;padding:6px 16px;">${batch.status}</span>
@@ -2382,7 +2382,7 @@ function renderBrightpointDetail(batch) {
     batch.imeiResults.unpackedSubmitted.forEach(imei => {
       const isRecovered = recoveredIMEIs.some(r => r.imei === imei);
       const isUnmatchedRMA = unmatchedRMAImeis.has(normalizeIMEI(imei));
-      const rmaNote = isUnmatchedRMA ? '<br><span style="font-size:10px;color:#856404;">RMA not found in Step 1 data</span>' : '';
+      const rmaNote = isUnmatchedRMA ? '<br><span style="font-size:10px;color:#856404;">RMA not found in RMA Packed data</span>' : '';
       if (isRecovered) {
         unpackedRows += `<tr class="row-pass"><td>${imei}${rmaNote}</td><td><span class="badge badge-pass">Recovered — added to batch</span></td>
           <td><span style="font-size:11px;color:var(--success-green);">Included in Ship Advice</span></td></tr>`;
@@ -2806,7 +2806,7 @@ function deleteBatch(batchId, vendor) {
   if (!batch) return;
   const unitCount = batch.units.length;
   const statusLabel = batch.status === 'CLEARED' ? 'CLEARED' : batch.status;
-  const msg = `⚠️ DELETE SHIPMENT CHECK\n\nYou are about to permanently delete this ${vendor} check:\n• Ship Date: ${batch.shipDate}\n• Units: ${unitCount}\n• Status: ${statusLabel}\n• Created: ${new Date(batch.createdAt).toLocaleString()}\n\nThis action CANNOT be undone. All verification results, fallout logs, and reports for this check will be lost.\n\nAre you sure you want to delete this check?`;
+  const msg = `⚠️ DELETE SHIPMENT CHECK\n\nYou are about to permanently delete this ${vendor} check:\n• Ship Date: ${fmtDate(batch.shipDate)}\n• Units: ${unitCount}\n• Status: ${statusLabel}\n• Created: ${new Date(batch.createdAt).toLocaleString()}\n\nThis action CANNOT be undone. All verification results, fallout logs, and reports for this check will be lost.\n\nAre you sure you want to delete this check?`;
   if (!confirm(msg)) return;
   logAction('delete_check', batch.id, { vendor: batch.vendor });
   deleteBatchFromServer(batch.id);
@@ -3049,9 +3049,9 @@ function removeErroneouslyPackedVZ(batchId, imei, rma) {
   renderVZPanel();
 }
 
-// Re-upload submitted file — goes back to upload form with Step 1 data intact
+// Re-upload submitted file — goes back to upload form with RMA Packed data intact
 function reuploadSubmittedFile(batchId) {
-  // Keep Step 1 data but clear submitted file so user can re-upload the corrected one
+  // Keep RMA Packed data but clear submitted file so user can re-upload the corrected one
   bpUpload.submittedFile = null;
   bpUpload.submittedFiles = [];
   // Remove the batch from viewing so the upload form shows
@@ -3328,7 +3328,7 @@ function downloadPackedPDF(batchId) {
   doc.setTextColor(...gold);
   doc.text('PACKED Summary — Send to Packing Team', 14, 22);
   doc.setTextColor(180, 210, 195);
-  doc.text(`Ship Date: ${batch.shipDate}`, 14, 28);
+  doc.text(`Ship Date: ${fmtDate(batch.shipDate)}`, 14, 28);
 
   doc.setTextColor(60, 60, 60);
   doc.setFontSize(10);
@@ -3402,11 +3402,11 @@ function downloadPackedPDF(batchId) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text(`RecirQ Global — PACKED Summary — ${batch.shipDate}`, 14, 290);
+    doc.text(`RecirQ Global — PACKED Summary — ${fmtDate(batch.shipDate)}`, 14, 290);
     doc.text(`Page ${i} of ${pageCount}`, 180, 290);
   }
 
-  doc.save(`PACKED Summary - ${batch.vendor} - ${batch.shipDate}.pdf`);
+  doc.save(`PACKED Summary - ${batch.vendor} - ${fmtDate(batch.shipDate)}.pdf`);
 }
 
 function copyPackedTable(batchId) {
@@ -3429,6 +3429,15 @@ function copyPackedTable(batchId) {
 // ════════════════════════════════════
 // SHIP ADVICE CSV EXPORTS
 // ════════════════════════════════════
+// Format YYYY-MM-DD → M/D/YYYY (e.g. "2026-03-16" → "3/16/2026")
+function fmtDate(dateStr) {
+  if (!dateStr) return '—';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const y = parts[0], m = parseInt(parts[1], 10), d = parseInt(parts[2], 10);
+  return `${m}/${d}/${y}`;
+}
+
 function escapeCSV(val) {
   const s = String(val == null ? '' : val);
   if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
@@ -3502,12 +3511,12 @@ function downloadVerizonUnits(batchId) {
       }
       // Fill in Ship date from batch
       if (colMap.shipDate) {
-        u._raw[colMap.shipDate] = batch.shipDate;
+        u._raw[colMap.shipDate] = fmtDate(batch.shipDate);
       }
       rows.push(headers.map(h => escapeCSV(u._raw[h])).join(','));
     }
   });
-  triggerDownload(`Ship Advice - Verizon Units - ${batch.shipDate}.csv`, rows.join('\n'));
+  triggerDownload(`Ship Advice - Verizon Units - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
 function downloadVerizonRemoved(batchId) {
@@ -3524,7 +3533,7 @@ function downloadVerizonRemoved(batchId) {
       escapeCSV(u.daysSinceSubmission || '')
     ].join(','));
   });
-  triggerDownload(`Ship Advice - Verizon Removed Units - ${batch.shipDate}.csv`, rows.join('\n'));
+  triggerDownload(`Ship Advice - Verizon Removed Units - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
 function downloadVerizonQtyMatch(batchId) {
@@ -3542,7 +3551,7 @@ function downloadVerizonQtyMatch(batchId) {
       escapeCSV(r.match ? '' : (r.diff > 0 ? `+${r.diff} extra packed` : `${Math.abs(r.diff)} missing`)),
     ].join(','));
   });
-  triggerDownload(`Ship Advice - Verizon QTY Match - ${batch.shipDate}.csv`, rows.join('\n'));
+  triggerDownload(`Ship Advice - Verizon QTY Match - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
 function downloadBrightpointUnits(batchId) {
@@ -3556,7 +3565,7 @@ function downloadBrightpointUnits(batchId) {
   function rowToCSV(raw) {
     return headers.map(h => {
       if (outboundTk && h === colMap.trackingOut) return escapeCSV(outboundTk);
-      if (colMap.shipDate && h === colMap.shipDate) return escapeCSV(batch.shipDate);
+      if (colMap.shipDate && h === colMap.shipDate) return escapeCSV(fmtDate(batch.shipDate));
       return escapeCSV(raw[h] || '');
     }).join(',');
   }
@@ -3579,7 +3588,7 @@ function downloadBrightpointUnits(batchId) {
     }
   });
   const vLabel = batch.vendorLabel || 'Brightpoint';
-  triggerDownload(`Ship Advice - ${vLabel} - ${batch.shipDate}.csv`, rows.join('\n'));
+  triggerDownload(`Ship Advice - ${vLabel} - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
 function downloadBrightpointIMEIs(batchId) {
@@ -3598,7 +3607,7 @@ function downloadBrightpointIMEIs(batchId) {
   });
   ir.extraPacked.forEach(imei => rows.push([escapeCSV(imei), 'Packed but NOT submitted'].join(',')));
   const vLabel2 = batch.vendorLabel || 'Brightpoint';
-  triggerDownload(`Ship Advice - ${vLabel2} IMEI Comparison - ${batch.shipDate}.csv`, rows.join('\n'));
+  triggerDownload(`Ship Advice - ${vLabel2} IMEI Comparison - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
 function downloadBrightpointRemoved(batchId) {
@@ -3649,7 +3658,7 @@ function downloadBrightpointFallout(batchId) {
     });
     const safeTk = tk.replace(/[^a-zA-Z0-9_-]/g, '_');
     setTimeout(() => {
-      triggerDownload(`${safeTk} Removed Units - ${batch.shipDate}.csv`, rows.join('\n'));
+      triggerDownload(`${safeTk} Removed Units - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
     }, idx * 300);
   });
 }
@@ -3663,7 +3672,7 @@ function downloadIMEIMismatchReport(batchId) {
     r.inPackedNotPS.forEach(imei => rows.push([escapeCSV(r.rma), 'In PACKED not on Packing Slip', escapeCSV(imei)].join(',')));
     r.inPSNotPacked.forEach(imei => rows.push([escapeCSV(r.rma), 'On Packing Slip not in PACKED', escapeCSV(imei)].join(',')));
   });
-  triggerDownload(`IMEI Mismatch Report - Verizon - ${batch.shipDate}.csv`, rows.join('\n'));
+  triggerDownload(`IMEI Mismatch Report - Verizon - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
 // Download IMEI mismatch report for Brightpoint (per Tracking #)
@@ -3675,7 +3684,7 @@ function downloadBPIMEIMismatchReport(batchId) {
     r.inPackedNotSub.forEach(imei => rows.push([escapeCSV(r.trackingNumber), 'In PACKED not in Submitted', escapeCSV(imei)].join(',')));
   });
   const vLabel3 = batch.vendorLabel || 'Brightpoint';
-  triggerDownload(`IMEI Mismatch Report - ${vLabel3} - ${batch.shipDate}.csv`, rows.join('\n'));
+  triggerDownload(`IMEI Mismatch Report - ${vLabel3} - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
 // ════════════════════════════════════
@@ -3684,7 +3693,7 @@ function downloadBPIMEIMismatchReport(batchId) {
 function copySlackMessage(batchId, vendorKey) {
   const batch = findBatch(batchId);
   if (!batch) return;
-  let msg = `*Shipment Check Complete — ${batch.vendorLabel || batch.vendor} — ${batch.shipDate}*\n`;
+  let msg = `*Shipment Check Complete — ${batch.vendorLabel || batch.vendor} — ${fmtDate(batch.shipDate)}*\n`;
 
   const rmas = [...new Set(batch.units.map(u => u.rmaNumber))];
   const fallouts = batch.units.filter(u => u.falloutReason);
@@ -3753,7 +3762,7 @@ function refreshDashboard() {
         const d = vzByTracking[tk];
         const isCleared = d.cleared === d.total && d.total > 0;
         const badge = isCleared ? '<span class="badge badge-pass">CLEARED</span>' : d.cleared > 0 ? '<span class="badge badge-review">PARTIAL</span>' : '<span class="badge" style="background:#eee;color:#888;">PENDING</span>';
-        vzHTML += `<tr><td style="padding:4px;font-family:monospace;font-size:11px;">${tk}</td><td style="text-align:center;padding:4px;font-size:11px;">${d.shipDate || '—'}</td><td style="text-align:center;padding:4px;">${d.total}</td><td style="text-align:center;padding:4px;font-weight:600;color:var(--success-green);">${d.cleared}</td><td style="text-align:center;padding:4px;">${badge}</td></tr>`;
+        vzHTML += `<tr><td style="padding:4px;font-family:monospace;font-size:11px;">${tk}</td><td style="text-align:center;padding:4px;font-size:11px;">${fmtDate(d.shipDate)}</td><td style="text-align:center;padding:4px;">${d.total}</td><td style="text-align:center;padding:4px;font-weight:600;color:var(--success-green);">${d.cleared}</td><td style="text-align:center;padding:4px;">${badge}</td></tr>`;
       });
       vzHTML += '</table>';
       vzDetail.innerHTML = vzHTML;
@@ -3779,7 +3788,7 @@ function refreshDashboard() {
         const d = bpByTracking[tk];
         const isCleared = d.cleared === d.total && d.total > 0;
         const badge = isCleared ? '<span class="badge badge-pass">CLEARED</span>' : d.cleared > 0 ? '<span class="badge badge-review">PARTIAL</span>' : '<span class="badge" style="background:#eee;color:#888;">PENDING</span>';
-        bpHTML += `<tr><td style="padding:4px;font-family:monospace;font-size:11px;">${tk}</td><td style="text-align:center;padding:4px;font-size:11px;">${d.shipDate || '—'}</td><td style="text-align:center;padding:4px;">${d.total}</td><td style="text-align:center;padding:4px;font-weight:600;color:var(--success-green);">${d.cleared}</td><td style="text-align:center;padding:4px;">${badge}</td></tr>`;
+        bpHTML += `<tr><td style="padding:4px;font-family:monospace;font-size:11px;">${tk}</td><td style="text-align:center;padding:4px;font-size:11px;">${fmtDate(d.shipDate)}</td><td style="text-align:center;padding:4px;">${d.total}</td><td style="text-align:center;padding:4px;font-weight:600;color:var(--success-green);">${d.cleared}</td><td style="text-align:center;padding:4px;">${badge}</td></tr>`;
       });
       bpHTML += '</table>';
       bpDetail.innerHTML = bpHTML;
@@ -3803,7 +3812,7 @@ function refreshDashboard() {
     const batchTrackings = [...new Set(b.units.map(u => u.trackingOut).filter(Boolean))];
     const trackingDisplay = batchTrackings.length <= 3 ? batchTrackings.join(', ') : batchTrackings.slice(0,3).join(', ') + ` +${batchTrackings.length - 3}`;
     rows += `<tr onclick="viewBatchFromDash('${b.id}','${b.vendor}')" style="cursor:pointer;">
-      <td>${b.shipDate}</td><td>${vendorBadge}</td><td style="font-size:12px;">${trackingDisplay || '—'}</td><td>${b.units.length}</td>
+      <td>${fmtDate(b.shipDate)}</td><td>${vendorBadge}</td><td style="font-size:12px;">${trackingDisplay || '—'}</td><td>${b.units.length}</td>
       <td><span class="badge badge-${statusClass}">${b.status}</span></td>
       <td>${new Date(b.createdAt).toLocaleString()}</td>
       <td><button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button></td>
@@ -3849,7 +3858,7 @@ function refreshHistory() {
     const batchTrackings = [...new Set(b.units.map(u => u.trackingOut).filter(Boolean))];
     const trackingDisplay = batchTrackings.length <= 3 ? batchTrackings.join(', ') : batchTrackings.slice(0,3).join(', ') + ` +${batchTrackings.length - 3}`;
     rows += `<tr onclick="viewBatchFromDash('${b.id}','${b.vendor}')" style="cursor:pointer;">
-      <td>${b.shipDate}</td><td>${vendorBadge}</td><td style="font-size:12px;">${trackingDisplay || '—'}</td><td>${b.units.length}</td>
+      <td>${fmtDate(b.shipDate)}</td><td>${vendorBadge}</td><td style="font-size:12px;">${trackingDisplay || '—'}</td><td>${b.units.length}</td>
       <td><span class="badge badge-${statusClass}">${b.status}</span></td>
       <td>${new Date(b.createdAt).toLocaleString()}</td>
       <td style="white-space:nowrap;">
@@ -4105,7 +4114,7 @@ function generatePackedPDFBlob(batch) {
   doc.setTextColor(...gold);
   doc.text('PACKED Summary — Send to Packing Team', 14, 22);
   doc.setTextColor(180, 210, 195);
-  doc.text(`Ship Date: ${batch.shipDate}`, 14, 28);
+  doc.text(`Ship Date: ${fmtDate(batch.shipDate)}`, 14, 28);
 
   doc.setTextColor(60, 60, 60);
   doc.setFontSize(10);
@@ -4179,7 +4188,7 @@ function generatePackedPDFBlob(batch) {
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text(`RecirQ Global — PACKED Summary — ${batch.shipDate}`, 14, 290);
+    doc.text(`RecirQ Global — PACKED Summary — ${fmtDate(batch.shipDate)}`, 14, 290);
     doc.text(`Page ${i} of ${pageCount}`, 180, 290);
   }
 
@@ -4251,7 +4260,7 @@ async function shareToSlack(batchId) {
   const removed = batch.units.filter(u => isRemoved(u));
   const hasMismatch = batch.imeiMatchResults && batch.imeiMatchResults.some(r => !r.isMatch);
 
-  let msg = `📦 *${batch.vendorLabel || batch.vendor} Shipment Check — ${batch.shipDate}*\n`;
+  let msg = `📦 *${batch.vendorLabel || batch.vendor} Shipment Check — ${fmtDate(batch.shipDate)}*\n`;
   msg += `• *Units:* ${batch.units.length} | *RMAs:* ${rmas.length} | *Tracking #s:* ${trackings.length}\n`;
   if (trackings.length > 0) msg += `• *Tracking:* ${trackings.map(t => '`' + t + '`').join(', ')}\n`;
   msg += `• *Status:* ${batch.status}`;
@@ -4273,22 +4282,22 @@ async function shareToSlack(batchId) {
   let fileUploadFailed = false;
   if (isSlackFileConfigured()) {
     const pdfBlob = generatePackedPDFBlob(batch);
-    const pdfOk = await uploadSlackFile(pdfBlob, `PACKED Summary - ${batch.vendor} - ${batch.shipDate}.pdf`,
-      `PACKED Summary \u2014 ${batch.vendor} \u2014 ${batch.shipDate}`, null);
+    const pdfOk = await uploadSlackFile(pdfBlob, `PACKED Summary - ${batch.vendor} - ${fmtDate(batch.shipDate)}.pdf`,
+      `PACKED Summary \u2014 ${batch.vendor} \u2014 ${fmtDate(batch.shipDate)}`, null);
     if (pdfOk) sent++; else { failed++; fileUploadFailed = true; }
 
     if (!fileUploadFailed) {
       const mismatchBlob = generateMismatchCSVBlob(batch);
       if (mismatchBlob) {
-        const mOk = await uploadSlackFile(mismatchBlob, `IMEI Mismatch Report - ${batch.vendor} - ${batch.shipDate}.csv`,
-          `IMEI Mismatch Report \u2014 ${batch.vendor} \u2014 ${batch.shipDate}`, null);
+        const mOk = await uploadSlackFile(mismatchBlob, `IMEI Mismatch Report - ${batch.vendor} - ${fmtDate(batch.shipDate)}.csv`,
+          `IMEI Mismatch Report \u2014 ${batch.vendor} \u2014 ${fmtDate(batch.shipDate)}`, null);
         if (mOk) sent++; else { failed++; fileUploadFailed = true; }
       }
 
       const removedBlob = generateRemovedCSVBlob(batch);
       if (removedBlob) {
-        const rOk = await uploadSlackFile(removedBlob, `Removed Units - ${batch.vendor} - ${batch.shipDate}.csv`,
-          `Removed Units \u2014 ${batch.vendor} \u2014 ${batch.shipDate}`, null);
+        const rOk = await uploadSlackFile(removedBlob, `Removed Units - ${batch.vendor} - ${fmtDate(batch.shipDate)}.csv`,
+          `Removed Units \u2014 ${batch.vendor} \u2014 ${fmtDate(batch.shipDate)}`, null);
         if (rOk) sent++; else { failed++; fileUploadFailed = true; }
       }
     }
@@ -4325,7 +4334,7 @@ async function sendClearanceMessage(batch) {
   const removed = batch.units.filter(u => isRemoved(u));
   const fallouts = batch.units.filter(u => u.falloutReason && !u.removedFromShipment);
 
-  let msg = `✅ *CLEARED TO SHIP — ${batch.vendor} — ${batch.shipDate}*\n`;
+  let msg = `✅ *CLEARED TO SHIP — ${batch.vendor} — ${fmtDate(batch.shipDate)}*\n`;
   msg += `• *${activeUnits} units* across *${rmas.length} RMA(s)* — *${trackings.length} Tracking #(s)*\n`;
   if (trackings.length > 0) msg += `• *Tracking:* ${trackings.map(t => '`' + t + '`').join(', ')}\n`;
   if (removed.length > 0) msg += `• *${removed.length} unit(s) removed* from shipment\n`;
