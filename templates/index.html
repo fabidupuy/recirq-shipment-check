@@ -581,6 +581,15 @@ let falloutTarget = null;
 let selected3PLVendor = 'Brightpoint';
 const VENDORS_3PL = ['Brightpoint', 'Victra', 'Samsung', 'CPO', 'CRTC'];
 
+// Derive a friendly vendor label from the stored uppercase vendor name
+function getVendorLabel(batch) {
+  if (batch.vendorLabel) return batch.vendorLabel;
+  const v = (batch.vendor || '').toUpperCase();
+  if (v === 'VERIZON') return 'Verizon';
+  const match = VENDORS_3PL.find(lbl => lbl.toUpperCase() === v);
+  return match || (v.charAt(0) + v.slice(1).toLowerCase());
+}
+
 // Vendor-specific Step 2 column configs
 const VENDOR_STEP2_CONFIG = {
   'Brightpoint': {
@@ -1418,7 +1427,7 @@ function renderVZPanel() {
   </div>`;
 
   // RMA Data upload
-  html += `<h3 style="margin:16px 0 8px;">RMA Packed: Upload RMA Submissions CSV
+  html += `<h3 style="margin:16px 0 8px;">RMA Packed
     <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadTemplate('vz-step1')" style="margin-left:10px;font-size:10px;padding:2px 8px;vertical-align:middle;" title="Download blank CSV template">&#11015; Template</button></h3>
     <div class="form-group">
       <div class="upload-zone ${vzUpload.rmaFile ? 'active' : ''}" onclick="document.getElementById('vz-rma-input').click()">
@@ -1783,7 +1792,7 @@ function renderBPPanel() {
   </div>`;
 
   // RMA Packed: RMA data
-  html += `<h3 style="margin:16px 0 8px;">RMA Packed: Upload RMA Submissions CSV
+  html += `<h3 style="margin:16px 0 8px;">RMA Packed
     <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadTemplate('bp-step1')" style="margin-left:10px;font-size:10px;padding:2px 8px;vertical-align:middle;" title="Download blank CSV template">&#11015; Template</button></h3>
     <div class="form-group">
       <div class="upload-zone ${bpUpload.rmaFile ? 'active' : ''}" onclick="document.getElementById('bp-rma-input').click()">
@@ -2105,7 +2114,7 @@ function renderBPResults(batch) {
   let html = '';
   const statusClass = batch.status === 'PASS' || batch.status === 'CLEARED' ? 'pass' : batch.status === 'HARD-STOP' ? 'fail' : 'review';
 
-  const vLabel = batch.vendorLabel || 'Brightpoint';
+  const vLabel = getVendorLabel(batch);
   const isCleared = batch.status === 'CLEARED';
 
   // Cleared banner at the very top
@@ -2411,7 +2420,7 @@ function renderBrightpointDetail(batch) {
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--medium-gray);">
         <p style="font-size:13px;font-weight:600;margin-bottom:8px;">Upload recovered unit CSV:</p>
         <div style="background:#f8f9fa;border:1px solid var(--medium-gray);border-radius:8px;padding:12px;margin-bottom:10px;font-size:11px;line-height:1.6;">
-          <p style="font-weight:600;margin-bottom:4px;">Required format — same columns as the ${batch.vendorLabel || 'Brightpoint'} vendor tab:
+          <p style="font-weight:600;margin-bottom:4px;">Required format — same columns as the ${getVendorLabel(batch)} vendor tab:
           <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadTemplate('bp-recovered')" style="margin-left:8px;font-size:10px;padding:1px 6px;vertical-align:middle;" title="Download blank CSV template">&#11015; Template</button></p>
           <code style="display:block;background:#fff;padding:8px 10px;border-radius:4px;font-size:11px;color:var(--dark-gray);overflow-x:auto;white-space:nowrap;border:1px solid #e0e0e0;">Route,SKU,Purchase Date,Processed Date,RecirQ ESN,Transfer ID,Tracking # In,Box,Cable,Wall Charger,Condition Check,Datawipe Status,Final Description,Final Disposition,RMA#,RMA Submission Date,Tracking # Out</code>
           <p style="margin-top:6px;color:#666;">The <b>RecirQ ESN</b> column must contain the IMEI.</p>
@@ -2789,7 +2798,7 @@ function clearBPBatch(batchId) {
   }
 
   if (unresolved > 0) {
-    alert(`Cannot clear ${batch.vendorLabel || 'shipment'}: ${unresolved} unresolved item(s).\n\n${details.join('\n')}`);
+    alert(`Cannot clear ${getVendorLabel(batch)}: ${unresolved} unresolved item(s).\n\n${details.join('\n')}`);
     return;
   }
   batch.status = 'CLEARED';
@@ -3587,7 +3596,7 @@ function downloadBrightpointUnits(batchId) {
       }).join(','));
     }
   });
-  const vLabel = batch.vendorLabel || 'Brightpoint';
+  const vLabel = getVendorLabel(batch);
   triggerDownload(`Ship Advice - ${vLabel} - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
@@ -3606,7 +3615,7 @@ function downloadBrightpointIMEIs(batchId) {
     else rows.push([escapeCSV(imei), 'Submitted but NOT packed'].join(','));
   });
   ir.extraPacked.forEach(imei => rows.push([escapeCSV(imei), 'Packed but NOT submitted'].join(',')));
-  const vLabel2 = batch.vendorLabel || 'Brightpoint';
+  const vLabel2 = getVendorLabel(batch);
   triggerDownload(`Ship Advice - ${vLabel2} IMEI Comparison - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
@@ -3619,7 +3628,7 @@ function downloadBrightpointFallout(batchId) {
   const batch = findBatch(batchId);
   if (!batch) return;
 
-  const vLabel = batch.vendorLabel || 'Brightpoint';
+  const vLabel = getVendorLabel(batch);
   const vendorCfg = VENDOR_STEP2_CONFIG[vLabel] || VENDOR_STEP2_CONFIG['Brightpoint'];
   const colMap = batch._bpHeaders ? mapRMAColumns(batch._bpHeaders) : null;
   const details = batch.submittedIMEIDetails || {};
@@ -3683,7 +3692,7 @@ function downloadBPIMEIMismatchReport(batchId) {
   batch.imeiMatchResults.filter(r => !r.isMatch && !r.trackingNumber.startsWith('UNMATCHED RMA') && (r.inPackedNotSub || []).length > 0).forEach(r => {
     r.inPackedNotSub.forEach(imei => rows.push([escapeCSV(r.trackingNumber), 'In PACKED not in Submitted', escapeCSV(imei)].join(',')));
   });
-  const vLabel3 = batch.vendorLabel || 'Brightpoint';
+  const vLabel3 = getVendorLabel(batch);
   triggerDownload(`IMEI Mismatch Report - ${vLabel3} - ${fmtDate(batch.shipDate)}.csv`, rows.join('\n'));
 }
 
@@ -3693,7 +3702,7 @@ function downloadBPIMEIMismatchReport(batchId) {
 function copySlackMessage(batchId, vendorKey) {
   const batch = findBatch(batchId);
   if (!batch) return;
-  let msg = `*Shipment Check Complete — ${batch.vendorLabel || batch.vendor} — ${fmtDate(batch.shipDate)}*\n`;
+  let msg = `*Shipment Check Complete — ${getVendorLabel(batch)} — ${fmtDate(batch.shipDate)}*\n`;
 
   const rmas = [...new Set(batch.units.map(u => u.rmaNumber))];
   const fallouts = batch.units.filter(u => u.falloutReason);
@@ -3807,7 +3816,7 @@ function refreshDashboard() {
   let rows = '';
   all.forEach(b => {
     const statusClass = b.status === 'PASS' || b.status === 'CLEARED' ? 'pass' : b.status === 'HARD-STOP' ? 'fail' : 'review';
-    const vBadgeLabel = b.vendor === 'VERIZON' ? 'VZ' : (b.vendorLabel || 'BP').substring(0, 3).toUpperCase();
+    const vBadgeLabel = b.vendor === 'VERIZON' ? 'VZ' : getVendorLabel(b).substring(0, 3).toUpperCase();
     const vendorBadge = b.vendor === 'VERIZON' ? '<span class="badge badge-verizon">VZ</span>' : `<span class="badge badge-3pl">${vBadgeLabel}</span>`;
     const batchTrackings = [...new Set(b.units.map(u => u.trackingOut).filter(Boolean))];
     const trackingDisplay = batchTrackings.length <= 3 ? batchTrackings.join(', ') : batchTrackings.slice(0,3).join(', ') + ` +${batchTrackings.length - 3}`;
@@ -3853,7 +3862,7 @@ function refreshHistory() {
   let rows = '';
   all.forEach(b => {
     const statusClass = b.status === 'PASS' || b.status === 'CLEARED' ? 'pass' : b.status === 'HARD-STOP' ? 'fail' : 'review';
-    const vBadgeLabel = b.vendor === 'VERIZON' ? 'VZ' : (b.vendorLabel || 'BP').substring(0, 3).toUpperCase();
+    const vBadgeLabel = b.vendor === 'VERIZON' ? 'VZ' : getVendorLabel(b).substring(0, 3).toUpperCase();
     const vendorBadge = b.vendor === 'VERIZON' ? '<span class="badge badge-verizon">VZ</span>' : `<span class="badge badge-3pl">${vBadgeLabel}</span>`;
     const batchTrackings = [...new Set(b.units.map(u => u.trackingOut).filter(Boolean))];
     const trackingDisplay = batchTrackings.length <= 3 ? batchTrackings.join(', ') : batchTrackings.slice(0,3).join(', ') + ` +${batchTrackings.length - 3}`;
@@ -4260,7 +4269,7 @@ async function shareToSlack(batchId) {
   const removed = batch.units.filter(u => isRemoved(u));
   const hasMismatch = batch.imeiMatchResults && batch.imeiMatchResults.some(r => !r.isMatch);
 
-  let msg = `📦 *${batch.vendorLabel || batch.vendor} Shipment Check — ${fmtDate(batch.shipDate)}*\n`;
+  let msg = `📦 *${getVendorLabel(batch)} Shipment Check — ${fmtDate(batch.shipDate)}*\n`;
   msg += `• *Units:* ${batch.units.length} | *RMAs:* ${rmas.length} | *Tracking #s:* ${trackings.length}\n`;
   if (trackings.length > 0) msg += `• *Tracking:* ${trackings.map(t => '`' + t + '`').join(', ')}\n`;
   msg += `• *Status:* ${batch.status}`;
