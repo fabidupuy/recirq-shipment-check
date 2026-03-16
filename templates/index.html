@@ -3852,13 +3852,64 @@ function refreshHistory() {
       <td>${b.shipDate}</td><td>${vendorBadge}</td><td style="font-size:12px;">${trackingDisplay || '—'}</td><td>${b.units.length}</td>
       <td><span class="badge badge-${statusClass}">${b.status}</span></td>
       <td>${new Date(b.createdAt).toLocaleString()}</td>
-      <td><button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadAllReports('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Download all reports as CSV">&#11015; CSV</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button>
+      </td>
     </tr>`;
   });
   list.innerHTML = `<div class="tbl-wrap"><table>
     <tr><th>Ship Date</th><th>Vendor</th><th>Tracking #s</th><th>Units</th><th>Status</th><th>Created</th><th></th></tr>
     ${rows}
   </table></div>`;
+}
+
+// ═══════════ DOWNLOAD ALL REPORTS ═══════════
+function downloadAllReports(batchId) {
+  const batch = findBatch(batchId);
+  if (!batch) { alert('Batch not found.'); return; }
+
+  let downloadCount = 0;
+  const delay = 400; // ms between downloads to avoid browser blocking
+
+  if (batch.vendor === 'VERIZON') {
+    // 1) Final units CSV
+    setTimeout(() => downloadVerizonUnits(batchId), delay * downloadCount++);
+    // 2) Removed units CSV (if any)
+    if (batch.units.some(u => isRemoved(u))) {
+      setTimeout(() => downloadVerizonRemoved(batchId), delay * downloadCount++);
+    }
+    // 3) Quantity match CSV (if results exist)
+    if (batch.qtyResults && batch.qtyResults.length > 0) {
+      setTimeout(() => downloadVerizonQtyMatch(batchId), delay * downloadCount++);
+    }
+    // 4) IMEI mismatch CSV (if mismatches exist)
+    if (batch.imeiMatchResults && batch.imeiMatchResults.some(r => !r.isMatch)) {
+      setTimeout(() => downloadIMEIMismatchReport(batchId), delay * downloadCount++);
+    }
+  } else {
+    // 3PL Route vendors (Brightpoint, Victra, Samsung, CPO, CRTC)
+    // 1) Final units CSV
+    setTimeout(() => downloadBrightpointUnits(batchId), delay * downloadCount++);
+    // 2) IMEI comparison CSV (if results exist)
+    if (batch.imeiResults) {
+      setTimeout(() => downloadBrightpointIMEIs(batchId), delay * downloadCount++);
+    }
+    // 3) Fallout/Removed units CSV (if any removed or unpacked fallouts)
+    const hasRemoved = batch.units.some(u => isRemoved(u));
+    const hasFallouts = batch.unpackedFallouts && Object.keys(batch.unpackedFallouts).length > 0;
+    if (hasRemoved || hasFallouts) {
+      setTimeout(() => downloadBrightpointFallout(batchId), delay * downloadCount++);
+    }
+    // 4) IMEI mismatch CSV (if mismatches exist)
+    if (batch.imeiMatchResults && batch.imeiMatchResults.some(r => !r.isMatch)) {
+      setTimeout(() => downloadBPIMEIMismatchReport(batchId), delay * downloadCount++);
+    }
+  }
+
+  if (downloadCount === 0) {
+    alert('No report data available for this batch yet.');
+  }
 }
 
 // ════════════════════════════════════
