@@ -190,16 +190,34 @@ def init_db():
             pass  # Column already exists
 
     # Migrate batches.id from INTEGER to BIGINT (Date.now() exceeds 32-bit INTEGER range)
+    # Must drop FK constraints first, alter columns, then re-add FKs
     if DATABASE_URL:
         c.execute("SAVEPOINT sp_bigint_migration")
         try:
-            c.execute("ALTER TABLE batches ALTER COLUMN id TYPE BIGINT")
-            c.execute("ALTER TABLE units ALTER COLUMN batch_id TYPE BIGINT")
-            c.execute("ALTER TABLE imei_resolutions ALTER COLUMN batch_id TYPE BIGINT")
-            c.execute("ALTER TABLE unpacked_fallouts ALTER COLUMN batch_id TYPE BIGINT")
-            c.execute("ALTER TABLE recovered_imeis ALTER COLUMN batch_id TYPE BIGINT")
-            c.execute("ALTER TABLE activity_log ALTER COLUMN batch_id TYPE BIGINT")
-        except Exception:
+            # Check if migration is needed
+            c.execute("""SELECT data_type FROM information_schema.columns
+                         WHERE table_name='batches' AND column_name='id'""")
+            col_type = c.fetchone()
+            if col_type and col_type[0] == 'integer':
+                # Drop FK constraints on child tables
+                for tbl in ['units', 'imei_resolutions', 'unpacked_fallouts', 'recovered_imeis', 'activity_log']:
+                    c.execute(f"""SELECT constraint_name FROM information_schema.table_constraints
+                                 WHERE table_name='{tbl}' AND constraint_type='FOREIGN KEY'""")
+                    for row in c.fetchall():
+                        c.execute(f"ALTER TABLE {tbl} DROP CONSTRAINT {row[0]}")
+                # Now alter all columns to BIGINT
+                c.execute("ALTER TABLE batches ALTER COLUMN id TYPE BIGINT")
+                c.execute("ALTER TABLE units ALTER COLUMN batch_id TYPE BIGINT")
+                c.execute("ALTER TABLE imei_resolutions ALTER COLUMN batch_id TYPE BIGINT")
+                c.execute("ALTER TABLE unpacked_fallouts ALTER COLUMN batch_id TYPE BIGINT")
+                c.execute("ALTER TABLE recovered_imeis ALTER COLUMN batch_id TYPE BIGINT")
+                c.execute("ALTER TABLE activity_log ALTER COLUMN batch_id TYPE BIGINT")
+                # Re-add FK constraints
+                for tbl in ['units', 'imei_resolutions', 'unpacked_fallouts', 'recovered_imeis']:
+                    c.execute(f"ALTER TABLE {tbl} ADD CONSTRAINT {tbl}_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE")
+                c.execute("ALTER TABLE activity_log ADD CONSTRAINT activity_log_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES batches(id)")
+        except Exception as e:
+            print(f"BIGINT migration error: {e}")
             c.execute("ROLLBACK TO SAVEPOINT sp_bigint_migration")
         c.execute("RELEASE SAVEPOINT sp_bigint_migration")
 
