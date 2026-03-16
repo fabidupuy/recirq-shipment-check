@@ -441,9 +441,15 @@ def load_batches_by_vendor(vendor):
 
 
 def delete_batch(batch_id):
-    """Delete a batch and all related data (cascading)."""
+    """Delete a batch and all related data (explicit child deletion + cascade)."""
     conn = get_db()
     c = conn.cursor()
+    # Explicitly delete child rows first (in case CASCADE isn't active)
+    c.execute(f'DELETE FROM recovered_imeis WHERE batch_id={_PH}', (batch_id,))
+    c.execute(f'DELETE FROM unpacked_fallouts WHERE batch_id={_PH}', (batch_id,))
+    c.execute(f'DELETE FROM imei_resolutions WHERE batch_id={_PH}', (batch_id,))
+    c.execute(f'DELETE FROM units WHERE batch_id={_PH}', (batch_id,))
+    c.execute(f'DELETE FROM activity_log WHERE batch_id={_PH}', (batch_id,))
     c.execute(f'DELETE FROM batches WHERE id={_PH}', (batch_id,))
     conn.commit()
     conn.close()

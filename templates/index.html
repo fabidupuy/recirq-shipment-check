@@ -949,8 +949,10 @@ async function saveBatchToServer(batch) {
 
 async function deleteBatchFromServer(batchId) {
   try {
-    await fetch(`${API}/batches/${batchId}`, { method: 'DELETE' });
-  } catch (e) { console.warn('Delete failed:', e); }
+    const resp = await fetch(`${API}/batches/${batchId}`, { method: 'DELETE' });
+    if (!resp.ok) console.warn('Delete returned', resp.status);
+    return resp.ok;
+  } catch (e) { console.warn('Delete failed:', e); return false; }
 }
 
 async function updateBatchStatusOnServer(batchId, status, clearedAt, counts) {
@@ -2810,7 +2812,7 @@ function clearBPBatch(batchId) {
   sendClearanceMessage(batch);
 }
 
-function deleteBatch(batchId, vendor) {
+async function deleteBatch(batchId, vendor) {
   const batch = findBatch(batchId);
   if (!batch) return;
   const unitCount = batch.units.length;
@@ -2818,7 +2820,8 @@ function deleteBatch(batchId, vendor) {
   const msg = `⚠️ DELETE SHIPMENT CHECK\n\nYou are about to permanently delete this ${vendor} check:\n• Ship Date: ${fmtDate(batch.shipDate)}\n• Units: ${unitCount}\n• Status: ${statusLabel}\n• Created: ${new Date(batch.createdAt).toLocaleString()}\n\nThis action CANNOT be undone. All verification results, fallout logs, and reports for this check will be lost.\n\nAre you sure you want to delete this check?`;
   if (!confirm(msg)) return;
   logAction('delete_check', batch.id, { vendor: batch.vendor });
-  deleteBatchFromServer(batch.id);
+  const ok = await deleteBatchFromServer(batch.id);
+  if (!ok) { alert('Failed to delete from server. Please try again.'); return; }
   if (vendor === 'VERIZON') {
     vzBatches = vzBatches.filter(b => b.id !== batch.id);
     renderVZPanel();
