@@ -263,6 +263,26 @@ def get_batch_activity(batch_id):
 
 
 # ════════════════════════════════════
+# PICK & PACK STATE API
+# ════════════════════════════════════
+
+@app.route('/api/pp/state', methods=['GET'])
+def get_pp_state():
+    """Get all Pick & Pack state (ppJobs, ppCompletedRMAs)."""
+    state = db.get_all_pp_state()
+    return jsonify(state)
+
+
+@app.route('/api/pp/state/<key>', methods=['POST'])
+def save_pp_state(key):
+    """Save a Pick & Pack state value."""
+    data = request.get_json()
+    value_json = json.dumps(data.get('value', {}))
+    db.save_pp_state(key, value_json)
+    return jsonify({'status': 'saved', 'key': key})
+
+
+# ════════════════════════════════════
 # SETTINGS API
 # ════════════════════════════════════
 

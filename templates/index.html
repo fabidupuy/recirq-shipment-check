@@ -4809,6 +4809,42 @@ async function sendClearanceMessage(batch) {
 let ppJobs = {};
 // Completed RMAs history: [{ rma, vendor, units, completedAt, completedBy }]
 let ppCompletedRMAs = [];
+// Save/load PP state to/from server
+let ppSaveTimer = null;
+function ppSaveState() {
+  // Debounce saves to avoid hammering server on rapid scans
+  clearTimeout(ppSaveTimer);
+  ppSaveTimer = setTimeout(() => {
+    // Strip rmaGroups before saving (rebuilt on load from units)
+    const jobsToSave = {};
+    Object.keys(ppJobs).forEach(v => {
+      const j = ppJobs[v];
+      jobsToSave[v] = { ...j, rmaGroups: undefined };
+    });
+    fetch(API + '/pp/state/ppJobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: jobsToSave }) }).catch(e => console.warn('PP save jobs failed:', e));
+    fetch(API + '/pp/state/ppCompletedRMAs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: ppCompletedRMAs }) }).catch(e => console.warn('PP save completed failed:', e));
+  }, 500);
+}
+async function ppLoadState() {
+  try {
+    const resp = await fetch(API + '/pp/state');
+    const state = await resp.json();
+    if (state.ppJobs) {
+      ppJobs = JSON.parse(state.ppJobs);
+      // Rebuild rmaGroups for each job
+      Object.values(ppJobs).forEach(job => {
+        if (!job.rmaGroups) job.rmaGroups = {};
+        if (job.units && job.units.length > 0) ppRebuildGroups(job);
+        // Ensure box tracking exists
+        if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
+        if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
+      });
+    }
+    if (state.ppCompletedRMAs) {
+      ppCompletedRMAs = JSON.parse(state.ppCompletedRMAs);
+    }
+  } catch (e) { console.warn('PP load state failed:', e); }
+}
 // Temp upload state
 let ppVendorData = null;
 let ppRMAData = null;
@@ -5460,6 +5496,7 @@ function ppCompleteRMA(vendor, rma) {
   }
 
   ppExpandedRMAs.delete(rma);
+  ppSaveState();
   renderPPPackingSection();
 }
 
@@ -5529,6 +5566,7 @@ function ppCompleteDateGroup(vendor, subDate) {
   job.tracking = '';
   job.trackingConfirmed = false;
 
+  ppSaveState();
   renderPPPackingSection();
 }
 
@@ -5652,6 +5690,7 @@ function ppCloseBox(vendor) {
   job.boxes.push({ boxNum: newBoxNum, imeis: [], closedAt: null, lockedDate: null });
   job.currentBoxIdx = job.boxes.length - 1;
 
+  ppSaveState();
   renderPPPackingSection();
 }
 
@@ -5664,12 +5703,14 @@ function ppConfirmTracking(vendor) {
   const job = ppJobs[vendor];
   job.tracking = tracking;
   job.trackingConfirmed = true;
+  ppSaveState();
   renderPPPackingSection();
 }
 
 function ppChangeTracking(vendor) {
   const job = ppJobs[vendor];
   job.trackingConfirmed = false;
+  ppSaveState();
   renderPPPackingSection();
 }
 
@@ -5783,6 +5824,7 @@ function ppScanIMEI() {
       </div>
     </div>`;
 
+  ppSaveState();
   renderPPPackingSection();
 }
 
@@ -5858,6 +5900,7 @@ function ppSetQC(unitIdx, vendor, field, value) {
       unit.falloutReason = '';
     }
   }
+  ppSaveState();
   renderPPPackingSection();
 }
 
@@ -6033,6 +6076,7 @@ function ppTryMerge() {
   // Merge
   job.units = [...job.units, ...newUnits];
   ppRebuildGroups(job);
+  ppSaveState();
 
   const rmaCount = Object.keys(job.rmaGroups).filter(k => k !== 'UNMATCHED').length;
   const summaryEl = document.getElementById('pp-match-summary');
@@ -6126,6 +6170,7 @@ function ppResolveConflict(idx, action, vendor) {
   ppPendingConflicts[idx] = null;
   if (ppPendingConflicts.every(c => c === null)) {
     ppRebuildGroups(job);
+    ppSaveState();
     renderPPUploadSection();
   }
 }
@@ -6140,6 +6185,7 @@ function ppResolveAllConflicts(action, vendor) {
   if (currentUser) {
     await initSlackSettings();
     await loadBatchesFromServer();
+    await ppLoadState();
   }
 })();
 </script>

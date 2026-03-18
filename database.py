@@ -242,8 +242,62 @@ def init_db():
         created_at TEXT NOT NULL
     )''')
 
+    # Pick & Pack packing state table — stores all PP data as JSON
+    c.execute('''CREATE TABLE IF NOT EXISTS pp_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )''')
+
     conn.commit()
     conn.close()
+
+
+# ════════════════════════════════════
+# PICK & PACK STATE
+# ════════════════════════════════════
+
+def save_pp_state(key, value_json):
+    """Save a Pick & Pack state value (ppJobs or ppCompletedRMAs) as JSON."""
+    import datetime
+    conn = get_db()
+    c = conn.cursor()
+    now = datetime.datetime.utcnow().isoformat()
+    if DATABASE_URL:
+        c.execute('''INSERT INTO pp_state (key, value, updated_at)
+                     VALUES (%s, %s, %s)
+                     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at''',
+                  (key, value_json, now))
+    else:
+        c.execute('''INSERT OR REPLACE INTO pp_state (key, value, updated_at)
+                     VALUES (?, ?, ?)''', (key, value_json, now))
+    conn.commit()
+    conn.close()
+
+def get_pp_state(key):
+    """Get a Pick & Pack state value by key. Returns the JSON string or None."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f'SELECT value FROM pp_state WHERE key = {_PH}', (key,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return row[0] if isinstance(row, (list, tuple)) else row['value']
+    return None
+
+def get_all_pp_state():
+    """Get all Pick & Pack state as a dict of key: value_json."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT key, value FROM pp_state')
+    rows = c.fetchall()
+    conn.close()
+    result = {}
+    for row in rows:
+        k = row[0] if isinstance(row, (list, tuple)) else row['key']
+        v = row[1] if isinstance(row, (list, tuple)) else row['value']
+        result[k] = v
+    return result
 
 
 # ════════════════════════════════════
