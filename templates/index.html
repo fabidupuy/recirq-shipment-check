@@ -4390,8 +4390,9 @@ function openShipmentPhotos(batchId) {
   const trackings = [...new Set(batch.units.map(u => u.trackingOut).filter(Boolean))].join(', ') || '—';
   document.getElementById('photo-gallery-title').textContent = 'Shipment Photos — ' + (batch.vendor === 'VERIZON' ? 'VZ' : batch.vendor.substring(0,3).toUpperCase()) + ' ' + fmtDate(batch.shipDate);
 
-  // Wire upload button
+  // Wire upload button (show it for shipment photos)
   const uploadBtn = document.getElementById('photo-gallery-upload-btn');
+  uploadBtn.style.display = '';
   uploadBtn.onclick = function() { document.getElementById('shipment-photo-input-' + batchId).click(); };
 
   renderPhotoGallery(batch);
@@ -5031,12 +5032,18 @@ async function ppLoadState() {
       ppCompletedRMAs = JSON.parse(state.ppCompletedRMAs);
     }
   } catch (e) { console.warn('PP load state failed:', e); }
+  // Load photo references
+  try {
+    const photoResp = await fetch(API + '/photos/all');
+    ppAllPhotos = await photoResp.json();
+  } catch (e) { ppAllPhotos = {}; }
 }
 // Temp upload state
 let ppVendorData = null;
 let ppRMAData = null;
 let ppLastFeedback = '';
 let ppLastScanned = null; // { unitIdx, vendor } — for inline QC in feedback
+let ppAllPhotos = {}; // { imei: [{viewUrl, key}], 'box-1': [...] } — loaded from server
 let ppExpandedRMAs = new Set();
 let ppPendingConflicts = [];
 let ppConflictAllUnits = [];
@@ -5448,6 +5455,10 @@ function renderPPPackingSection() {
         const isFallout = u.fallout;
         const statusBadge = isFallout ? '<span class="badge badge-fail">FALLOUT</span>' : (u.packed ? '<span class="badge badge-pass">PACKED</span>' : '<span class="badge badge-pending">PENDING</span>');
         const cardBg = isFallout ? 'background:var(--critical-bg);opacity:0.8;' : '';
+        const imeiPhotoCount = ppGetPhotoCount(u.imei);
+        const photoIndicator = imeiPhotoCount > 0
+          ? `<span style="cursor:pointer;font-size:11px;color:var(--success-green);font-weight:600;" onclick="event.stopPropagation();ppOpenIMEIPhotos('${u.imei}')" title="View ${imeiPhotoCount} photo(s)">&#128247; ${imeiPhotoCount}</span>`
+          : (u.packed && !isFallout ? '<span style="font-size:11px;color:var(--alert-red);" title="No photos">&#128247; 0</span>' : '');
         html += `
           <div class="pp-unit-card" style="padding:12px 16px;border-bottom:1px solid #f0f0f0;${cardBg}">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
@@ -5455,6 +5466,7 @@ function renderPPPackingSection() {
               <span style="font-size:11px;color:#666;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;" title="${u.description}">${u.description || '—'}</span>
               <span style="font-size:11px;color:#888;">Rack ${u.rackId || '—'}</span>
               <span style="font-size:10px;color:#999;">RMA# ${u.rmaNumber || '—'}</span>
+              ${photoIndicator}
               <span style="font-size:10px;color:#888;min-width:90px;text-align:center;">${u.packedAt ? new Date(u.packedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</span>
               <span style="min-width:80px;text-align:right;">${statusBadge}</span>
             </div>
@@ -5666,11 +5678,66 @@ function ppDownloadDailySummary() {
 
 // ── COMPLETE RMA (moves from packing to history) ──
 async function ppCheckPhotosExist(photoKey) {
+  // Check cached photos first
+  if (ppAllPhotos[photoKey] && ppAllPhotos[photoKey].length > 0) return true;
+  // Fallback to API (in case photos were just uploaded from phone)
   try {
     const resp = await fetch(`${API}/photos/list/${encodeURIComponent(photoKey)}`);
     const photos = await resp.json();
-    return photos && photos.length > 0;
+    if (photos && photos.length > 0) {
+      ppAllPhotos[photoKey] = photos; // Cache it
+      return true;
+    }
+    return false;
   } catch (e) { return false; }
+}
+
+function ppGetPhotoCount(key) {
+  return (ppAllPhotos[key] && ppAllPhotos[key].length) || 0;
+}
+
+function ppOpenIMEIPhotos(imei) {
+  const photos = ppAllPhotos[imei] || [];
+  document.getElementById('photo-gallery-title').textContent = 'Photos — IMEI ' + imei;
+  const uploadBtn = document.getElementById('photo-gallery-upload-btn');
+  uploadBtn.style.display = 'none'; // No upload from desktop for IMEI photos — use QR
+  const content = document.getElementById('photo-gallery-content');
+  if (photos.length === 0) {
+    content.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#888;"><div style="font-size:36px;margin-bottom:8px;">&#128247;</div><p>No photos for this IMEI. Use the QR code from the scan feedback to take photos from your phone.</p></div>';
+  } else {
+    let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">';
+    photos.forEach(p => {
+      html += `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0;aspect-ratio:1;background:#f5f5f5;">
+        <img src="${p.viewUrl}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="window.open('${p.viewUrl}','_blank')" title="Click to view full size">
+      </div>`;
+    });
+    html += '</div>';
+    html += '<div style="margin-top:12px;font-size:12px;color:#888;text-align:center;">' + photos.length + ' photo(s)</div>';
+    content.innerHTML = html;
+  }
+  document.getElementById('photo-gallery-modal').classList.add('show');
+}
+
+function ppOpenBoxPhotos(key, label) {
+  const photos = ppAllPhotos[key] || [];
+  document.getElementById('photo-gallery-title').textContent = 'Box Photos — ' + label;
+  const uploadBtn = document.getElementById('photo-gallery-upload-btn');
+  uploadBtn.style.display = 'none';
+  const content = document.getElementById('photo-gallery-content');
+  if (photos.length === 0) {
+    content.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#888;"><div style="font-size:36px;margin-bottom:8px;">&#128247;</div><p>No box photos yet. Use the "Box Photo" button to take photos from your phone.</p></div>';
+  } else {
+    let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">';
+    photos.forEach(p => {
+      html += `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0;aspect-ratio:1;background:#f5f5f5;">
+        <img src="${p.viewUrl}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="window.open('${p.viewUrl}','_blank')" title="Click to view full size">
+      </div>`;
+    });
+    html += '</div>';
+    html += '<div style="margin-top:12px;font-size:12px;color:#888;text-align:center;">' + photos.length + ' photo(s)</div>';
+    content.innerHTML = html;
+  }
+  document.getElementById('photo-gallery-modal').classList.add('show');
 }
 
 async function ppCompleteRMA(vendor, rma) {
