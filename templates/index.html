@@ -31,16 +31,39 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f0f4f3; color: var(--dark-gray); line-height: 1.6; }
 
-  /* ── TOP BAR ── */
-  .top-bar { background: var(--dark-green); color: white; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
-  .top-bar h1 { font-size: 18px; font-weight: 700; }
-  .top-bar .subtitle { font-size: 11px; color: #B0D9C5; }
-  .nav-tabs { display: flex; gap: 4px; }
-  .nav-tabs button { background: rgba(255,255,255,.12); border: none; color: white; padding: 7px 16px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .2s; }
-  .nav-tabs button:hover { background: rgba(255,255,255,.22); }
-  .nav-tabs button.active { background: white; color: var(--dark-green); }
+  /* ── SIDEBAR ── */
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 240px; background: var(--dark-green); color: white; z-index: 100; display: flex; flex-direction: column; box-shadow: 2px 0 12px rgba(0,0,0,.15); overflow-y: auto; transition: transform .25s ease; }
+  .sidebar.collapsed { transform: translateX(-240px); }
+  .sidebar-toggle { position: fixed; top: 12px; left: 12px; z-index: 101; background: var(--dark-green); color: white; border: none; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,.2); transition: left .25s ease, background .15s; }
+  .sidebar-toggle:hover { background: var(--medium-green); }
+  .sidebar:not(.collapsed) ~ .sidebar-toggle { left: 248px; }
+  .sidebar-brand { padding: 20px 20px 16px; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .sidebar-brand h1 { font-size: 17px; font-weight: 700; letter-spacing: .3px; }
+  .sidebar-brand .subtitle { font-size: 10px; color: #B0D9C5; margin-top: 2px; letter-spacing: .5px; text-transform: uppercase; }
+  .sidebar-nav { flex: 1; padding: 12px 0; }
+  .sidebar-section { margin-bottom: 4px; }
+  .sidebar-section-header { display: flex; align-items: center; gap: 10px; padding: 10px 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: rgba(255,255,255,.45); cursor: pointer; user-select: none; transition: color .2s; }
+  .sidebar-section-header:hover { color: rgba(255,255,255,.7); }
+  .sidebar-section-header .arrow { font-size: 10px; margin-left: auto; transition: transform .2s; }
+  .sidebar-section-header .arrow.open { transform: rotate(90deg); }
+  .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 9px 20px 9px 32px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,.75); cursor: pointer; transition: all .15s; border-left: 3px solid transparent; }
+  .sidebar-item:hover { background: rgba(255,255,255,.08); color: white; }
+  .sidebar-item.active { background: rgba(255,255,255,.12); color: white; border-left-color: var(--accent-gold); font-weight: 600; }
+  .sidebar-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.12); }
+  .sidebar-footer .user-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .sidebar-footer .user-role { font-size: 10px; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .5px; }
+  .sidebar-footer .sidebar-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .sidebar-footer .sidebar-actions button { background: rgba(255,255,255,.1); border: none; color: rgba(255,255,255,.7); padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: 600; transition: all .15s; }
+  .sidebar-footer .sidebar-actions button:hover { background: rgba(255,255,255,.2); color: white; }
 
+  /* ── LAYOUT ── */
+  .app-main { margin-left: 240px; min-height: 100vh; transition: margin-left .25s ease; }
+  .app-main.sidebar-hidden { margin-left: 0; }
   .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+  /* Hide old top bar */
+  .top-bar { display: none; }
   .section { display: none; }
   .section.active { display: block; }
 
@@ -197,7 +220,34 @@
   .user-mgmt-modal .user-item-actions { display: flex; gap: 6px; }
   .user-mgmt-modal .user-item-actions .btn { margin: 0; }
 
+  /* ── PICK & PACK ── */
+  .pp-scan-bar { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
+  .pp-scan-bar input { flex: 1; padding: 12px 14px; border: 2px solid var(--medium-green); border-radius: 8px; font-size: 16px; font-family: monospace; }
+  .pp-scan-bar input:focus { outline: none; border-color: var(--dark-green); box-shadow: 0 0 0 3px rgba(46,125,91,.15); }
+  .pp-rma-group { border: 1px solid var(--medium-gray); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .pp-rma-header { padding: 12px 16px; background: var(--light-gray); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+  .pp-rma-header:hover { background: #e8e8e8; }
+  .pp-rma-header h4 { font-size: 14px; color: var(--dark-green); }
+  .pp-rma-body { display: none; }
+  .pp-rma-body.expanded { display: block; }
+  .pp-unit-row { display: grid; grid-template-columns: 160px 50px 50px 50px 80px 80px auto 130px 80px; gap: 6px; padding: 8px 16px; border-bottom: 1px solid #f0f0f0; align-items: center; font-size: 12px; }
+  .pp-unit-row:last-child { border-bottom: none; }
+  .pp-unit-row.packed { background: var(--success-bg); }
+  .pp-unit-row.qc-fail { background: var(--critical-bg); }
+  .pp-unit-hdr { font-weight: 700; color: var(--dark-green); background: white; border-bottom: 2px solid var(--medium-gray); }
+  .pp-progress-bar { height: 8px; background: var(--medium-gray); border-radius: 4px; overflow: hidden; }
+  .pp-progress-fill { height: 100%; background: var(--success-green); transition: width .3s; border-radius: 4px; }
+  .pp-qc-btn { padding: 3px 8px; border: 1px solid var(--medium-gray); border-radius: 4px; font-size: 11px; cursor: pointer; background: white; transition: all .15s; }
+  .pp-qc-btn.yes { background: var(--success-bg); border-color: var(--success-green); color: var(--success-green); font-weight: 600; }
+  .pp-qc-btn.no { background: var(--critical-bg); border-color: var(--alert-red); color: var(--alert-red); font-weight: 600; }
+  .pp-qc-btn.pass { background: var(--success-bg); border-color: var(--success-green); color: var(--success-green); font-weight: 600; }
+  .pp-qc-btn.fail { background: var(--critical-bg); border-color: var(--alert-red); color: var(--alert-red); font-weight: 600; }
+  .pp-qc-toggle { display: inline-flex; gap: 2px; }
+  .pp-summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+
   @media (max-width: 768px) {
+    .sidebar { width: 200px; }
+    .app-main { margin-left: 200px; }
     .stats-row { grid-template-columns: repeat(2, 1fr); }
     .form-row { grid-template-columns: 1fr; }
     .container { padding: 12px; }
@@ -208,6 +258,73 @@
 </head>
 <body>
 
+<!-- ═══ SIDEBAR NAVIGATION ═══ -->
+<nav class="sidebar" id="app-sidebar">
+  <div class="sidebar-brand">
+    <h1>3PL Reventory</h1>
+    <div class="subtitle">RecirQ Global</div>
+  </div>
+  <div class="sidebar-nav">
+    <!-- Pick & Pack -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+        Pick &amp; Pack <span class="arrow open">&#9654;</span>
+      </div>
+      <div class="sidebar-section-items">
+        <div class="sidebar-item" data-section="pp-upload" onclick="sidebarNav('pp-upload')">
+          <span class="icon">&#128196;</span> Upload Jobs
+        </div>
+        <div class="sidebar-item" data-section="pp-packing" onclick="sidebarNav('pp-packing')">
+          <span class="icon">&#128230;</span> Packing
+        </div>
+        <div class="sidebar-item" data-section="pp-history" onclick="sidebarNav('pp-history')">
+          <span class="icon">&#128203;</span> Packed RMAs
+        </div>
+      </div>
+    </div>
+    <!-- Shipment Check -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+        Shipment Check <span class="arrow open">&#9654;</span>
+      </div>
+      <div class="sidebar-section-items">
+        <div class="sidebar-item active" data-section="dashboard" onclick="sidebarNav('dashboard')">
+          <span class="icon">&#9632;</span> Dashboard
+        </div>
+        <div class="sidebar-item" data-section="vendor-hub" onclick="sidebarNav('vendor-hub')">
+          <span class="icon">&#10003;</span> Run Check
+        </div>
+        <div class="sidebar-item" data-section="history" onclick="sidebarNav('history')">
+          <span class="icon">&#128203;</span> History
+        </div>
+      </div>
+    </div>
+    <!-- Settings -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+        Settings <span class="arrow open">&#9654;</span>
+      </div>
+      <div class="sidebar-section-items">
+        <div class="sidebar-item" onclick="toggleSlackSettings()">
+          <span class="icon">&#9881;</span> Slack Settings
+        </div>
+        <div class="sidebar-item" id="sidebar-user-mgmt" onclick="openUserManagementModal()" style="display:none;">
+          <span class="icon">&#128101;</span> User Management
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="user-name" id="sidebar-user-name">Not logged in</div>
+    <div class="user-role" id="sidebar-user-role"></div>
+    <div class="sidebar-actions">
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+</nav>
+<button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">&#9776;</button>
+
+<!-- Old top-bar kept hidden for backward compat -->
 <div class="top-bar">
   <div>
     <h1>3PL Reventory</h1>
@@ -216,17 +333,19 @@
   <div style="display:flex;align-items:center;gap:12px;">
     <div class="nav-tabs">
       <button class="active" onclick="showSection('dashboard')">Dashboard</button>
+      <button onclick="showSection('pick-pack')">Pick &amp; Pack</button>
       <button onclick="showSection('vendor-hub')">Shipment Check</button>
       <button onclick="showSection('history')">History</button>
     </div>
-    <button onclick="toggleSlackSettings()" style="background:none;border:none;cursor:pointer;font-size:20px;color:white;opacity:.7;transition:opacity .2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7" title="Slack Settings">&#9881;</button>
-    <button id="btn-user-mgmt" onclick="openUserManagementModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:white;opacity:.7;transition:opacity .2s;display:none;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7" title="User Management">👥</button>
     <div class="user-info" id="user-info" style="display:none;">
       <span class="username" id="current-user-display"></span>
       <button class="logout-btn" onclick="logout()">Logout</button>
     </div>
   </div>
 </div>
+
+<!-- ═══ MAIN CONTENT WRAPPER ═══ -->
+<div class="app-main">
 
 <!-- ═══ LOGIN SCREEN ═══ -->
 <div id="login-screen" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:white;display:flex;align-items:center;justify-content:center;">
@@ -361,6 +480,21 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- ═══════════ PICK & PACK: UPLOAD ═══════════ -->
+<div id="sec-pp-upload" class="section">
+  <div id="pp-upload-content"></div>
+</div>
+
+<!-- ═══════════ PICK & PACK: PACKING ═══════════ -->
+<div id="sec-pp-packing" class="section">
+  <div id="pp-packing-content"></div>
+</div>
+
+<!-- ═══════════ PICK & PACK: PACKED HISTORY ═══════════ -->
+<div id="sec-pp-history" class="section">
+  <div id="pp-history-content"></div>
 </div>
 
 <!-- ═══════════ VENDOR HUB — Two Independent Sections ═══════════ -->
@@ -692,9 +826,14 @@ function hideLoginScreen() {
 function showMainApp() {
   hideLoginScreen();
   document.getElementById('current-user-display').textContent = `Logged in as ${currentUser.displayName}`;
-  // Show user management button only for admins
+  // Update sidebar footer with user info
+  document.getElementById('sidebar-user-name').textContent = currentUser.displayName;
+  document.getElementById('sidebar-user-role').textContent = currentUser.role === 'admin' ? 'Administrator' : 'User';
+  // Show user management in sidebar only for admins
   const umBtn = document.getElementById('btn-user-mgmt');
   if (umBtn) umBtn.style.display = (currentUser.role === 'admin') ? 'inline-block' : 'none';
+  const sidebarUm = document.getElementById('sidebar-user-mgmt');
+  if (sidebarUm) sidebarUm.style.display = (currentUser.role === 'admin') ? 'flex' : 'none';
 }
 
 async function loginFormSubmit() {
@@ -1008,12 +1147,43 @@ async function loadSlackSettingsFromServer() {
 function showSection(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.getElementById('sec-' + id).classList.add('active');
+  // Update old nav tabs (kept for compat)
   document.querySelectorAll('.nav-tabs button').forEach(b => b.classList.remove('active'));
-  const map = { dashboard: 0, 'vendor-hub': 1, history: 2 };
+  const map = { dashboard: 0, 'pp-upload': 1, 'pp-packing': 1, 'pp-history': 1, 'vendor-hub': 2, history: 3 };
   if (map[id] >= 0) document.querySelectorAll('.nav-tabs button')[map[id]].classList.add('active');
+  // Update sidebar active state
+  document.querySelectorAll('.sidebar-item[data-section]').forEach(el => el.classList.remove('active'));
+  const activeItem = document.querySelector('.sidebar-item[data-section="' + id + '"]');
+  if (activeItem) activeItem.classList.add('active');
   if (id === 'dashboard') refreshDashboard();
   if (id === 'history') refreshHistory();
   if (id === 'vendor-hub') { renderVZPanel(); renderBPPanel(); }
+  if (id === 'pp-upload') renderPPUploadSection();
+  if (id === 'pp-packing') renderPPPackingSection();
+  if (id === 'pp-history') renderPPHistorySection();
+}
+
+function sidebarNav(sectionId) {
+  showSection(sectionId);
+}
+
+function toggleSidebarSection(header) {
+  const arrow = header.querySelector('.arrow');
+  const items = header.nextElementSibling;
+  if (items.style.display === 'none') {
+    items.style.display = 'block';
+    arrow.classList.add('open');
+  } else {
+    items.style.display = 'none';
+    arrow.classList.remove('open');
+  }
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('app-sidebar');
+  const main = document.querySelector('.app-main');
+  sidebar.classList.toggle('collapsed');
+  main.classList.toggle('sidebar-hidden');
 }
 
 function switchVendorTab(which) {
@@ -1104,10 +1274,10 @@ function readFileAsCSV(file) {
         if (isXLSX || isXLSXBinary(e.target.result)) {
           // Parse as XLSX using SheetJS
           const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
+          const workbook = XLSX.read(data, { type: 'array', raw: true });
           const sheetName = workbook.SheetNames[0];
           const sheet = workbook.Sheets[sheetName];
-          const csvText = XLSX.utils.sheet_to_csv(sheet);
+          const csvText = XLSX.utils.sheet_to_csv(sheet, { rawNumbers: false });
           resolve(parseCSV(csvText));
         } else {
           // Parse as plain text CSV/TSV
@@ -1405,6 +1575,194 @@ function checkBrightpointIMEIMatch(units, submittedFiles) {
 }
 
 // ════════════════════════════════════
+// AUTO-FILL FROM PICK & PACK HELPERS
+// ════════════════════════════════════
+
+/**
+ * Get available completed RMAs from ppCompletedRMAs for Shipment Check.
+ * Groups by tracking # and filters by vendor.
+ * Only returns entries not yet loaded to Shipment Check.
+ */
+function ppGetAvailableForShipmentCheck(vendorFilter) {
+  // vendorFilter: 'VERIZON' or a 3PL vendor name (e.g., 'Brightpoint')
+  const available = ppCompletedRMAs.filter(entry => {
+    if (entry.loadedToShipmentCheck) return false;
+    if (entry.rma && entry.rma.startsWith('FALLOUT')) return false; // Skip fallout entries
+    if (vendorFilter === 'VERIZON') {
+      return entry.vendor === 'VERIZON';
+    } else {
+      return entry.vendor.toUpperCase() === vendorFilter.toUpperCase();
+    }
+  });
+
+  // Group by tracking #
+  const grouped = {};
+  available.forEach(entry => {
+    const tk = entry.tracking || 'NO_TRACKING';
+    if (!grouped[tk]) {
+      grouped[tk] = {
+        tracking: tk,
+        vendor: entry.vendor,
+        entries: [],
+      };
+    }
+    grouped[tk].entries.push(entry);
+  });
+
+  // Compute stats for each group
+  Object.values(grouped).forEach(group => {
+    const allUnits = group.entries.flatMap(e => e.units || []);
+    group.unitCount = allUnits.filter(u => !u.fallout).length;
+    group.rmaCount = [...new Set(group.entries.map(e => e.rma))].length;
+  });
+
+  return Object.values(grouped);
+}
+
+/**
+ * Build a synthetic rmaCSV object from ppCompletedRMAs entries.
+ * Maps unit fields to the RMA Packed CSV column structure.
+ */
+function ppBuildSyntheticRmaCSV(trackingGroup) {
+  // Headers for the RMA Packed CSV (Verizon and 3PL use the same structure)
+  const headers = [
+    'Route',
+    'SKU',
+    'Purchase Date',
+    'Processed Date',
+    'RecirQ ESN',
+    'Transfer ID',
+    'Tracking # In',
+    'Box',
+    'Cable',
+    'Wall Charger',
+    'Condition Check',
+    'Datawipe Status',
+    'Final Description',
+    'Final Disposition',
+    'RMA#',
+    'Delivery #',
+    'RMA Submission Date',
+    'Tracking # Out',
+    'Ship date',
+  ];
+
+  const rows = [];
+  trackingGroup.entries.forEach(entry => {
+    (entry.units || []).forEach(unit => {
+      // Skip fallout units
+      if (unit.fallout) return;
+
+      // Helper to get QC field — try both unit.qc.field and unit.field
+      const getQC = (field) => {
+        if (unit.qc && unit.qc[field] !== undefined) return unit.qc[field];
+        return unit[field] || '';
+      };
+
+      // Helper to format date string (YYYY-MM-DD) if needed
+      const formatDateField = (val) => {
+        if (!val) return '';
+        // If it's an ISO string, extract just the date part
+        if (typeof val === 'string' && val.includes('T')) {
+          return val.split('T')[0];
+        }
+        // If it's already a date string (YYYY-MM-DD), return as-is
+        if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+          return val;
+        }
+        return val;
+      };
+
+      // Map unit fields to CSV columns
+      const row = {
+        'Route': unit.route || '',
+        'SKU': unit.sku || '',
+        'Purchase Date': '', // Not available from Pick & Pack
+        'Processed Date': formatDateField(unit.processedDate) || '',
+        'RecirQ ESN': unit.imei || '',
+        'Transfer ID': unit.transferId || '',
+        'Tracking # In': '', // Not available from Pick & Pack
+        'Box': getQC('box') || unit.box || '',
+        'Cable': getQC('cable') || unit.cable || '',
+        'Wall Charger': getQC('wallCharger') || unit.wallCharger || '',
+        'Condition Check': getQC('cosmetic') || unit.conditionCheck || '',
+        'Datawipe Status': getQC('datawipe') || unit.datawipeStatus || '',
+        'Final Description': unit.description || '',
+        'Final Disposition': unit.disposition || '',
+        'RMA#': unit.rmaNumber || '',
+        'Delivery #': unit.deliveryNumber || '',
+        'RMA Submission Date': formatDateField(unit.rmaSubmissionDate) || '',
+        'Tracking # Out': unit.trackingNumber || '',
+        'Ship date': '',  // Left blank — user sets ship date in Shipment Check Step 1
+      };
+      rows.push(row);
+    });
+  });
+
+  return { headers, rows };
+}
+
+/**
+ * Load a tracking group from ppCompletedRMAs into Shipment Check.
+ * For Verizon: populate vzUpload.rmaCSV, vzUpload.rmaFile, vzUpload.shipDate
+ * For 3PL: populate bpUpload.rmaCSV, bpUpload.rmaFile, bpUpload.shipDate
+ */
+function ppLoadToShipmentCheck(trackingGroup, vendor) {
+  // Confirm the action
+  const trackingNum = trackingGroup.tracking === 'NO_TRACKING' ? '[No Tracking #]' : trackingGroup.tracking;
+  const msg = `Load ${trackingGroup.unitCount} unit(s) from ${trackingGroup.rmaCount} RMA(s) (Tracking: ${trackingNum}) into Shipment Check?\n\nThis will pre-populate the RMA Packed data. You can still upload packing slips manually.`;
+  if (!confirm(msg)) return;
+
+  // Build the synthetic CSV
+  const syntheticCSV = ppBuildSyntheticRmaCSV(trackingGroup);
+
+  // Populate the upload object — ship date left for user to set in Step 1
+  if (vendor === 'VERIZON') {
+    vzUpload.rmaCSV = syntheticCSV;
+    vzUpload.rmaFile = {
+      name: `Auto-loaded from Pick & Pack (${trackingGroup.tracking})`,
+    };
+  } else {
+    // For 3PL vendors
+    bpUpload.rmaCSV = syntheticCSV;
+    bpUpload.rmaFile = {
+      name: `Auto-loaded from Pick & Pack (${trackingGroup.tracking})`,
+    };
+  }
+
+  // Mark as loaded in ppCompletedRMAs
+  trackingGroup.entries.forEach(entry => {
+    entry.loadedToShipmentCheck = true;
+  });
+
+  // Refresh the panel
+  if (vendor === 'VERIZON') {
+    renderVZPanel();
+  } else {
+    renderBPPanel();
+  }
+}
+
+/**
+ * Wrapper to load a Verizon auto-fill group by index.
+ * Called from the Load button onclick.
+ */
+function ppLoadVZGroup(idx) {
+  if (!window._ppVZAvailable || !window._ppVZAvailable[idx]) return;
+  ppLoadToShipmentCheck(window._ppVZAvailable[idx], 'VERIZON');
+}
+
+/**
+ * Wrapper to load a 3PL auto-fill group by index.
+ * Called from the Load button onclick.
+ */
+function ppLoadBPGroup(idx) {
+  if (!window._ppBPAvailable || !window._ppBPAvailable[idx]) return;
+  const vendor = window._ppBPVendor;
+  ppLoadToShipmentCheck(window._ppBPAvailable[idx], vendor);
+}
+
+// ════════════════════════════════════
 // VERIZON PANEL — Upload + Results
 // ════════════════════════════════════
 function renderVZPanel() {
@@ -1427,6 +1785,30 @@ function renderVZPanel() {
     </div>
     <div class="form-group"><label>&nbsp;</label><div style="padding-top:10px;font-size:12px;color:#888;">All checks will use this date for Pre-RMA aging.</div></div>
   </div>`;
+
+  // Auto-fill from Pick & Pack section
+  const vzAvailable = ppGetAvailableForShipmentCheck('VERIZON');
+  if (vzAvailable.length > 0) {
+    html += `<div style="background:#f0f7ff;border:1px solid #cce5ff;border-radius:8px;padding:16px;margin:16px 0;">
+      <h3 style="margin:0 0 12px;font-size:14px;color:#0066cc;">Auto-fill from Pick & Pack</h3>
+      <p style="margin:0 0 12px;font-size:12px;color:#555;">Completed Verizon RMAs ready to load:</p>`;
+    vzAvailable.forEach((group, idx) => {
+      const trackingDisplay = group.tracking === 'NO_TRACKING' ? '[No Tracking #]' : group.tracking;
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;background:white;border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:13px;">
+        <span><b>Tracking: ${trackingDisplay}</b> — ${group.unitCount} units, ${group.rmaCount} RMA(s)</span>
+        <button class="btn btn-sm btn-primary" onclick="ppLoadVZGroup(${idx})" style="margin:0;padding:4px 12px;font-size:12px;">Load</button>
+      </div>`;
+    });
+    html += `</div>`;
+    // Store for click handlers
+    window._ppVZAvailable = vzAvailable;
+  } else {
+    if (!vzUpload.rmaCSV) {
+      html += `<div style="background:#f0f7ff;border:1px solid #cce5ff;border-radius:8px;padding:12px 16px;margin:16px 0;">
+        <p style="margin:0;font-size:12px;color:#0066cc;"><b>Auto-fill from Pick & Pack:</b> No completed Verizon RMAs available. Complete RMAs in Pick & Pack first.</p>
+      </div>`;
+    }
+  }
 
   // RMA Data upload
   html += `<h3 style="margin:16px 0 8px;">RMA Packed
@@ -1792,6 +2174,31 @@ function renderBPPanel() {
     </div>
     <div class="form-group"><label>&nbsp;</label><div style="padding-top:10px;font-size:12px;color:#888;">${selected3PLVendor === 'Brightpoint' ? 'RMAs shipped 20+ days after submission will be flagged.' : 'Used for report labeling and tracking.'}</div></div>
   </div>`;
+
+  // Auto-fill from Pick & Pack section
+  const bpAvailable = ppGetAvailableForShipmentCheck(selected3PLVendor);
+  if (bpAvailable.length > 0) {
+    html += `<div style="background:#f0f7ff;border:1px solid #cce5ff;border-radius:8px;padding:16px;margin:16px 0;">
+      <h3 style="margin:0 0 12px;font-size:14px;color:#0066cc;">Auto-fill from Pick & Pack</h3>
+      <p style="margin:0 0 12px;font-size:12px;color:#555;">Completed ${selected3PLVendor} RMAs ready to load:</p>`;
+    bpAvailable.forEach((group, idx) => {
+      const trackingDisplay = group.tracking === 'NO_TRACKING' ? '[No Tracking #]' : group.tracking;
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;background:white;border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:13px;">
+        <span><b>Tracking: ${trackingDisplay}</b> — ${group.unitCount} units, ${group.rmaCount} RMA(s)</span>
+        <button class="btn btn-sm btn-primary" onclick="ppLoadBPGroup(${idx})" style="margin:0;padding:4px 12px;font-size:12px;">Load</button>
+      </div>`;
+    });
+    html += `</div>`;
+    // Store for click handlers
+    window._ppBPAvailable = bpAvailable;
+    window._ppBPVendor = selected3PLVendor;
+  } else {
+    if (!bpUpload.rmaCSV) {
+      html += `<div style="background:#f0f7ff;border:1px solid #cce5ff;border-radius:8px;padding:12px 16px;margin:16px 0;">
+        <p style="margin:0;font-size:12px;color:#0066cc;"><b>Auto-fill from Pick & Pack:</b> No completed ${selected3PLVendor} RMAs available. Complete RMAs in Pick & Pack first.</p>
+      </div>`;
+    }
+  }
 
   // RMA Packed: RMA data
   html += `<h3 style="margin:16px 0 8px;">RMA Packed
@@ -4359,6 +4766,1400 @@ async function sendClearanceMessage(batch) {
   await sendSlackMessage(msg);
 }
 
+// ═══════════════════════════════════════════════════════════════
+// PICK & PACK MODULE (v2 — persistent, multi-vendor, cumulative)
+// ═══════════════════════════════════════════════════════════════
+
+// Persistent store: { VERIZON: { units:[], rmaGroups:{} }, BRIGHTPOINT: {...}, ... }
+let ppJobs = {};
+// Completed RMAs history: [{ rma, vendor, units, completedAt, completedBy }]
+let ppCompletedRMAs = [];
+// Temp upload state
+let ppVendorData = null;
+let ppRMAData = null;
+let ppLastFeedback = '';
+let ppLastScanned = null; // { unitIdx, vendor } — for inline QC in feedback
+let ppExpandedRMAs = new Set();
+let ppPendingConflicts = [];
+let ppConflictAllUnits = [];
+let ppConflictRmaGroups = {};
+let ppActivePackingVendor = ''; // which vendor tab is active in packing view
+
+// ── HELPERS ──
+function ppGetJob(vendor) {
+  if (!ppJobs[vendor]) ppJobs[vendor] = {
+    vendor,
+    units: [],
+    rmaGroups: {},
+    tracking: '',
+    trackingConfirmed: false,
+    // Box tracking for non-VZ vendors
+    boxes: [{ boxNum: 1, imeis: [], closedAt: null }],
+    currentBoxIdx: 0
+  };
+  return ppJobs[vendor];
+}
+function ppRebuildGroups(job) {
+  job.rmaGroups = {};
+  job.units.forEach(u => {
+    if (!job.rmaGroups[u.rmaNumber]) job.rmaGroups[u.rmaNumber] = [];
+    job.rmaGroups[u.rmaNumber].push(u);
+  });
+}
+function ppVendorsWithJobs() {
+  return Object.keys(ppJobs).filter(v => ppJobs[v].units.length > 0);
+}
+
+function ppDownloadUnmatched(vendor) {
+  const job = ppJobs[vendor];
+  if (!job) return;
+  const unmatched = job.units.filter(u => u.rmaNumber === 'UNMATCHED');
+  if (unmatched.length === 0) { alert('No unmatched IMEIs.'); return; }
+  const headers = ['IMEI','Route','SKU','Description','Disposition','Rack ID','Processed Date'];
+  const rows = [headers.join(',')];
+  unmatched.forEach(u => {
+    rows.push([u.imei, u.route, u.sku, u.description, u.disposition, u.rackId, u.processedDate].map(v => `"${(v||'').replace(/"/g,'""')}"`).join(','));
+  });
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `Unmatched IMEIs - ${vendor} - ${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+function ppCopyIMEIs(rma, vendor) {
+  const job = ppJobs[vendor || ppActivePackingVendor];
+  if (!job || !job.rmaGroups[rma]) return;
+  const imeis = job.rmaGroups[rma].map(u => u.imei).join('\n');
+  navigator.clipboard.writeText(imeis).catch(() => {
+    const ta = document.createElement('textarea'); ta.value = imeis; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+  });
+  ppLastFeedback = `<div class="callout info" style="margin:0;padding:6px 12px;font-size:12px;">${job.rmaGroups[rma].length} IMEI(s) from RMA# ${rma} copied to clipboard.</div>`;
+  const fb = document.getElementById('pp-scan-feedback');
+  if (fb) fb.innerHTML = ppLastFeedback;
+}
+
+function ppCopyIMEIsByDate(subDate, vendor) {
+  const job = ppJobs[vendor || ppActivePackingVendor];
+  if (!job) return;
+  const units = job.units.filter(u => (u.rmaSubmissionDate || 'Unknown') === subDate && !u.fallout);
+  const imeis = units.map(u => u.imei).join('\n');
+  navigator.clipboard.writeText(imeis).catch(() => {
+    const ta = document.createElement('textarea'); ta.value = imeis; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+  });
+  ppLastFeedback = `<div class="callout info" style="margin:0;padding:6px 12px;font-size:12px;">${units.length} IMEI(s) from ${subDate} copied to clipboard.</div>`;
+  const fb = document.getElementById('pp-scan-feedback');
+  if (fb) fb.innerHTML = ppLastFeedback;
+}
+
+// ── UPLOAD SECTION (Operator view) ──
+function renderPPUploadSection() {
+  const el = document.getElementById('pp-upload-content');
+  // Show existing jobs summary
+  const vendors = ppVendorsWithJobs();
+  let jobsSummary = '';
+  if (vendors.length > 0) {
+    jobsSummary = '<div style="margin-bottom:20px;"><h3 style="color:var(--dark-green);margin-bottom:8px;">Active Packing Jobs</h3>';
+    vendors.forEach(v => {
+      const job = ppJobs[v];
+      const total = job.units.length;
+      const packed = job.units.filter(u => u.packed).length;
+      const rmaCount = Object.keys(job.rmaGroups).filter(k => k !== 'UNMATCHED').length;
+      const badgeClass = v === 'VERIZON' ? 'badge-verizon' : 'badge-3pl';
+      jobsSummary += `<div class="callout success" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+        <div><span class="badge ${badgeClass}">${v}</span> <b>${total} units</b> across <b>${rmaCount} RMAs</b> (${packed} packed, ${total - packed} remaining)</div>
+        <button class="btn btn-sm btn-outline" onclick="ppLastFeedback='';ppLastScanned=null;sidebarNav('pp-packing');ppActivePackingVendor='${v}';renderPPPackingSection();">View Packing</button>
+      </div>`;
+    });
+    jobsSummary += '</div>';
+  }
+
+  el.innerHTML = `
+    <div class="card">
+      <h2>Upload Packing Job</h2>
+      <p style="font-size:13px;color:#888;margin-bottom:16px;">Upload vendor tab CSV and RMA Submissions CSV. Units accumulate per vendor — duplicates are automatically skipped.</p>
+      ${jobsSummary}
+      <div class="form-row">
+        <div class="form-group">
+          <label>Vendor</label>
+          <select id="pp-vendor">
+            <option value="">Select vendor...</option>
+            <option value="VERIZON">Verizon</option>
+            <option value="BRIGHTPOINT">Brightpoint</option>
+            <option value="CRTC">CRTC</option>
+            <option value="SAMSUNG">Samsung (RTV Victra)</option>
+            <option value="CPO">CPO</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Upload Date</label>
+          <input type="date" id="pp-upload-date" value="${new Date().toISOString().split('T')[0]}">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="form-row">
+        <div>
+          <h3>Vendor Tab CSV</h3>
+          <p style="font-size:12px;color:#888;margin-bottom:8px;">Export from RMA Submissions 2.0 (e.g., RMA_VZW tab). Provides Route, IMEI, QC data, Rack ID.</p>
+          <div class="upload-zone" id="pp-vendor-zone" onclick="document.getElementById('pp-vendor-file').click()"
+               ondragover="event.preventDefault();this.classList.add('active')"
+               ondragleave="this.classList.remove('active')"
+               ondrop="event.preventDefault();this.classList.remove('active');handlePPVendorFile(event.dataTransfer.files[0])">
+            <div class="icon">&#128196;</div>
+            <p>Click or drag vendor tab CSV</p>
+          </div>
+          <input type="file" id="pp-vendor-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handlePPVendorFile(this.files[0])">
+        </div>
+        <div>
+          <h3>RMA Submissions CSV</h3>
+          <p style="font-size:12px;color:#888;margin-bottom:8px;">Provides IMEI → RMA# mapping, Delivery #, RMA Submission Date.</p>
+          <div class="upload-zone" id="pp-rma-zone" onclick="document.getElementById('pp-rma-file').click()"
+               ondragover="event.preventDefault();this.classList.add('active')"
+               ondragleave="this.classList.remove('active')"
+               ondrop="event.preventDefault();this.classList.remove('active');handlePPRMAFile(event.dataTransfer.files[0])">
+            <div class="icon">&#128196;</div>
+            <p>Click or drag RMA Submissions CSV</p>
+          </div>
+          <input type="file" id="pp-rma-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handlePPRMAFile(this.files[0])">
+        </div>
+      </div>
+      <div id="pp-upload-btn-area" style="margin-top:16px;text-align:center;"></div>
+      <div id="pp-preview" style="display:none;margin-top:16px;">
+        <div class="callout info" id="pp-match-summary"></div>
+        <div id="pp-preview-table"></div>
+      </div>
+    </div>`;
+}
+
+// ── PACKING SECTION (Packing team view) ──
+function renderPPPackingSection() {
+  const el = document.getElementById('pp-packing-content');
+  const vendors = ppVendorsWithJobs();
+
+  if (vendors.length === 0) {
+    el.innerHTML = '<div class="card"><div class="empty-state"><div class="icon">&#128230;</div><p>No active packing jobs. Ask the operator to upload vendor files.</p></div></div>';
+    return;
+  }
+
+  // Default to first vendor or previously selected
+  if (!ppActivePackingVendor || !ppJobs[ppActivePackingVendor] || ppJobs[ppActivePackingVendor].units.length === 0) {
+    ppActivePackingVendor = vendors[0];
+  }
+
+  const job = ppJobs[ppActivePackingVendor];
+  const totalUnits = job.units.length;
+  const packedUnits = job.units.filter(u => u.packed).length;
+  const pctPacked = totalUnits > 0 ? Math.round((packedUnits / totalUnits) * 100) : 0;
+  const rmaKeys = Object.keys(job.rmaGroups).filter(k => k !== 'UNMATCHED');
+  const isVZ = ppActivePackingVendor === 'VERIZON';
+  const deadlineDays = isVZ ? 60 : 20;
+
+  // Sort by earliest submission date (parse dates properly — handles M/D/YYYY, MM/DD/YYYY, YYYY-MM-DD)
+  function ppParseDate(str) {
+    if (!str) return Infinity;
+    // Try YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return new Date(str).getTime();
+    // Try M/D/YYYY or MM/DD/YYYY
+    const parts = str.split('/');
+    if (parts.length === 3) return new Date(parts[2], parts[0] - 1, parts[1]).getTime();
+    return Infinity;
+  }
+  function ppEarliestDate(rma) {
+    const dates = job.rmaGroups[rma].map(u => ppParseDate(u.rmaSubmissionDate)).filter(d => isFinite(d));
+    return dates.length > 0 ? Math.min(...dates) : Infinity;
+  }
+  const sortedRmaKeys = rmaKeys.sort((a, b) => ppEarliestDate(a) - ppEarliestDate(b));
+
+  // Vendor tabs
+  let vendorTabs = '<div style="display:flex;gap:4px;margin-bottom:16px;">';
+  vendors.forEach(v => {
+    const isActive = v === ppActivePackingVendor;
+    const cnt = ppJobs[v].units.length;
+    const badgeClass = v === 'VERIZON' ? 'badge-verizon' : 'badge-3pl';
+    vendorTabs += `<button class="btn ${isActive ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="ppLastFeedback='';ppLastScanned=null;ppActivePackingVendor='${v}';renderPPPackingSection();">
+      ${v} (${cnt})
+    </button>`;
+  });
+  vendorTabs += '</div>';
+
+  let html = vendorTabs + `
+    <div class="pp-summary-cards">
+      <div class="stat-card"><div class="num">${totalUnits}</div><div class="label">Total Units</div></div>
+      <div class="stat-card"><div class="num" style="color:var(--success-green);">${packedUnits}</div><div class="label">Packed</div></div>
+      <div class="stat-card"><div class="num" style="color:var(--warn-orange);">${totalUnits - packedUnits}</div><div class="label">Remaining</div></div>
+      <div class="stat-card info"><div class="num">${sortedRmaKeys.length}</div><div class="label">RMAs</div></div>
+    </div>
+
+    <div class="card">
+      <div style="margin-bottom:12px;">
+        <div class="flex-between" style="margin-bottom:4px;">
+          <span style="font-size:13px;font-weight:600;color:var(--dark-green);">Progress: ${packedUnits}/${totalUnits} (${pctPacked}%)</span>
+        </div>
+        <div class="pp-progress-bar"><div class="pp-progress-fill" style="width:${pctPacked}%;"></div></div>
+      </div>
+
+      ${job.trackingConfirmed ? `
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+        <label style="font-size:13px;font-weight:600;color:var(--dark-gray);margin:0;">Tracking #:</label>
+        <span style="font-family:monospace;font-size:15px;font-weight:700;color:var(--dark-green);">${job.tracking}</span>
+        <button class="btn btn-sm btn-outline" style="font-size:11px;padding:2px 8px;" onclick="ppChangeTracking('${ppActivePackingVendor}')">Change</button>
+      </div>
+      <div class="pp-scan-bar">
+        <input type="text" id="pp-scan-input" placeholder="Scan or enter IMEI..." onkeypress="if(event.key==='Enter')ppScanIMEI()" autofocus>
+        <button class="btn btn-primary" onclick="ppScanIMEI()">Scan</button>
+      </div>
+      <div id="pp-scan-feedback" style="min-height:24px;margin-bottom:8px;">${ppBuildFeedbackHTML()}</div>
+      ` : `
+      <div style="margin-bottom:12px;">
+        <label style="font-size:13px;font-weight:600;color:var(--dark-gray);display:block;margin-bottom:4px;">Tracking Number</label>
+        <p style="font-size:12px;color:#888;margin-bottom:8px;">Enter the tracking number for this packing session. This will be applied to all scanned units.</p>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="pp-tracking-input" placeholder="Enter tracking number..." value="${job.tracking || ''}" style="width:320px;padding:8px 12px;border:2px solid var(--medium-gray);border-radius:8px;font-size:14px;" onkeypress="if(event.key==='Enter')ppConfirmTracking('${ppActivePackingVendor}')">
+          <button class="btn btn-primary" onclick="ppConfirmTracking('${ppActivePackingVendor}')">Set Tracking</button>
+        </div>
+      </div>
+      <div style="background:var(--warn-bg);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--warn-orange);">Please set a tracking number before scanning IMEIs.</div>
+      `}
+    </div>`;
+
+  // ── VERIZON: GROUP BY RMA# ──
+  if (isVZ) {
+    sortedRmaKeys.forEach(rma => {
+      const grp = job.rmaGroups[rma];
+      const grpActive = grp.filter(u => !u.fallout);
+      const grpFallout = grp.filter(u => u.fallout);
+      const grpPacked = grpActive.filter(u => u.packed).length;
+      const grpPct = grpActive.length > 0 ? Math.round((grpPacked / grpActive.length) * 100) : 0;
+      const allPacked = grpActive.length > 0 && grpPacked === grpActive.length;
+      const racks = [...new Set(grp.map(u => u.rackId).filter(Boolean))].join(', ');
+
+      const subDatesParsed = grp.map(u => ppParseDate(u.rmaSubmissionDate)).filter(d => isFinite(d));
+      const earliestSubMs = subDatesParsed.length > 0 ? Math.min(...subDatesParsed) : null;
+      const earliestSub = grp.map(u => u.rmaSubmissionDate).filter(Boolean)[0] || '';
+      let urgencyClass = '', urgencyLabel = '';
+      if (earliestSubMs) {
+        const elapsed = Math.floor((Date.now() - earliestSubMs) / (1000 * 60 * 60 * 24));
+        const daysLeft = deadlineDays - elapsed;
+        if (daysLeft <= 3) { urgencyClass = 'background:var(--critical-bg);border-color:var(--alert-red);'; urgencyLabel = `<span class="badge badge-fail">${daysLeft <= 0 ? 'OVERDUE' : daysLeft + 'd left'}</span>`; }
+        else if (daysLeft <= 7) { urgencyClass = 'background:var(--warn-bg);border-color:var(--warn-orange);'; urgencyLabel = `<span class="badge badge-pending">${daysLeft}d left</span>`; }
+        else { urgencyLabel = `<span style="font-size:11px;color:#888;">${daysLeft}d left</span>`; }
+      }
+
+      // Get delivery number from first unit in group
+      const deliveryNumber = grp.length > 0 ? (grp[0].deliveryNumber || '') : '';
+
+      // Complete RMA button
+      const completeBtn = allPacked ? `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();ppCompleteRMA('${ppActivePackingVendor}','${rma}')">Complete RMA</button>` : '';
+
+      // Print Label button
+      const printBtn = `<button class="btn btn-sm btn-outline" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();ppPrintVZLabel('${rma}')">Print Label</button>`;
+
+      html += `
+      <div class="pp-rma-group" style="${urgencyClass}">
+        <div class="pp-rma-header" onclick="ppToggleRMA('${rma}')">
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <h4>RMA# ${rma}</h4>
+              ${allPacked ? '<span class="badge badge-pass">READY</span>' : ''}
+              ${urgencyLabel}
+              ${earliestSub ? '<span style="font-size:11px;color:#888;">Submitted: ' + fmtDate(earliestSub) + '</span>' : ''}
+            </div>
+            <span style="font-size:12px;color:#888;">${grpPacked}/${grpActive.length} packed${grpFallout.length > 0 ? ' | <span style="color:var(--alert-red);">' + grpFallout.length + ' fallout</span>' : ''}${racks ? ' | Rack: ' + racks : ''}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${completeBtn}
+            ${printBtn}
+            <button class="btn btn-sm btn-outline" style="font-size:11px;padding:3px 8px;" onclick="event.stopPropagation();ppCopyIMEIs('${rma}','${ppActivePackingVendor}')" title="Copy all IMEIs">Copy IMEIs</button>
+            <div class="pp-progress-bar" style="width:100px;"><div class="pp-progress-fill" style="width:${grpPct}%;"></div></div>
+            <span class="activity-log-toggle ${ppExpandedRMAs.has(rma) ? 'expanded' : ''}">&#9654;</span>
+          </div>
+        </div>
+        <div class="pp-rma-body ${ppExpandedRMAs.has(rma) ? 'expanded' : ''}" id="pp-rma-body-${rma}">`;
+
+      grp.forEach((u) => {
+        const globalIdx = job.units.indexOf(u);
+        const isFallout = u.fallout;
+        const statusBadge = isFallout ? '<span class="badge badge-fail">FALLOUT</span>' : (u.packed ? '<span class="badge badge-pass">PACKED</span>' : '<span class="badge badge-pending">PENDING</span>');
+        const cardBg = isFallout ? 'background:var(--critical-bg);opacity:0.8;' : '';
+        html += `
+          <div class="pp-unit-card" style="padding:12px 16px;border-bottom:1px solid #f0f0f0;${cardBg}">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+              <span style="font-family:monospace;font-size:13px;font-weight:600;min-width:150px;${isFallout ? 'text-decoration:line-through;color:#999;' : ''}">${u.imei}</span>
+              <span style="font-size:11px;color:#666;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;" title="${u.description}">${u.description || '—'}</span>
+              <span style="font-size:11px;color:#888;">Rack ${u.rackId || '—'}</span>
+              <span style="font-size:10px;color:#888;min-width:90px;text-align:center;">${u.packedAt ? new Date(u.packedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</span>
+              <span style="min-width:80px;text-align:right;">${statusBadge}</span>
+            </div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;justify-content:flex-start;">
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'box', u.qc.box, 'Box')}
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'cable', u.qc.cable, 'Cable')}
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'wallCharger', u.qc.wallCharger, 'Charger')}
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'cosmetic', u.qc.cosmetic, 'Cosmetic')}
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'datawipe', u.qc.datawipe, 'Datawipe')}
+            </div>
+          </div>`;
+      });
+      html += `</div></div>`;
+    });
+  } else {
+    // ── NON-VERIZON: GROUP BY SUBMISSION DATE ──
+    // Group units by submission date
+    const dateGroups = {};
+    job.units.forEach(u => {
+      const subDate = u.rmaSubmissionDate || 'Unknown';
+      if (!dateGroups[subDate]) dateGroups[subDate] = [];
+      dateGroups[subDate].push(u);
+    });
+
+    // Sort dates
+    const sortedDates = Object.keys(dateGroups).sort((a, b) => {
+      const aTime = ppParseDate(a);
+      const bTime = ppParseDate(b);
+      return aTime - bTime;
+    });
+
+    // Show current box info
+    const currentBox = job.boxes[job.currentBoxIdx];
+    const currentBoxInfo = `
+      <div class="card" style="margin-bottom:16px;background:var(--info-bg);border-color:var(--info-blue);">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span style="font-size:13px;font-weight:600;color:var(--info-blue);">Current Box #${currentBox.boxNum}</span>
+            <span style="font-size:12px;color:#666;margin-left:12px;">${currentBox.imeis.length} units scanned</span>
+            ${currentBox.lockedDate ? '<span style="font-size:11px;color:var(--info-blue);margin-left:12px;font-weight:600;">Locked to: ' + currentBox.lockedDate + '</span>' : ''}
+          </div>
+          <button class="btn btn-sm btn-outline" onclick="ppCloseBox('${ppActivePackingVendor}')" style="font-size:11px;padding:4px 10px;">Close Box & Print Label</button>
+        </div>
+      </div>
+    `;
+    html += currentBoxInfo;
+
+    // Render date groups
+    sortedDates.forEach(subDate => {
+      const grp = dateGroups[subDate];
+      const grpActive = grp.filter(u => !u.fallout);
+      const grpFallout = grp.filter(u => u.fallout);
+      const grpPacked = grpActive.filter(u => u.packed).length;
+      const grpPct = grpActive.length > 0 ? Math.round((grpPacked / grpActive.length) * 100) : 0;
+
+      const groupId = `date-${subDate.replace(/[\/\-]/g, '_')}`;
+
+      html += `
+      <div class="pp-rma-group">
+        <div class="pp-rma-header" onclick="ppToggleRMA('${groupId}')">
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <h4>${fmtDate(subDate)} — ${grpActive.length} units${grpFallout.length > 0 ? ' <span style="font-size:12px;color:var(--alert-red);font-weight:400;">(' + grpFallout.length + ' fallout)</span>' : ''}</h4>
+            </div>
+            <span style="font-size:12px;color:#888;">${grpPacked}/${grpActive.length} packed${grpFallout.length > 0 ? ' | <span style="color:var(--alert-red);">' + grpFallout.length + ' fallout</span>' : ''}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${grpActive.length > 0 && grpPacked === grpActive.length ? '<button class="btn btn-sm btn-success" onclick="event.stopPropagation();ppCompleteDateGroup(\'' + ppActivePackingVendor + '\',\'' + subDate.replace(/'/g, "\\'") + '\')">Complete Group</button>' : ''}
+            <button class="btn btn-sm btn-outline" style="font-size:11px;padding:3px 8px;" onclick="event.stopPropagation();ppCopyIMEIsByDate('${subDate}','${ppActivePackingVendor}')" title="Copy all IMEIs">Copy IMEIs</button>
+            <div class="pp-progress-bar" style="width:100px;"><div class="pp-progress-fill" style="width:${grpPct}%;"></div></div>
+            <span class="activity-log-toggle ${ppExpandedRMAs.has(groupId) ? 'expanded' : ''}">&#9654;</span>
+          </div>
+        </div>
+        <div class="pp-rma-body ${ppExpandedRMAs.has(groupId) ? 'expanded' : ''}" id="pp-rma-body-${groupId}">`;
+
+      grp.forEach((u) => {
+        const globalIdx = job.units.indexOf(u);
+        const isFallout = u.fallout;
+        const statusBadge = isFallout ? '<span class="badge badge-fail">FALLOUT</span>' : (u.packed ? '<span class="badge badge-pass">PACKED</span>' : '<span class="badge badge-pending">PENDING</span>');
+        const cardBg = isFallout ? 'background:var(--critical-bg);opacity:0.8;' : '';
+        html += `
+          <div class="pp-unit-card" style="padding:12px 16px;border-bottom:1px solid #f0f0f0;${cardBg}">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+              <span style="font-family:monospace;font-size:13px;font-weight:600;min-width:150px;${isFallout ? 'text-decoration:line-through;color:#999;' : ''}">${u.imei}</span>
+              <span style="font-size:11px;color:#666;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;" title="${u.description}">${u.description || '—'}</span>
+              <span style="font-size:11px;color:#888;">Rack ${u.rackId || '—'}</span>
+              <span style="font-size:10px;color:#999;">RMA# ${u.rmaNumber || '—'}</span>
+              <span style="font-size:10px;color:#888;min-width:90px;text-align:center;">${u.packedAt ? new Date(u.packedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</span>
+              <span style="min-width:80px;text-align:right;">${statusBadge}</span>
+            </div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;justify-content:flex-start;">
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'box', u.qc.box, 'Box')}
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'cable', u.qc.cable, 'Cable')}
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'wallCharger', u.qc.wallCharger, 'Charger')}
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'cosmetic', u.qc.cosmetic, 'Cosmetic')}
+              ${ppQCChip(globalIdx, ppActivePackingVendor, 'datawipe', u.qc.datawipe, 'Datawipe')}
+            </div>
+          </div>`;
+      });
+      html += `</div></div>`;
+    });
+  }
+
+  // Unmatched
+  if (job.rmaGroups['UNMATCHED'] && job.rmaGroups['UNMATCHED'].length > 0) {
+    const unmatched = job.rmaGroups['UNMATCHED'];
+    html += `
+    <div class="pp-rma-group" style="border-color:var(--alert-red);">
+      <div class="pp-rma-header" style="background:var(--critical-bg);" onclick="ppToggleRMA('UNMATCHED')">
+        <h4 style="color:var(--alert-red);">UNMATCHED (${unmatched.length} units)</h4>
+        <span class="activity-log-toggle ${ppExpandedRMAs.has('UNMATCHED') ? 'expanded' : ''}">&#9654;</span>
+      </div>
+      <div class="pp-rma-body ${ppExpandedRMAs.has('UNMATCHED') ? 'expanded' : ''}">`;
+    unmatched.forEach(u => {
+      html += `<div style="padding:6px 16px;font-size:12px;border-bottom:1px solid #f0f0f0;"><span style="font-family:monospace;">${u.imei}</span> — ${u.route} — ${u.description || '—'}</div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  el.innerHTML = html;
+  setTimeout(() => { const inp = document.getElementById('pp-scan-input'); if (inp) inp.focus(); }, 100);
+}
+
+// ── PACKED HISTORY SECTION ──
+function renderPPHistorySection() {
+  const el = document.getElementById('pp-history-content');
+  if (ppCompletedRMAs.length === 0) {
+    el.innerHTML = '<div class="card"><div class="empty-state"><div class="icon">&#128203;</div><p>No completed RMAs yet. Pack and complete RMAs from the Packing screen.</p></div></div>';
+    return;
+  }
+
+  // Group completed RMAs for display:
+  // VZ: show per RMA. Non-VZ: group by tracking number (includes fallouts).
+  const vzEntries = ppCompletedRMAs.filter(e => e.vendor === 'VERIZON');
+  const nonVZEntries = ppCompletedRMAs.filter(e => e.vendor !== 'VERIZON');
+
+  // Group non-VZ by tracking number (fallout entries merge into their tracking group)
+  const nonVZGroups = {};
+  nonVZEntries.forEach((entry) => {
+    const key = entry.tracking || 'NO_TRACKING';
+    if (!nonVZGroups[key]) nonVZGroups[key] = { tracking: key, vendor: entry.vendor, entries: [], allUnits: [], completedAt: entry.completedAt, completedBy: entry.completedBy };
+    nonVZGroups[key].entries.push(entry);
+    nonVZGroups[key].allUnits.push(...(entry.units || []));
+  });
+
+  // Daily summary section
+  const today = new Date().toISOString().split('T')[0];
+  let html = `<div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h3 style="color:var(--dark-green);margin:0;">Daily Packed Summary</h3>
+        <p style="font-size:12px;color:#888;margin:4px 0 0;">Download a CSV of all packed units for a specific date.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="date" id="pp-daily-date" value="${today}" style="padding:6px 10px;border:2px solid var(--medium-gray);border-radius:6px;font-size:13px;">
+        <button class="btn btn-primary btn-sm" onclick="ppDownloadDailySummary()">Download CSV</button>
+      </div>
+    </div>
+  </div>`;
+
+  html += '<div class="card"><h2>Completed RMAs</h2><p style="font-size:13px;color:#888;margin-bottom:16px;">RMAs that have been fully packed and removed from the packing queue.</p>';
+  html += '<div class="tbl-wrap"><table><tr><th>Group</th><th>Vendor</th><th>Units</th><th>RMAs</th><th>Tracking</th><th>Completed</th><th>By</th><th></th></tr>';
+
+  // VZ entries — one row per RMA
+  vzEntries.slice().reverse().forEach((entry) => {
+    const idx = ppCompletedRMAs.indexOf(entry);
+    const activeUnits = entry.units.filter(u => !u.fallout);
+    html += `<tr>
+      <td><b>RMA# ${entry.rma}</b></td>
+      <td><span class="badge badge-verizon">VERIZON</span></td>
+      <td>${activeUnits.length}</td>
+      <td>1</td>
+      <td style="font-family:monospace;font-size:11px;">${entry.tracking || '—'}</td>
+      <td>${new Date(entry.completedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
+      <td>${entry.completedBy || '—'}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="ppToggleHistoryDetail(${idx})">Details</button></td>
+    </tr>
+    <tr id="pp-hist-detail-${idx}" style="display:none;">
+      <td colspan="8" style="padding:12px;background:var(--light-gray);">
+        <div style="font-size:12px;max-height:200px;overflow-y:auto;">
+          ${entry.units.map(u => `<div style="padding:2px 0;"><span style="font-family:monospace;">${u.imei}</span> — ${u.description || '—'} ${u.fallout ? '<span class="badge badge-fail" style="font-size:9px;">FALLOUT</span>' : ''} — Packed: ${u.packedAt ? new Date(u.packedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</div>`).join('')}
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  // Non-VZ entries — one row per tracking group (fallouts included in details, not counted)
+  Object.values(nonVZGroups).reverse().forEach((group) => {
+    const gIdx = 'grp-' + group.tracking;
+    const activeUnits = group.allUnits.filter(u => !u.fallout);
+    const falloutUnits = group.allUnits.filter(u => u.fallout);
+    const rmaSet = new Set(group.entries.filter(e => !(e.rma && e.rma.startsWith('FALLOUT'))).map(e => e.rma));
+    const badgeClass = 'badge-3pl';
+    const subDate = group.entries.find(e => e.submissionDate)?.submissionDate || '';
+    html += `<tr>
+      <td><b>${subDate || group.tracking}</b>${falloutUnits.length > 0 ? ' <span style="font-size:11px;color:var(--alert-red);">(' + falloutUnits.length + ' fallout)</span>' : ''}</td>
+      <td><span class="badge ${badgeClass}">${group.vendor}</span></td>
+      <td>${activeUnits.length}</td>
+      <td>${rmaSet.size}</td>
+      <td style="font-family:monospace;font-size:11px;">${group.tracking || '—'}</td>
+      <td>${new Date(group.completedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
+      <td>${group.completedBy || '—'}</td>
+      <td><button class="btn btn-sm btn-outline" onclick="ppToggleHistoryDetail('${gIdx}')">Details</button></td>
+    </tr>
+    <tr id="pp-hist-detail-${gIdx}" style="display:none;">
+      <td colspan="8" style="padding:12px;background:var(--light-gray);">
+        <div style="font-size:12px;max-height:250px;overflow-y:auto;">
+          <div style="margin-bottom:8px;font-weight:600;">RMAs: ${[...rmaSet].join(', ')}</div>
+          ${activeUnits.map(u => `<div style="padding:2px 0;"><span style="font-family:monospace;">${u.imei}</span> — ${u.description || '—'} — RMA# ${u.rmaNumber || '—'} — Packed: ${u.packedAt ? new Date(u.packedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</div>`).join('')}
+          ${falloutUnits.length > 0 ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #ddd;font-weight:600;color:var(--alert-red);">Fallout Units:</div>' + falloutUnits.map(u => '<div style="padding:2px 0;color:var(--alert-red);"><span style="font-family:monospace;text-decoration:line-through;">' + u.imei + '</span> — ' + (u.description || '—') + ' — ' + (u.falloutReason || 'Cosmetic Fail') + '</div>').join('') : ''}
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  html += '</table></div></div>';
+  el.innerHTML = html;
+}
+
+function ppToggleHistoryDetail(idx) {
+  const row = document.getElementById('pp-hist-detail-' + idx);
+  if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+// ── DAILY PACKED SUMMARY CSV ──
+function ppDownloadDailySummary() {
+  const dateInput = document.getElementById('pp-daily-date');
+  if (!dateInput || !dateInput.value) { alert('Please select a date.'); return; }
+  const selectedDate = dateInput.value; // YYYY-MM-DD
+
+  // Collect all packed units from ppCompletedRMAs where packedAt matches the selected date
+  const rows = [];
+  ppCompletedRMAs.forEach(entry => {
+    if (!entry.units) return;
+    entry.units.forEach(u => {
+      if (u.fallout) return; // Skip fallout units
+      if (!u.packedAt) return;
+      const packedDate = u.packedAt.split('T')[0]; // YYYY-MM-DD
+      if (packedDate === selectedDate) {
+        rows.push({
+          imei: u.imei || '',
+          disposition: u.disposition || u.qc?.cosmetic || '',
+          tracking: u.trackingNumber || entry.tracking || '',
+          rma: u.rmaNumber || '',
+          date: new Date(u.packedAt).toLocaleDateString(),
+        });
+      }
+    });
+  });
+
+  // Also check active packing jobs for packed-but-not-completed units
+  Object.values(ppJobs).forEach(job => {
+    job.units.forEach(u => {
+      if (!u.packed || u.fallout || !u.packedAt) return;
+      const packedDate = u.packedAt.split('T')[0];
+      if (packedDate === selectedDate) {
+        rows.push({
+          imei: u.imei || '',
+          disposition: u.disposition || u.qc?.cosmetic || '',
+          tracking: u.trackingNumber || job.tracking || '',
+          rma: u.rmaNumber || '',
+          date: new Date(u.packedAt).toLocaleDateString(),
+        });
+      }
+    });
+  });
+
+  if (rows.length === 0) {
+    alert('No packed units found for ' + selectedDate);
+    return;
+  }
+
+  // Deduplicate by IMEI (in case unit appears in both active and completed)
+  const seen = new Set();
+  const uniqueRows = rows.filter(r => {
+    if (seen.has(r.imei)) return false;
+    seen.add(r.imei);
+    return true;
+  });
+
+  // Build CSV
+  let csv = 'IMEI,Disposition,Tracking #,RMA#,Date\n';
+  uniqueRows.forEach(r => {
+    csv += `${r.imei},${r.disposition},${r.tracking},${r.rma},${r.date}\n`;
+  });
+
+  // Download
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Daily_Packed_${selectedDate}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── COMPLETE RMA (moves from packing to history) ──
+function ppCompleteRMA(vendor, rma) {
+  const job = ppJobs[vendor];
+  if (!job) { alert('No packing job found for ' + vendor); return; }
+  const grp = job.units.filter(u => u.rmaNumber === rma);
+  if (grp.length === 0) { alert('No units found for RMA# ' + rma); return; }
+
+  const activeUnits = grp.filter(u => !u.fallout);
+  const falloutUnits = grp.filter(u => u.fallout);
+  const allActivePacked = activeUnits.every(u => u.packed);
+
+  if (!allActivePacked) { alert('Not all non-fallout units in this RMA are packed yet.'); return; }
+
+  let confirmMsg = `Complete RMA# ${rma}?\n\n`;
+  confirmMsg += `${activeUnits.length} unit(s) packed and ready to ship.`;
+  if (falloutUnits.length > 0) {
+    confirmMsg += `\n\n⚠️ ${falloutUnits.length} FALLOUT unit(s) will NOT be shipped:\n`;
+    falloutUnits.forEach(u => { confirmMsg += `  • ${u.imei} — ${u.falloutReason || 'Cosmetic Fail'}\n`; });
+    confirmMsg += `\nThese units will be recorded separately.`;
+  }
+  confirmMsg += `\n\nThis will move the RMA to Packed history.`;
+  if (!confirm(confirmMsg)) return;
+
+  // Store in history with deep copies so they persist independently
+  ppCompletedRMAs.push({
+    rma,
+    vendor,
+    units: grp.map(u => ({ ...u })),
+    tracking: job.tracking || '',
+    completedAt: new Date().toISOString(),
+    completedBy: currentUser ? (currentUser.displayName || currentUser.username) : '',
+  });
+
+  // Remove from job
+  job.units = job.units.filter(u => u.rmaNumber !== rma);
+  ppRebuildGroups(job);
+
+  // Clean up empty job but keep the shell so tracking persists
+  if (job.units.length === 0) {
+    job.rmaGroups = {};
+  }
+
+  ppExpandedRMAs.delete(rma);
+  renderPPPackingSection();
+}
+
+// ── COMPLETE DATE GROUP (for non-VZ vendors) ──
+function ppCompleteDateGroup(vendor, subDate) {
+  const job = ppJobs[vendor];
+  if (!job) return;
+
+  const grp = job.units.filter(u => (u.rmaSubmissionDate || 'Unknown') === subDate);
+  const activeUnits = grp.filter(u => !u.fallout);
+  const falloutUnits = grp.filter(u => u.fallout);
+  const allActivePacked = activeUnits.every(u => u.packed);
+
+  if (!allActivePacked) { alert('Not all non-fallout units in this date group are packed yet.'); return; }
+
+  // Collect RMA#s in this group
+  const rmas = [...new Set(activeUnits.map(u => u.rmaNumber).filter(r => r && r !== 'UNMATCHED'))];
+
+  let confirmMsg = `Complete all units from ${subDate}?\n\n`;
+  confirmMsg += `${activeUnits.length} unit(s) packed across ${rmas.length} RMA(s).`;
+  if (falloutUnits.length > 0) {
+    confirmMsg += `\n\n⚠️ ${falloutUnits.length} FALLOUT unit(s) will NOT be shipped:\n`;
+    falloutUnits.forEach(u => { confirmMsg += `  • ${u.imei} — ${u.falloutReason || 'Cosmetic Fail'}\n`; });
+  }
+  confirmMsg += `\n\nThis will move these units to Packed history.`;
+  if (!confirm(confirmMsg)) return;
+
+  // Store each RMA as a separate completed entry
+  rmas.forEach(rma => {
+    const rmaUnits = grp.filter(u => u.rmaNumber === rma);
+    ppCompletedRMAs.push({
+      rma,
+      vendor,
+      units: rmaUnits.map(u => ({ ...u })),
+      tracking: job.tracking || '',
+      completedAt: new Date().toISOString(),
+      completedBy: currentUser ? (currentUser.displayName || currentUser.username) : '',
+      submissionDate: subDate,
+    });
+  });
+
+  // Also store fallouts if any
+  if (falloutUnits.length > 0) {
+    ppCompletedRMAs.push({
+      rma: 'FALLOUT — ' + subDate,
+      vendor,
+      units: falloutUnits.map(u => ({ ...u })),
+      tracking: job.tracking || '',
+      completedAt: new Date().toISOString(),
+      completedBy: currentUser ? (currentUser.displayName || currentUser.username) : '',
+      submissionDate: subDate,
+    });
+  }
+
+  // Remove from job
+  job.units = job.units.filter(u => (u.rmaSubmissionDate || 'Unknown') !== subDate);
+  ppRebuildGroups(job);
+
+  if (job.units.length === 0) {
+    job.rmaGroups = {};
+  }
+
+  const groupId = 'date-' + subDate.replace(/[\/\-]/g, '_');
+  ppExpandedRMAs.delete(groupId);
+
+  // Reset tracking for non-VZ vendors after completing a group
+  job.tracking = '';
+  job.trackingConfirmed = false;
+
+  renderPPPackingSection();
+}
+
+// ── PRINT BOX LABEL ──
+function ppPrintBoxLabel(vendor, data) {
+  const isVZ = vendor === 'VERIZON';
+  const isBrightpoint = vendor === 'BRIGHTPOINT';
+
+  // Build rows based on vendor
+  const unitCount = data.unitCount || 0;
+  let rows = [];
+  if (isVZ) {
+    rows.push({ label: 'TRACKING #', value: data.tracking || '—', barcode: true });
+    rows.push({ label: 'RMA #', value: data.rma || '—', barcode: true });
+    rows.push({ label: 'DELIVERY #', value: data.deliveryNumber || '—', barcode: false });
+    rows.push({ label: 'UNITS', value: String(unitCount), barcode: false });
+  } else if (isBrightpoint) {
+    rows.push({ label: 'TRACKING #', value: data.tracking || '—', barcode: true });
+    rows.push({ label: 'PACKED DATE', value: data.packedDate || new Date().toLocaleDateString(), barcode: false });
+    rows.push({ label: 'UNITS', value: String(unitCount), barcode: false });
+  } else {
+    rows.push({ label: 'TRACKING #', value: data.tracking || '—', barcode: true });
+    rows.push({ label: 'RMA #', value: data.rmas || '—', barcode: (data.rmas || '').length <= 30 });
+    rows.push({ label: 'PACKED DATE', value: data.packedDate || new Date().toLocaleDateString(), barcode: false });
+    rows.push({ label: 'UNITS', value: String(unitCount), barcode: false });
+  }
+
+  const rowsHTML = rows.map(r => `
+    <div class="lbl-section">
+      <div class="lbl-key">${r.label}</div>
+      <div class="lbl-val">${r.value}</div>
+      ${r.barcode && r.value && r.value !== '—' ? '<canvas class="barcode" data-value="' + r.value.replace(/"/g, '&quot;') + '"></canvas>' : ''}
+    </div>
+  `).join('');
+
+  const labelHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  @page { size: 4in 6in; margin: 0; }
+  @media print { html, body { margin: 0; padding: 0; width: 4in; height: 6in; } }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; width: 4in; height: 6in; display: flex; align-items: center; justify-content: center; background: #fff; }
+  .lbl-wrap { width: 3.6in; padding: 0.15in 0; }
+  .lbl-section { padding: 10px 0; border-bottom: 2px solid #e0e0e0; }
+  .lbl-section:last-child { border-bottom: none; }
+  .lbl-key { font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+  .lbl-val { font-size: 22px; font-weight: 800; color: #111; line-height: 1.2; word-break: break-all; }
+  canvas.barcode { display: block; margin-top: 6px; height: 40px; }
+  .lbl-footer { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+  .lbl-footer span { font-size: 8px; color: #aaa; letter-spacing: 0.5px; }
+</style>
+<scr' + 'ipt>
+// Minimal Code 128B barcode generator (self-contained)
+function drawCode128(canvas, text) {
+  if (!text || text === '—') return;
+  const PATTERNS = [
+    [2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],
+    [1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],[1,3,2,2,1,2],[2,2,1,2,1,3],
+    [2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],
+    [1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,1,3,2],
+    [2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],[3,1,1,2,2,2],
+    [3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],
+    [2,1,2,1,2,3],[2,1,2,3,2,1],[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],
+    [1,3,1,3,2,1],[1,1,2,3,1,3],[1,3,2,1,1,3],[1,3,2,3,1,1],[2,1,1,3,1,3],
+    [2,3,1,1,1,3],[2,3,1,3,1,1],[1,1,2,1,3,3],[1,1,2,3,3,1],[1,3,2,1,3,1],
+    [1,1,3,1,2,3],[1,1,3,3,2,1],[1,3,3,1,2,1],[3,1,3,1,2,1],[2,1,1,3,3,1],
+    [2,3,1,1,3,1],[2,1,3,1,1,3],[2,1,3,3,1,1],[2,1,3,1,3,1],[3,1,1,1,2,3],
+    [3,1,1,3,2,1],[3,3,1,1,2,1],[3,1,2,1,1,3],[3,1,2,3,1,1],[3,3,2,1,1,1],
+    [3,1,4,1,1,1],[2,2,1,4,1,1],[4,3,1,1,1,1],[1,1,1,2,2,4],[1,1,1,4,2,2],
+    [1,2,1,1,2,4],[1,2,1,4,2,1],[1,4,1,1,2,2],[1,4,1,2,2,1],[1,1,2,2,1,4],
+    [1,1,2,4,1,2],[1,2,2,1,1,4],[1,2,2,4,1,1],[1,4,2,1,1,2],[1,4,2,2,1,1],
+    [2,4,1,2,1,1],[2,2,1,1,1,4],[4,1,3,1,1,1],[2,4,1,1,1,2],[1,3,4,1,1,1],
+    [1,1,1,2,4,2],[1,2,1,1,4,2],[1,2,1,2,4,1],[1,1,4,2,1,2],[1,2,4,1,1,2],
+    [1,2,4,2,1,1],[4,1,1,2,1,2],[4,2,1,1,1,2],[4,2,1,2,1,1],[2,1,2,1,4,1],
+    [2,1,4,1,2,1],[4,1,2,1,2,1],[1,1,1,1,4,3],[1,1,1,3,4,1],[1,3,1,1,4,1],
+    [1,1,4,1,1,3],[1,1,4,3,1,1],[4,1,1,1,1,3],[4,1,1,3,1,1],[1,1,3,1,4,1],
+    [1,1,4,1,3,1],[3,1,1,1,4,1],[4,1,1,1,3,1],[2,1,1,4,1,2],[2,1,1,2,1,4],
+    [2,1,1,2,3,2],[2,3,3,1,1,1,2]
+  ];
+  const START_B = 104, STOP = 106;
+  let codes = [START_B];
+  let checksum = START_B;
+  for (let i = 0; i < text.length; i++) {
+    let code = text.charCodeAt(i) - 32;
+    if (code < 0 || code > 94) code = 0;
+    codes.push(code);
+    checksum += code * (i + 1);
+  }
+  codes.push(checksum % 103);
+  codes.push(STOP);
+
+  let bits = '';
+  codes.forEach(c => {
+    const p = PATTERNS[c];
+    for (let i = 0; i < p.length; i++) {
+      bits += (i % 2 === 0 ? '1' : '0').repeat(p[i]);
+    }
+  });
+
+  const scale = 1.5;
+  canvas.width = bits.length * scale;
+  canvas.height = 40;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#000';
+  for (let i = 0; i < bits.length; i++) {
+    if (bits[i] === '1') ctx.fillRect(i * scale, 0, scale, 40);
+  }
+}
+window.onload = function() {
+  document.querySelectorAll('canvas.barcode').forEach(c => {
+    drawCode128(c, c.getAttribute('data-value'));
+  });
+  setTimeout(function() { window.print(); }, 200);
+};
+<\/script></head><body>
+<div class="lbl-wrap">
+  ${rowsHTML}
+  <div class="lbl-footer">
+    <span>${vendor}</span>
+    <span>${new Date().toLocaleDateString()}</span>
+  </div>
+</div>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=420,height=630');
+  win.document.write(labelHTML);
+  win.document.close();
+}
+
+function ppPrintVZLabel(rma) {
+  const vendor = ppActivePackingVendor;
+  const job = ppJobs[vendor];
+  if (!job) return;
+  const grp = job.units.filter(u => u.rmaNumber === rma && !u.fallout);
+  const packedCount = grp.filter(u => u.packed).length;
+  const deliveryNumber = grp.length > 0 ? (grp[0].deliveryNumber || '') : '';
+  ppPrintBoxLabel(vendor, { tracking: job.tracking, rma: rma, deliveryNumber: deliveryNumber, unitCount: packedCount });
+}
+
+// ── CLOSE BOX (for non-VZ) ──
+function ppCloseBox(vendor) {
+  const job = ppJobs[vendor];
+  if (!job) return;
+
+  const isVZ = vendor === 'VERIZON';
+  if (isVZ) return; // Only for non-VZ
+
+  const currentBox = job.boxes[job.currentBoxIdx];
+  if (!currentBox || currentBox.imeis.length === 0) {
+    alert('No items in current box to close.');
+    return;
+  }
+
+  if (!confirm(`Close Box #${currentBox.boxNum}? (${currentBox.imeis.length} units)\n\nThis will print a label and open a new box.`)) return;
+
+  // Mark box as closed
+  currentBox.closedAt = new Date().toISOString();
+
+  // Get all RMAs for this box
+  const rmasInBox = new Set();
+  currentBox.imeis.forEach(imei => {
+    const u = job.units.find(unit => unit.imei === imei);
+    if (u && u.rmaNumber && u.rmaNumber !== 'UNMATCHED') {
+      rmasInBox.add(u.rmaNumber);
+    }
+  });
+  const rmaList = Array.from(rmasInBox).join(', ');
+
+  // Print label
+  const isBrightpoint = vendor === 'BRIGHTPOINT';
+  const labelData = {
+    tracking: job.tracking,
+    packedDate: new Date().toLocaleDateString(),
+    rmas: rmaList || 'N/A',
+    unitCount: currentBox.imeis.length
+  };
+  ppPrintBoxLabel(vendor, labelData);
+
+  // Create new box
+  const newBoxNum = currentBox.boxNum + 1;
+  job.boxes.push({ boxNum: newBoxNum, imeis: [], closedAt: null, lockedDate: null });
+  job.currentBoxIdx = job.boxes.length - 1;
+
+  renderPPPackingSection();
+}
+
+// ── TRACKING NUMBER ──
+function ppConfirmTracking(vendor) {
+  const input = document.getElementById('pp-tracking-input');
+  const tracking = (input ? input.value.trim() : '');
+  if (!tracking) { alert('Please enter a tracking number.'); return; }
+  if (!confirm(`Are you sure you want to use tracking number:\n\n${tracking}\n\nThis will be applied to all IMEIs scanned in this session.`)) return;
+  const job = ppJobs[vendor];
+  job.tracking = tracking;
+  job.trackingConfirmed = true;
+  renderPPPackingSection();
+}
+
+function ppChangeTracking(vendor) {
+  const job = ppJobs[vendor];
+  job.trackingConfirmed = false;
+  renderPPPackingSection();
+}
+
+// ── SCAN ──
+function ppScanIMEI() {
+  const input = document.getElementById('pp-scan-input');
+  const imei = normalizeIMEI(input.value);
+  if (!imei) return;
+  input.value = '';
+
+  const vendor = ppActivePackingVendor;
+  const job = ppJobs[vendor];
+  if (!job) return;
+
+  const unitIdx = job.units.findIndex(u => u.imei === imei);
+  if (unitIdx < 0) {
+    ppLastScanned = null;
+    ppLastFeedback = `
+      <div style="background:var(--critical-bg);border:2px solid var(--alert-red);border-radius:10px;padding:14px 18px;margin:0;">
+        <div style="font-size:11px;color:var(--alert-red);font-weight:600;text-transform:uppercase;">Not Found</div>
+        <div style="font-size:14px;margin-top:4px;">IMEI <span style="font-family:monospace;font-weight:700;">${imei}</span> is not in the pick list.</div>
+      </div>`;
+    renderPPPackingSection();
+    return;
+  }
+
+  const unit = job.units[unitIdx];
+  if (unit.packed) {
+    ppLastScanned = { unitIdx, vendor }; // Still allow QC edit on already-packed
+    ppLastFeedback = `
+      <div style="background:var(--warn-bg);border:2px solid var(--warn-orange);border-radius:10px;padding:14px 18px;margin:0;">
+        <div style="font-size:11px;color:var(--warn-orange);font-weight:600;text-transform:uppercase;">Already Packed</div>
+        <div style="font-size:14px;margin-top:4px;">IMEI <span style="font-family:monospace;font-weight:700;">${imei}</span></div>
+        <div style="font-size:20px;font-weight:700;color:var(--warn-orange);margin-top:4px;">RMA# ${unit.rmaNumber}</div>
+      </div>`;
+    renderPPPackingSection();
+    return;
+  }
+
+  // For non-VZ vendors, enforce same submission date per box
+  const isVZ = vendor === 'VERIZON';
+  if (!isVZ) {
+    const currentBox = job.boxes[job.currentBoxIdx];
+    const unitDate = unit.rmaSubmissionDate || 'Unknown';
+    if (currentBox && currentBox.lockedDate && currentBox.lockedDate !== unitDate) {
+      ppLastScanned = null;
+      ppLastFeedback = `
+        <div style="background:var(--critical-bg);border:2px solid var(--alert-red);border-radius:10px;padding:14px 18px;margin:0;">
+          <div style="font-size:11px;color:var(--alert-red);font-weight:600;text-transform:uppercase;">Wrong Submission Date</div>
+          <div style="font-size:14px;margin-top:4px;">IMEI <span style="font-family:monospace;font-weight:700;">${imei}</span> has submission date <b>${unitDate}</b></div>
+          <div style="font-size:14px;margin-top:4px;">Current Box #${currentBox.boxNum} is locked to <b>${currentBox.lockedDate}</b></div>
+          <div style="font-size:12px;color:#888;margin-top:8px;">Close the current box first, then scan this IMEI into a new box.</div>
+        </div>`;
+      renderPPPackingSection();
+      return;
+    }
+  }
+
+  unit.packed = true;
+  unit.packedAt = new Date().toISOString();
+  unit.packedBy = currentUser;
+  unit.trackingNumber = job.tracking || '';
+  ppLastScanned = { unitIdx, vendor };
+
+  if (!isVZ) {
+    const currentBox = job.boxes[job.currentBoxIdx];
+    const unitDate = unit.rmaSubmissionDate || 'Unknown';
+    if (currentBox) {
+      if (!currentBox.lockedDate) {
+        currentBox.lockedDate = unitDate;
+      }
+      if (!currentBox.imeis.includes(imei)) {
+        currentBox.imeis.push(imei);
+      }
+    }
+    // Expand the date group this unit belongs to
+    const groupId = 'date-' + unitDate.replace(/[\/\-]/g, '_');
+    ppExpandedRMAs.add(groupId);
+  } else {
+    ppExpandedRMAs.add(unit.rmaNumber);
+  }
+
+  // For non-VZ: count by submission date group. For VZ: count by RMA.
+  let grpPacked, grpTotal, groupComplete, completeLabel;
+  if (!isVZ) {
+    const dateGrp = job.units.filter(u => (u.rmaSubmissionDate || 'Unknown') === (unit.rmaSubmissionDate || 'Unknown') && !u.fallout);
+    grpPacked = dateGrp.filter(u => u.packed).length;
+    grpTotal = dateGrp.length;
+    groupComplete = grpTotal > 0 && grpPacked === grpTotal;
+    completeLabel = groupComplete ? '<span class="badge badge-pass">GROUP COMPLETE — click Complete Group to finish</span>' : 'units packed in ' + (unit.rmaSubmissionDate || 'Unknown');
+  } else {
+    const grp = job.rmaGroups[unit.rmaNumber];
+    grpPacked = grp ? grp.filter(u => u.packed && !u.fallout).length : 0;
+    grpTotal = grp ? grp.filter(u => !u.fallout).length : 0;
+    groupComplete = grpTotal > 0 && grpPacked === grpTotal;
+    completeLabel = groupComplete ? '<span class="badge badge-pass">RMA COMPLETE — click Complete RMA to finish</span>' : 'units packed';
+  }
+
+  ppLastFeedback = `
+    <div style="background:var(--success-bg);border:2px solid var(--success-green);border-radius:10px;padding:14px 18px;margin:0;">
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div>
+          <div style="font-size:11px;color:var(--success-green);font-weight:600;text-transform:uppercase;">&#10003; Packed Successfully</div>
+          <div style="font-size:14px;margin-top:4px;">IMEI <span style="font-family:monospace;font-weight:700;">${imei}</span></div>
+          <div style="font-size:24px;font-weight:700;color:var(--dark-green);margin-top:4px;">&#8594; RMA# ${unit.rmaNumber}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:28px;font-weight:700;color:var(--success-green);">${grpPacked}/${grpTotal}</div>
+          <div style="font-size:11px;color:#888;">${completeLabel}</div>
+        </div>
+      </div>
+    </div>`;
+
+  renderPPPackingSection();
+}
+
+// ── FEEDBACK WITH INLINE QC ──
+function ppBuildFeedbackHTML() {
+  // If there's no last scanned info or it's an error/non-success feedback, use static
+  if (!ppLastScanned || !ppLastFeedback) return ppLastFeedback;
+
+  const { unitIdx, vendor } = ppLastScanned;
+  const job = ppJobs[vendor];
+  if (!job || !job.units[unitIdx]) return ppLastFeedback;
+
+  const u = job.units[unitIdx];
+  if (!u.packed) return ppLastFeedback; // Only show QC for packed units
+
+  // Build inline QC chips
+  const qcHTML = `
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.1);">
+      <div style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">QC Checks</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        ${ppQCChip(unitIdx, vendor, 'box', u.qc.box, 'Box')}
+        ${ppQCChip(unitIdx, vendor, 'cable', u.qc.cable, 'Cable')}
+        ${ppQCChip(unitIdx, vendor, 'wallCharger', u.qc.wallCharger, 'Charger')}
+        ${ppQCChip(unitIdx, vendor, 'cosmetic', u.qc.cosmetic, 'Cosmetic')}
+        ${ppQCChip(unitIdx, vendor, 'datawipe', u.qc.datawipe, 'Datawipe')}
+      </div>
+    </div>`;
+
+  // Inject QC section before the closing div of the feedback card
+  return ppLastFeedback.replace(/<\/div>\s*$/, qcHTML + '</div>');
+}
+
+// ── QC ──
+function ppToggleRMA(rma) {
+  if (ppExpandedRMAs.has(rma)) ppExpandedRMAs.delete(rma);
+  else ppExpandedRMAs.add(rma);
+  renderPPPackingSection();
+}
+
+function ppSetQC(unitIdx, vendor, field, value) {
+  if (!ppJobs[vendor]) return;
+  const unit = ppJobs[vendor].units[unitIdx];
+
+  // Cosmetic fail = fallout unit — warn the user
+  if (field === 'cosmetic' && value === 'FAILED') {
+    const proceed = confirm(
+      `⚠️ Cosmetic FAIL on IMEI ${unit.imei}\n\n` +
+      `This will mark the unit as a FALLOUT. It will be removed from the RMA and will NOT be shipped.\n\n` +
+      `RMA# ${unit.rmaNumber}\n\n` +
+      `Do you want to continue?`
+    );
+    if (!proceed) return;
+    unit.qc[field] = value;
+    unit.fallout = true;
+    unit.falloutReason = 'Cosmetic Fail';
+    unit.packed = false;
+    unit.packedAt = null;
+
+    // For non-VZ, remove from current box if it was there
+    const isVZ = vendor === 'VERIZON';
+    if (!isVZ) {
+      const job = ppJobs[vendor];
+      const currentBox = job.boxes[job.currentBoxIdx];
+      if (currentBox) {
+        currentBox.imeis = currentBox.imeis.filter(i => i !== unit.imei);
+      }
+    }
+  } else {
+    unit.qc[field] = value;
+    // If cosmetic is changed back to PASSED, clear fallout
+    if (field === 'cosmetic' && value === 'PASSED' && unit.fallout) {
+      unit.fallout = false;
+      unit.falloutReason = '';
+    }
+  }
+  renderPPPackingSection();
+}
+
+function ppQCChip(unitIdx, vendor, field, val, label) {
+  const isCosmetic = (field === 'cosmetic');
+  const isDW = (field === 'datawipe');
+  let yVal, nVal, yLabel, nLabel, isY, isN;
+  if (isCosmetic) {
+    yVal = 'PASSED'; nVal = 'FAILED'; yLabel = 'P'; nLabel = 'F';
+    isY = val && val.toUpperCase() === 'PASSED';
+    isN = val && val.toUpperCase() === 'FAILED';
+  } else if (isDW) {
+    yVal = 'Yes'; nVal = 'No'; yLabel = 'Y'; nLabel = 'N';
+    isY = val && (val.toLowerCase() === 'yes' || val.toLowerCase() === 'cleared' || val === 'Electronic Data Clear');
+    isN = val && (val.toLowerCase() === 'no' || val === 'Not Cleared');
+  } else {
+    yVal = 'YES'; nVal = 'NO'; yLabel = 'Y'; nLabel = 'N';
+    isY = val && val.toUpperCase() === 'YES';
+    isN = val && (val.toUpperCase() === 'NO' || val === '-');
+  }
+  const yStyle = isY ? 'background:#e8f5e9;color:#2e7d32;border:2px solid #2e7d32;font-weight:700;' : 'background:#fafafa;color:#bbb;border:2px solid #e0e0e0;';
+  const nStyle = isN ? 'background:#ffebee;color:#c62828;border:2px solid #c62828;font-weight:700;' : 'background:#fafafa;color:#bbb;border:2px solid #e0e0e0;';
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:56px;">
+    <span style="font-size:10px;color:#777;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">${label}</span>
+    <div style="display:flex;gap:3px;">
+      <button onclick="event.stopPropagation();ppSetQC(${unitIdx},'${vendor}','${field}','${yVal}')" style="cursor:pointer;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:700;line-height:1;${yStyle}">${yLabel}</button>
+      <button onclick="event.stopPropagation();ppSetQC(${unitIdx},'${vendor}','${field}','${nVal}')" style="cursor:pointer;border-radius:6px;padding:6px 14px;font-size:13px;font-weight:700;line-height:1;${nStyle}">${nLabel}</button>
+    </div>
+  </div>`;
+}
+
+// ── CSV PARSING (shared) ──
+// ── CSV PARSING & UPLOAD HANDLERS ──
+function ppParseCSVText(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return { headers: [], rows: [] };
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = lines[i].split(',').map(v => v.replace(/^"|"$/g, '').trim());
+    if (vals.length >= 2) {
+      const row = {};
+      headers.forEach((h, idx) => { row[h] = vals[idx] || ''; });
+      rows.push(row);
+    }
+  }
+  return { headers, rows };
+}
+
+function ppReadFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const wb = XLSX.read(e.target.result, { type: 'array', raw: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_csv(ws, { rawNumbers: false }));
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.readAsText(file);
+    }
+  });
+}
+
+function ppFindCol(headers, names) {
+  for (const n of names) {
+    const idx = headers.findIndex(h => h.toLowerCase().replace(/[^a-z0-9]/g, '') === n.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    if (idx >= 0) return headers[idx];
+  }
+  return null;
+}
+
+async function handlePPVendorFile(file) {
+  if (!file) return;
+  const text = await ppReadFileAsText(file);
+  const parsed = ppParseCSVText(text);
+  const h = parsed.headers;
+  const colIMEI = ppFindCol(h, ['RecirQ ESN', 'RecirQESN', 'IMEI', 'ESN', 'IMEIExport']);
+  const colRoute = ppFindCol(h, ['Route', 'Vendor', 'route']);
+  const colBox = ppFindCol(h, ['Box', 'box']);
+  const colCable = ppFindCol(h, ['Cable', 'cable']);
+  const colWall = ppFindCol(h, ['Wall Charger', 'WallCharger', 'wallcharger']);
+  const colCondition = ppFindCol(h, ['Condition Check', 'ConditionCheck', 'Cosmetic Check']);
+  const colDatawipe = ppFindCol(h, ['Datawipe status', 'DatawipeStatus', 'Datawipe Status']);
+  const colDesc = ppFindCol(h, ['Final Description', 'FinalDescription', 'Description']);
+  const colDisp = ppFindCol(h, ['Final Disposition', 'FinalDisposition', 'Disposition', 'Grade']);
+  const colSKU = ppFindCol(h, ['SKU', 'sku']);
+  const colRack = ppFindCol(h, ['Rack ID', 'RackID', 'Rack']);
+  const colTransfer = ppFindCol(h, ['Transfer ID', 'TransferID']);
+  const colProcessed = ppFindCol(h, ['Processed Date', 'ProcessedDate']);
+  if (!colIMEI) { alert('Could not find IMEI/RecirQ ESN column in vendor tab CSV.'); return; }
+  ppVendorData = parsed.rows.map(r => ({
+    imei: normalizeIMEI(r[colIMEI]),
+    route: r[colRoute] || '', box: r[colBox] || '', cable: r[colCable] || '',
+    wallCharger: r[colWall] || '', conditionCheck: r[colCondition] || '',
+    datawipeStatus: r[colDatawipe] || '', description: r[colDesc] || '',
+    disposition: r[colDisp] || '', sku: r[colSKU] || '', rackId: r[colRack] || '',
+    transferId: r[colTransfer] || '', processedDate: r[colProcessed] || '',
+  })).filter(u => u.imei.length >= 10);
+  document.getElementById('pp-vendor-zone').innerHTML = `<div class="icon" style="color:var(--success-green);">&#10003;</div><p><b>${ppVendorData.length} units</b> loaded</p><div class="file-name">${file.name}</div>`;
+  ppShowUploadBtn();
+}
+
+async function handlePPRMAFile(file) {
+  if (!file) return;
+  const text = await ppReadFileAsText(file);
+  const parsed = ppParseCSVText(text);
+  const h = parsed.headers;
+  const colIMEI = ppFindCol(h, ['RecirQ ESN', 'RecirQESN', 'IMEI', 'ESN']);
+  const colRMA = ppFindCol(h, ['RMA#', 'RMA', 'RMANumber']);
+  const colDelivery = ppFindCol(h, ['Delivery #', 'Delivery', 'DeliveryNumber']);
+  const colSubDate = ppFindCol(h, ['RMA Submission Date', 'RMASubmissionDate']);
+  const colDisp = ppFindCol(h, ['Final Disposition', 'FinalDisposition', 'Disposition']);
+  if (!colIMEI || !colRMA) { alert('Could not find IMEI and RMA# columns in RMA Submissions CSV.'); return; }
+  ppRMAData = {};
+  parsed.rows.forEach(r => {
+    const imei = normalizeIMEI(r[colIMEI]);
+    if (imei.length >= 10) {
+      ppRMAData[imei] = { rmaNumber: r[colRMA] || '', deliveryNumber: r[colDelivery] || '', rmaSubmissionDate: r[colSubDate] || '', disposition: r[colDisp] || '' };
+    }
+  });
+  document.getElementById('pp-rma-zone').innerHTML = `<div class="icon" style="color:var(--success-green);">&#10003;</div><p><b>${Object.keys(ppRMAData).length} IMEI→RMA mappings</b></p><div class="file-name">${file.name}</div>`;
+  ppShowUploadBtn();
+}
+
+function ppShowUploadBtn() {
+  const area = document.getElementById('pp-upload-btn-area');
+  if (!area) return;
+  if (ppVendorData && ppRMAData) {
+    area.innerHTML = `<button class="btn btn-primary" style="padding:10px 32px;font-size:15px;" onclick="ppTryMerge()">Upload &amp; Merge</button>`;
+  } else {
+    area.innerHTML = '';
+  }
+}
+
+function ppTryMerge() {
+  if (!ppVendorData || !ppRMAData) return;
+  const vendor = document.getElementById('pp-vendor').value;
+  if (!vendor) { alert('Please select a vendor first.'); return; }
+
+  const job = ppGetJob(vendor);
+  const existingIMEItoRMA = {};
+  job.units.forEach(u => { existingIMEItoRMA[u.imei] = u.rmaNumber; });
+
+  let matched = 0, unmatched = 0, skipped = 0, rmaConflict = 0;
+  const rmaConflicts = [];
+  const newUnits = [];
+
+  ppVendorData.forEach(v => {
+    const rmaInfo = ppRMAData[v.imei];
+    const newRMA = rmaInfo ? rmaInfo.rmaNumber : 'UNMATCHED';
+    if (existingIMEItoRMA.hasOwnProperty(v.imei)) {
+      const existingRMA = existingIMEItoRMA[v.imei];
+      if (existingRMA === newRMA) { skipped++; return; }
+      else {
+        rmaConflict++;
+        rmaConflicts.push({ imei: v.imei, existingRMA, newRMA, unitData: { ...v, rmaNumber: newRMA, deliveryNumber: rmaInfo ? rmaInfo.deliveryNumber : '', rmaSubmissionDate: rmaInfo ? rmaInfo.rmaSubmissionDate : '', packed: false, packedAt: null, packedBy: null, uploadedAt: new Date().toISOString(), qc: { box: v.box, cable: v.cable, wallCharger: v.wallCharger, cosmetic: v.conditionCheck, datawipe: v.datawipeStatus } } });
+        return;
+      }
+    }
+    if (rmaInfo) {
+      matched++;
+      newUnits.push({ ...v, rmaNumber: rmaInfo.rmaNumber, deliveryNumber: rmaInfo.deliveryNumber, rmaSubmissionDate: rmaInfo.rmaSubmissionDate, packed: false, packedAt: null, packedBy: null, uploadedAt: new Date().toISOString(), qc: { box: v.box, cable: v.cable, wallCharger: v.wallCharger, cosmetic: v.conditionCheck, datawipe: v.datawipeStatus } });
+    } else {
+      unmatched++;
+      newUnits.push({ ...v, rmaNumber: 'UNMATCHED', deliveryNumber: '', rmaSubmissionDate: '', packed: false, packedAt: null, packedBy: null, uploadedAt: new Date().toISOString(), qc: { box: v.box, cable: v.cable, wallCharger: v.wallCharger, cosmetic: v.conditionCheck, datawipe: v.datawipeStatus } });
+    }
+  });
+
+  // Merge
+  job.units = [...job.units, ...newUnits];
+  ppRebuildGroups(job);
+
+  const rmaCount = Object.keys(job.rmaGroups).filter(k => k !== 'UNMATCHED').length;
+  const summaryEl = document.getElementById('pp-match-summary');
+  let summaryHTML = `<b>${matched}</b> new IMEIs added to <b>${vendor}</b> job across <b>${rmaCount} RMA(s)</b>.`;
+  if (skipped > 0) summaryHTML += ` <span style="color:var(--warn-orange);"><b>${skipped}</b> duplicates skipped.</span>`;
+  if (unmatched > 0) {
+    const unmatchedUnits = newUnits.filter(u => u.rmaNumber === 'UNMATCHED');
+    summaryHTML += ` <span style="color:var(--alert-red);"><b>${unmatched}</b> unmatched.</span>`;
+    summaryHTML += `<div style="margin-top:8px;border:1px solid var(--alert-red);border-radius:8px;overflow:hidden;">
+      <div style="background:var(--critical-bg);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <span style="font-weight:600;color:var(--alert-red);font-size:13px;">View ${unmatched} Unmatched</span>
+        <span style="font-size:11px;color:var(--alert-red);">click to expand</span>
+      </div>
+      <div style="display:none;max-height:200px;overflow-y:auto;background:white;">
+        <table style="width:100%;font-size:12px;border-collapse:collapse;">
+          <tr style="background:var(--light-gray);"><th style="padding:6px 10px;text-align:left;">IMEI</th><th style="padding:6px 10px;text-align:left;">Route</th><th style="padding:6px 10px;text-align:left;">Description</th><th style="padding:6px 10px;text-align:left;">Rack</th></tr>
+          ${unmatchedUnits.map(u => '<tr><td style="padding:4px 10px;font-family:monospace;font-size:11px;">' + u.imei + '</td><td style="padding:4px 10px;">' + (u.route||'—') + '</td><td style="padding:4px 10px;">' + (u.description||'—') + '</td><td style="padding:4px 10px;">' + (u.rackId||'—') + '</td></tr>').join('')}
+        </table>
+        <div style="padding:8px 10px;border-top:1px solid #eee;"><button class="btn btn-sm btn-outline" onclick="ppDownloadUnmatched('${vendor}')">Download CSV</button></div>
+      </div>
+    </div>`;
+  }
+  summaryHTML += `<br><b>Total in ${vendor} job: ${job.units.length} units</b> (${job.units.filter(u=>u.packed).length} packed).`;
+
+  // Handle RMA conflicts
+  if (rmaConflicts.length > 0) {
+    ppPendingConflicts = rmaConflicts;
+    ppConflictAllUnits = job.units;
+    summaryHTML += ppBuildConflictHTML(rmaConflicts, vendor);
+  }
+
+  summaryEl.innerHTML = summaryHTML;
+  document.getElementById('pp-preview').style.display = 'block';
+
+  // Preview table
+  let tbl = '<div class="tbl-wrap" style="max-height:250px;overflow-y:auto;margin-top:12px;"><table><tr><th>RMA#</th><th>Units</th><th>Packed</th><th>Route(s)</th><th>Rack(s)</th></tr>';
+  Object.keys(job.rmaGroups).sort().forEach(rma => {
+    const grp = job.rmaGroups[rma];
+    const pc = grp.filter(u => u.packed).length;
+    const routes = [...new Set(grp.map(u => u.route))].join(', ');
+    const racks = [...new Set(grp.map(u => u.rackId).filter(Boolean))].join(', ');
+    const cls = rma === 'UNMATCHED' ? 'style="background:var(--critical-bg);"' : '';
+    tbl += `<tr ${cls}><td>${rma}</td><td>${grp.length}</td><td>${pc}/${grp.length}</td><td>${routes}</td><td>${racks || '—'}</td></tr>`;
+  });
+  tbl += '</table></div>';
+  document.getElementById('pp-preview-table').innerHTML = tbl;
+
+  // Reset upload state
+  ppVendorData = null;
+  ppRMAData = null;
+}
+
+function ppBuildConflictHTML(conflicts, vendor) {
+  let html = `<div class="callout critical" style="margin-top:12px;">
+    <b>${conflicts.length} RMA Conflict(s)</b> — same IMEI, different RMA#. Choose for each:
+    <div style="margin-top:10px;">`;
+  conflicts.forEach((c, i) => {
+    html += `<div style="background:white;border:1px solid var(--alert-red);border-radius:8px;padding:10px 14px;margin-bottom:8px;" id="pp-conflict-${i}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div><span style="font-family:monospace;font-weight:600;">${c.imei}</span><br><span style="font-size:11px;color:#888;">Queued: <b>${c.existingRMA}</b> → New: <b>${c.newRMA}</b></span></div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-outline" onclick="ppResolveConflict(${i},'keep','${vendor}')">Keep Existing</button>
+          <button class="btn btn-sm btn-primary" onclick="ppResolveConflict(${i},'both','${vendor}')">Keep Both</button>
+          <button class="btn btn-sm btn-danger" onclick="ppResolveConflict(${i},'replace','${vendor}')">Replace</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  html += `</div>
+    <div style="margin-top:8px;display:flex;gap:8px;">
+      <button class="btn btn-sm btn-outline" onclick="ppResolveAllConflicts('keep','${vendor}')">Keep All</button>
+      <button class="btn btn-sm btn-primary" onclick="ppResolveAllConflicts('both','${vendor}')">Keep All Both</button>
+      <button class="btn btn-sm btn-danger" onclick="ppResolveAllConflicts('replace','${vendor}')">Replace All</button>
+    </div></div>`;
+  return html;
+}
+
+function ppResolveConflict(idx, action, vendor) {
+  const conflict = ppPendingConflicts[idx];
+  if (!conflict) return;
+  const job = ppJobs[vendor];
+  if (action === 'replace') {
+    job.units = job.units.filter(u => u.imei !== conflict.imei);
+    job.units.push(conflict.unitData);
+  } else if (action === 'both') {
+    job.units.push(conflict.unitData);
+  }
+  const actionLabel = action === 'replace' ? 'Replaced' : action === 'both' ? 'Kept both' : 'Kept existing';
+  const el = document.getElementById('pp-conflict-' + idx);
+  if (el) { el.style.opacity = '0.4'; el.innerHTML = `<span style="font-family:monospace;">${conflict.imei}</span> — <b>${actionLabel}</b>`; }
+  ppPendingConflicts[idx] = null;
+  if (ppPendingConflicts.every(c => c === null)) {
+    ppRebuildGroups(job);
+    renderPPUploadSection();
+  }
+}
+
+function ppResolveAllConflicts(action, vendor) {
+  ppPendingConflicts.forEach((c, i) => { if (c !== null) ppResolveConflict(i, action, vendor); });
+}
+
 // Init — load from server
 (async function init() {
   checkAuth();
@@ -4368,5 +6169,6 @@ async function sendClearanceMessage(batch) {
   }
 })();
 </script>
+</div><!-- /app-main -->
 </body>
 </html>
