@@ -348,6 +348,20 @@
 <!-- ═══ MAIN CONTENT WRAPPER ═══ -->
 <div class="app-main">
 
+<!-- ═══ PHOTO GALLERY MODAL ═══ -->
+<div class="modal-overlay" id="photo-gallery-modal">
+  <div class="modal" style="max-width:700px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 id="photo-gallery-title">Shipment Photos</h3>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm btn-primary" id="photo-gallery-upload-btn">+ Add Photos</button>
+        <button class="btn btn-sm btn-outline" onclick="closePhotoGallery()">Close</button>
+      </div>
+    </div>
+    <div id="photo-gallery-content" style="min-height:100px;"></div>
+  </div>
+</div>
+
 <!-- ═══ PHOTO QR MODAL ═══ -->
 <div class="modal-overlay" id="photo-qr-modal">
   <div class="modal" style="max-width:360px;text-align:center;">
@@ -4353,7 +4367,7 @@ function refreshHistory() {
       <td>${new Date(b.createdAt).toLocaleString()}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadAllReports('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Download all reports as CSV">&#11015; CSV</button>
-        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();document.getElementById('shipment-photo-input-${b.id}').click()" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Upload shipment photos">&#128247; Photos${b.shipmentPhotos && b.shipmentPhotos.length > 0 ? ' (' + b.shipmentPhotos.length + ')' : ''}</button>
+        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openShipmentPhotos('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Shipment photos">&#128247; Photos${b.shipmentPhotos && b.shipmentPhotos.length > 0 ? ' (' + b.shipmentPhotos.length + ')' : ''}</button>
         <input type="file" id="shipment-photo-input-${b.id}" accept="image/*" multiple style="display:none" onchange="uploadShipmentPhotos('${b.id}',this)">
         <button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button>
       </td>
@@ -4363,6 +4377,53 @@ function refreshHistory() {
     <tr><th>Ship Date</th><th>Vendor</th><th>Tracking #s</th><th>Units</th><th>Status</th><th>Created</th><th></th></tr>
     ${rows}
   </table></div>`;
+}
+
+// ═══════════ SHIPMENT PHOTO GALLERY ═══════════
+let photoGalleryBatchId = null;
+
+function openShipmentPhotos(batchId) {
+  const batch = findBatch(batchId);
+  if (!batch) return;
+  photoGalleryBatchId = batchId;
+
+  const trackings = [...new Set(batch.units.map(u => u.trackingOut).filter(Boolean))].join(', ') || '—';
+  document.getElementById('photo-gallery-title').textContent = 'Shipment Photos — ' + (batch.vendor === 'VERIZON' ? 'VZ' : batch.vendor.substring(0,3).toUpperCase()) + ' ' + fmtDate(batch.shipDate);
+
+  // Wire upload button
+  const uploadBtn = document.getElementById('photo-gallery-upload-btn');
+  uploadBtn.onclick = function() { document.getElementById('shipment-photo-input-' + batchId).click(); };
+
+  renderPhotoGallery(batch);
+  document.getElementById('photo-gallery-modal').classList.add('show');
+}
+
+function renderPhotoGallery(batch) {
+  const content = document.getElementById('photo-gallery-content');
+  const photos = batch.shipmentPhotos || [];
+
+  if (photos.length === 0) {
+    content.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#888;"><div style="font-size:36px;margin-bottom:8px;">&#128247;</div><p>No photos yet. Click "+ Add Photos" to upload shipment photos.</p></div>';
+    return;
+  }
+
+  let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">';
+  photos.forEach((p, i) => {
+    html += `<div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0;aspect-ratio:1;background:#f5f5f5;">
+      <img src="${p.viewUrl}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="window.open('${p.viewUrl}','_blank')" title="Click to view full size">
+      <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.5);padding:4px 8px;">
+        <span style="font-size:9px;color:#fff;">${p.uploadedAt ? new Date(p.uploadedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : ''}</span>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  html += `<div style="margin-top:12px;font-size:12px;color:#888;text-align:center;">${photos.length} photo(s) uploaded</div>`;
+  content.innerHTML = html;
+}
+
+function closePhotoGallery() {
+  document.getElementById('photo-gallery-modal').classList.remove('show');
+  photoGalleryBatchId = null;
 }
 
 // ═══════════ SHIPMENT PHOTO UPLOAD ═══════════
@@ -4423,8 +4484,11 @@ async function uploadShipmentPhotos(batchId, input) {
   input.value = '';
   btn.disabled = false;
   btn.innerHTML = origText;
-  alert(`${batch.shipmentPhotos.length} shipment photo(s) saved.`);
   refreshHistory();
+  // If gallery is open, refresh it
+  if (photoGalleryBatchId === batchId) {
+    renderPhotoGallery(batch);
+  }
 }
 
 function compressImage(file, maxDim, quality) {
