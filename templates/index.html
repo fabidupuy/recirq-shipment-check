@@ -990,6 +990,7 @@ async function openUserManagementModal() {
               <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
               <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
             </select>
+            <button class="btn btn-outline btn-sm" onclick="resetUserPassword(${u.id},'${u.username}')" style="font-size:11px;padding:4px 8px;">Reset PW</button>
             <button class="btn btn-danger btn-sm" onclick="deleteUserConfirm(${u.id},'${u.username}')">Delete</button>
           `}
           ${isSelf ? '<span style="font-size:11px;color:#888;">(You)</span>' : ''}
@@ -1021,6 +1022,28 @@ async function changeUserRole(userId, newRole) {
   } catch (e) {
     console.error('Change role error:', e);
     alert('Failed to update role');
+  }
+}
+
+async function resetUserPassword(userId, username) {
+  const newPassword = prompt(`Set new password for ${username}:`);
+  if (!newPassword) return;
+  if (newPassword.length < 4) { alert('Password must be at least 4 characters.'); return; }
+  try {
+    const resp = await fetch(`${API}/users/${userId}/password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      alert(`Password for ${username} has been reset successfully.`);
+    } else {
+      alert(data.error || 'Failed to reset password');
+    }
+  } catch (e) {
+    console.error('Reset password error:', e);
+    alert('Failed to reset password');
   }
 }
 
