@@ -3036,17 +3036,23 @@ function renderBPIMEIMismatchReport(batch) {
 // Build action buttons based on unit state
 function buildActionButtons(batch, u, i, vendorKey) {
   const bId = batch.id;
+  const isCleared = batch.status === 'CLEARED';
   const isRouteFail = u.routeStatus === 'FAIL' && !u.routeCorrected;
   const isAgingFail = u.agingStatus === 'FAIL' && !u.agingCleared;
   const isIMEIMismatch = u.imeiMismatch && !u.falloutReason;
 
   if (u.agingCleared) {
-    return `<span style="font-size:11px;color:var(--success-green);">${u.agingClearedNotes}</span>
-      <button class="btn btn-sm btn-outline" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="margin-left:6px;padding:2px 8px;font-size:10px;">Log</button>`;
+    let btns = `<span style="font-size:11px;color:var(--success-green);">${u.agingClearedNotes}</span>`;
+    if (!isCleared) btns += ` <button class="btn btn-sm btn-outline" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="margin-left:6px;padding:2px 8px;font-size:10px;">Log</button>`;
+    return btns;
   }
   if (u.falloutReason) {
-    return `<span style="font-size:11px;color:var(--warn-orange);">${u.falloutReason}</span>
-      <button class="btn btn-sm btn-outline" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="margin-left:6px;padding:2px 8px;font-size:10px;">Edit</button>`;
+    let btns = `<span style="font-size:11px;color:var(--warn-orange);">${u.falloutReason}</span>`;
+    if (!isCleared) {
+      btns += ` <button class="btn btn-sm btn-outline" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="margin-left:6px;padding:2px 8px;font-size:10px;">Edit</button>`;
+      btns += ` <button class="btn btn-sm btn-outline" onclick="clearFallout('${bId}',${i},'${vendorKey}')" style="margin-left:2px;padding:2px 8px;font-size:10px;color:var(--alert-red);border-color:var(--alert-red);">Undo</button>`;
+    }
+    return btns;
   }
   if (isRouteFail && isAgingFail) {
     return `<span class="badge badge-hardstop">${u.hardStopReason}</span><br>
@@ -3080,6 +3086,7 @@ function buildActionButtons(batch, u, i, vendorKey) {
     return `<span class="badge badge-hardstop">${u.hardStopReason}</span>
       <button class="btn btn-sm btn-danger" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')" style="margin-left:6px;padding:3px 10px;">Resolve</button>`;
   }
+  if (isCleared) return '<span style="font-size:11px;color:var(--success-green);">&#10004;</span>';
   return `<button class="btn btn-sm btn-outline" onclick="openFalloutModal('${bId}',${i},'${vendorKey}')">Log</button>`;
 }
 
@@ -3244,8 +3251,12 @@ async function deleteBatch(batchId, vendor) {
 // FALLOUT MODAL
 // ════════════════════════════════════
 function openFalloutModal(batchId, unitIndex, vendorKey) {
-  falloutTarget = { batchId: parseInt(batchId), unitIndex, vendorKey, type: 'unit' };
   const batch = findBatch(batchId);
+  if (batch.status === 'CLEARED') {
+    alert('This shipment has been cleared. You cannot modify failure reasons after clearance.');
+    return;
+  }
+  falloutTarget = { batchId: parseInt(batchId), unitIndex, vendorKey, type: 'unit' };
   const unit = batch.units[unitIndex];
   document.getElementById('fallout-imei-display').textContent = `IMEI: ${unit.imei} | RMA: ${unit.rmaNumber}`;
   // Pre-fill if editing
@@ -3260,9 +3271,33 @@ function openFalloutModal(batchId, unitIndex, vendorKey) {
 }
 
 function openFalloutModalIMEI(batchId, imei) {
+  const batch = findBatch(batchId);
+  if (batch && batch.status === 'CLEARED') {
+    alert('This shipment has been cleared. You cannot modify failure reasons after clearance.');
+    return;
+  }
   falloutTarget = { batchId: parseInt(batchId), imei, type: 'unpacked' };
   document.getElementById('fallout-imei-display').textContent = `IMEI: ${imei} (Submitted but not packed)`;
   document.getElementById('fallout-modal').classList.add('show');
+}
+
+function clearFallout(batchId, unitIndex, vendorKey) {
+  const batch = findBatch(batchId);
+  if (!batch) return;
+  if (batch.status === 'CLEARED') {
+    alert('This shipment has been cleared. You cannot modify failure reasons after clearance.');
+    return;
+  }
+  const unit = batch.units[unitIndex];
+  if (!unit || !unit.falloutReason) return;
+  if (!confirm(`Undo failure for IMEI ${unit.imei}?\n\nCurrent reason: ${unit.falloutReason}\n\nThis will remove the failure and restore the unit to its original status.`)) return;
+
+  unit.falloutReason = '';
+  recalcBatchStatus(batch);
+  saveBatchToServer(batch);
+  logAction('clear_fallout', batch.id, { imei: unit.imei });
+  if (batch.vendor === 'VERIZON') renderVZPanel();
+  else renderBPPanel();
 }
 
 function closeFalloutModal() {
