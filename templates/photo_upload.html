@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RecirQ — Take Photo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; min-height: 100vh; }
+  .header { background: #1a3a2a; color: white; padding: 16px 20px; text-align: center; }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header .sub { font-size: 12px; color: rgba(255,255,255,.7); margin-top: 4px; }
+  .info-card { background: white; margin: 12px; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .info-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .info-label { font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .info-value { font-size: 15px; font-weight: 700; color: #1a3a2a; font-family: monospace; }
+  .photo-section { margin: 12px; }
+  .photo-section h3 { font-size: 14px; color: #333; margin-bottom: 8px; }
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .photo-thumb { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: #e0e0e0; }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-thumb .remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .capture-btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 8px; }
+  .capture-btn.primary { background: #1a3a2a; color: white; }
+  .capture-btn.secondary { background: #e8f5e9; color: #1a3a2a; border: 2px solid #1a3a2a; }
+  .capture-btn.done { background: #2e7d32; color: white; }
+  .capture-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .status-msg { text-align: center; padding: 12px; font-size: 13px; color: #666; }
+  .status-msg.error { color: #c62828; background: #ffebee; border-radius: 8px; margin: 8px 12px; }
+  .status-msg.success { color: #2e7d32; background: #e8f5e9; border-radius: 8px; margin: 8px 12px; }
+  .upload-progress { height: 4px; background: #e0e0e0; border-radius: 2px; margin: 8px 0; overflow: hidden; }
+  .upload-progress .bar { height: 100%; background: #1a3a2a; transition: width 0.3s; }
+  .photo-count { text-align: center; font-size: 24px; font-weight: 700; color: #1a3a2a; margin: 8px 0; }
+  .expired { text-align: center; padding: 60px 20px; }
+  .expired h2 { color: #c62828; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>RecirQ Packing Photo</h1>
+  <div class="sub">Take photos for quality verification</div>
+</div>
+
+<div id="app-content">
+  <div class="status-msg">Loading...</div>
+</div>
+
+<script>
+const TOKEN = '{{ token }}';
+const API_BASE = window.location.origin;
+let sessionData = null;
+let photos = [];
+let uploading = false;
+
+async function init() {
+  try {
+    // Decode token: base64 encoded JSON with imei, vendor, type, expires
+    const decoded = JSON.parse(atob(TOKEN));
+    if (decoded.expires && Date.now() > decoded.expires) {
+      document.getElementById('app-content').innerHTML = '<div class="expired"><h2>Link Expired</h2><p>This photo upload link has expired. Generate a new QR code from the packing screen.</p></div>';
+      return;
+    }
+    sessionData = decoded;
+    renderUI();
+  } catch (e) {
+    document.getElementById('app-content').innerHTML = '<div class="status-msg error">Invalid link. Please scan the QR code again.</div>';
+  }
+}
+
+function renderUI() {
+  const d = sessionData;
+  const isBox = d.type === 'box';
+  const label = isBox ? `Box #${d.boxNum || ''}` : `IMEI: ${d.imei}`;
+  const maxPhotos = isBox ? 2 : 3;
+
+  let photosHTML = '';
+  if (photos.length > 0) {
+    photosHTML = '<div class="photo-grid">';
+    photos.forEach((p, i) => {
+      photosHTML += `<div class="photo-thumb">
+        <img src="${p.localUrl}" alt="Photo ${i+1}">
+        <button class="remove" onclick="removePhoto(${i})">&times;</button>
+      </div>`;
+    });
+    photosHTML += '</div>';
+  }
+
+  document.getElementById('app-content').innerHTML = `
+    <div class="info-card">
+      <div class="info-row">
+        <span class="info-label">${isBox ? 'Box' : 'IMEI'}</span>
+        <span class="info-value">${isBox ? 'Box #' + (d.boxNum || '') : d.imei}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Vendor</span>
+        <span class="info-value">${d.vendor}</span>
+      </div>
+      ${d.rma ? '<div class="info-row"><span class="info-label">RMA#</span><span class="info-value">' + d.rma + '</span></div>' : ''}
+    </div>
+
+    <div class="photo-section">
+      <h3>Photos (${photos.length}/${maxPhotos})</h3>
+      ${photosHTML}
+      <div class="photo-count">${photos.length} / ${maxPhotos}</div>
+      ${photos.length < maxPhotos ? `
+        <button class="capture-btn primary" onclick="takePhoto()" ${uploading ? 'disabled' : ''}>
+          ${photos.length === 0 ? 'Take Photo' : 'Take Another Photo'}
+        </button>
+      ` : ''}
+      <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="handleCapture(this)">
+      ${photos.length > 0 ? `
+        <div id="upload-status"></div>
+        <button class="capture-btn done" onclick="uploadAll()" ${uploading ? 'disabled' : ''}>
+          Upload ${photos.length} Photo${photos.length > 1 ? 's' : ''}
+        </button>
+      ` : ''}
+    </div>
+  `;
+}
+
+function takePhoto() {
+  document.getElementById('camera-input').click();
+}
+
+function handleCapture(input) {
+  if (!input.files.length) return;
+  const file = input.files[0];
+
+  // Compress the image before storing
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const maxDim = 1200;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(function(blob) {
+        photos.push({
+          blob: blob,
+          localUrl: URL.createObjectURL(blob),
+          uploaded: false,
+        });
+        renderUI();
+      }, 'image/jpeg', 0.75);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function removePhoto(idx) {
+  URL.revokeObjectURL(photos[idx].localUrl);
+  photos.splice(idx, 1);
+  renderUI();
+}
+
+async function uploadAll() {
+  if (uploading || photos.length === 0) return;
+  uploading = true;
+  renderUI();
+
+  const statusEl = document.getElementById('upload-status');
+  const results = [];
+
+  for (let i = 0; i < photos.length; i++) {
+    if (photos[i].uploaded) continue;
+    statusEl.innerHTML = `<div class="upload-progress"><div class="bar" style="width:${Math.round((i / photos.length) * 100)}%"></div></div><div class="status-msg">Uploading photo ${i + 1} of ${photos.length}...</div>`;
+
+    try {
+      // Get presigned URL
+      const presignResp = await fetch(API_BASE + '/api/photos/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imei: sessionData.imei || 'box-' + (sessionData.boxNum || '0'),
+          type: sessionData.type,
+          vendor: sessionData.vendor,
+          ext: 'jpg',
+        }),
+      });
+      const presignData = await presignResp.json();
+
+      // Upload directly to S3
+      const uploadResp = await fetch(presignData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpg' },
+        body: photos[i].blob,
+      });
+
+      if (uploadResp.ok) {
+        photos[i].uploaded = true;
+        photos[i].viewUrl = presignData.viewUrl;
+        photos[i].key = presignData.key;
+        results.push({ viewUrl: presignData.viewUrl, key: presignData.key, photoId: presignData.photoId });
+      } else {
+        throw new Error('Upload failed: ' + uploadResp.status);
+      }
+    } catch (e) {
+      statusEl.innerHTML = `<div class="status-msg error">Failed to upload photo ${i + 1}: ${e.message}</div>`;
+      uploading = false;
+      renderUI();
+      return;
+    }
+  }
+
+  // Save photo references to server
+  try {
+    const photoKey = sessionData.type === 'box'
+      ? 'box-' + (sessionData.rma || sessionData.boxNum || '0')
+      : sessionData.imei;
+    await fetch(API_BASE + '/api/photos/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: photoKey,
+        photos: results,
+      }),
+    });
+  } catch (e) {
+    console.warn('Failed to save photo refs:', e);
+  }
+
+  uploading = false;
+  document.getElementById('app-content').innerHTML = `
+    <div class="info-card" style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">&#10004;</div>
+      <h2 style="color:#2e7d32;margin-bottom:8px;">Photos Uploaded!</h2>
+      <p style="font-size:14px;color:#666;">${results.length} photo${results.length > 1 ? 's' : ''} saved for ${sessionData.type === 'box' ? 'Box #' + (sessionData.boxNum || '') : 'IMEI ' + sessionData.imei}</p>
+      <p style="font-size:12px;color:#999;margin-top:12px;">You can close this page now.</p>
+    </div>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>

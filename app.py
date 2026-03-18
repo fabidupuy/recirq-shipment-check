@@ -7,6 +7,25 @@ import database as db
 import os
 import json
 import hashlib
+import uuid
+
+# S3 setup (optional — only if AWS credentials are configured)
+s3_client = None
+S3_BUCKET = os.environ.get('AWS_S3_BUCKET', 'recirq-packing-photos')
+S3_REGION = os.environ.get('AWS_S3_REGION', 'us-east-2')
+try:
+    import boto3
+    if os.environ.get('AWS_ACCESS_KEY_ID'):
+        s3_client = boto3.client('s3',
+            region_name=S3_REGION,
+            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        )
+        print(f"  S3 configured: bucket={S3_BUCKET}, region={S3_REGION}")
+    else:
+        print("  S3 not configured (no AWS_ACCESS_KEY_ID)")
+except ImportError:
+    print("  S3 not available (boto3 not installed)")
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
@@ -280,6 +299,87 @@ def save_pp_state(key):
     value_json = json.dumps(data.get('value', {}))
     db.save_pp_state(key, value_json)
     return jsonify({'status': 'saved', 'key': key})
+
+
+# ════════════════════════════════════
+# PHOTO UPLOAD API (S3)
+# ════════════════════════════════════
+
+@app.route('/api/photos/presign', methods=['POST'])
+def get_presigned_upload_url():
+    """Generate a presigned S3 URL for direct upload from the phone."""
+    if not s3_client:
+        return jsonify({'error': 'S3 not configured'}), 500
+    data = request.get_json()
+    imei = data.get('imei', 'unknown')
+    photo_type = data.get('type', 'unit')  # 'unit' or 'box'
+    vendor = data.get('vendor', '')
+    file_ext = data.get('ext', 'jpg')
+    photo_id = str(uuid.uuid4())[:8]
+
+    # Organize by date/vendor/type
+    from datetime import date
+    today = date.today().isoformat()
+    key = f"{today}/{vendor}/{photo_type}/{imei}_{photo_id}.{file_ext}"
+
+    try:
+        url = s3_client.generate_presigned_url('put_object',
+            Params={
+                'Bucket': S3_BUCKET,
+                'Key': key,
+                'ContentType': f'image/{file_ext}',
+            },
+            ExpiresIn=600,  # 10 minutes
+        )
+        # Also generate a GET URL for viewing
+        view_url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{key}"
+        return jsonify({'uploadUrl': url, 'viewUrl': view_url, 'key': key, 'photoId': photo_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/photos/save', methods=['POST'])
+def save_photo_refs():
+    """Save photo references for a specific IMEI/box. Merges into existing ppPhotos state."""
+    data = request.get_json()
+    key = data.get('key', '')  # e.g., 'box-326134905' or '355606780524844'
+    photos = data.get('photos', [])
+    if not key or not photos:
+        return jsonify({'error': 'key and photos required'}), 400
+
+    # Merge into ppPhotos state
+    state_json = db.get_pp_state('ppPhotos')
+    all_photos = json.loads(state_json) if state_json else {}
+    if key not in all_photos:
+        all_photos[key] = []
+    all_photos[key].extend(photos)
+    db.save_pp_state('ppPhotos', json.dumps(all_photos))
+    return jsonify({'status': 'saved', 'count': len(all_photos[key])})
+
+
+@app.route('/api/photos/list/<key>', methods=['GET'])
+def list_photos(key):
+    """List all photos for an IMEI or box key."""
+    state = db.get_pp_state('ppPhotos')
+    if state:
+        photos = json.loads(state)
+        return jsonify(photos.get(key, []))
+    return jsonify([])
+
+
+@app.route('/api/photos/all', methods=['GET'])
+def all_photos():
+    """Get all photo references."""
+    state = db.get_pp_state('ppPhotos')
+    if state:
+        return jsonify(json.loads(state))
+    return jsonify({})
+
+
+@app.route('/photo/<token>', methods=['GET'])
+def photo_upload_page(token):
+    """Serve the phone camera upload page."""
+    return render_template('photo_upload.html', token=token)
 
 
 # ════════════════════════════════════

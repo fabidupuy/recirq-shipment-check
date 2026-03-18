@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root {
     --dark-green: #1B4D3E;
@@ -346,6 +347,18 @@
 
 <!-- ═══ MAIN CONTENT WRAPPER ═══ -->
 <div class="app-main">
+
+<!-- ═══ PHOTO QR MODAL ═══ -->
+<div class="modal-overlay" id="photo-qr-modal">
+  <div class="modal" style="max-width:360px;text-align:center;">
+    <h3 style="margin-bottom:4px;">Take Pictures</h3>
+    <p style="font-size:12px;color:#888;margin-bottom:12px;" id="photo-qr-info"></p>
+    <div id="photo-qr-code" style="display:inline-block;margin:12px auto;"></div>
+    <p style="font-size:12px;color:#666;margin:12px 0;">Scan this QR code with your phone to open the camera and take photos.</p>
+    <p style="font-size:11px;color:#999;margin-bottom:16px;">Link expires in 10 minutes.</p>
+    <button class="btn btn-outline btn-sm" onclick="closePhotoQR()">Close</button>
+  </div>
+</div>
 
 <!-- ═══ LOGIN SCREEN ═══ -->
 <div id="login-screen" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:white;display:flex;align-items:center;justify-content:center;">
@@ -4340,6 +4353,8 @@ function refreshHistory() {
       <td>${new Date(b.createdAt).toLocaleString()}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadAllReports('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Download all reports as CSV">&#11015; CSV</button>
+        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();document.getElementById('shipment-photo-input-${b.id}').click()" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Upload shipment photos">&#128247; Photos${b.shipmentPhotos && b.shipmentPhotos.length > 0 ? ' (' + b.shipmentPhotos.length + ')' : ''}</button>
+        <input type="file" id="shipment-photo-input-${b.id}" accept="image/*" multiple style="display:none" onchange="uploadShipmentPhotos('${b.id}',this)">
         <button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button>
       </td>
     </tr>`;
@@ -4348,6 +4363,91 @@ function refreshHistory() {
     <tr><th>Ship Date</th><th>Vendor</th><th>Tracking #s</th><th>Units</th><th>Status</th><th>Created</th><th></th></tr>
     ${rows}
   </table></div>`;
+}
+
+// ═══════════ SHIPMENT PHOTO UPLOAD ═══════════
+async function uploadShipmentPhotos(batchId, input) {
+  if (!input.files.length) return;
+  const batch = findBatch(batchId);
+  if (!batch) { alert('Batch not found.'); return; }
+  if (!batch.shipmentPhotos) batch.shipmentPhotos = [];
+
+  const files = Array.from(input.files);
+  const statusMsg = `Uploading ${files.length} photo(s)...`;
+  // Show a quick alert so user knows it's working
+  const btn = input.previousElementSibling;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '&#8987; Uploading...';
+  btn.disabled = true;
+
+  for (const file of files) {
+    try {
+      // Compress
+      const compressed = await compressImage(file, 1200, 0.75);
+
+      // Get presigned URL
+      const presignResp = await fetch(`${API}/photos/presign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imei: 'shipment-' + batchId,
+          type: 'shipment',
+          vendor: batch.vendor,
+          ext: 'jpg',
+        }),
+      });
+      const presignData = await presignResp.json();
+      if (presignData.error) { console.error(presignData.error); continue; }
+
+      // Upload to S3
+      const uploadResp = await fetch(presignData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpg' },
+        body: compressed,
+      });
+
+      if (uploadResp.ok) {
+        batch.shipmentPhotos.push({
+          viewUrl: presignData.viewUrl,
+          key: presignData.key,
+          uploadedAt: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.error('Shipment photo upload failed:', e);
+    }
+  }
+
+  // Save batch with photo references
+  saveBatchToServer(batch);
+  input.value = '';
+  btn.disabled = false;
+  btn.innerHTML = origText;
+  alert(`${batch.shipmentPhotos.length} shipment photo(s) saved.`);
+  refreshHistory();
+}
+
+function compressImage(file, maxDim, quality) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else { w = Math.round(w * maxDim / h); h = maxDim; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(resolve, 'image/jpeg', quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 // ═══════════ DOWNLOAD ALL REPORTS ═══════════
@@ -5144,8 +5244,9 @@ function renderPPPackingSection() {
       // Complete RMA button
       const completeBtn = allPacked ? `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();ppCompleteRMA('${ppActivePackingVendor}','${rma}')">Complete RMA</button>` : '';
 
-      // Print Label button
+      // Print Label + Box Photo buttons
       const printBtn = `<button class="btn btn-sm btn-outline" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();ppPrintVZLabel('${rma}')">Print Label</button>`;
+      const boxPhotoBtn = `<button class="btn btn-sm btn-outline" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();ppOpenPhotoQR('box-${rma}','${ppActivePackingVendor}','box','${rma}')">Box Photo</button>`;
 
       html += `
       <div class="pp-rma-group" style="${urgencyClass}">
@@ -5162,6 +5263,7 @@ function renderPPPackingSection() {
           <div style="display:flex;align-items:center;gap:8px;">
             ${completeBtn}
             ${printBtn}
+            ${boxPhotoBtn}
             <button class="btn btn-sm btn-outline" style="font-size:11px;padding:3px 8px;" onclick="event.stopPropagation();ppCopyIMEIs('${rma}','${ppActivePackingVendor}')" title="Copy all IMEIs">Copy IMEIs</button>
             <div class="pp-progress-bar" style="width:100px;"><div class="pp-progress-fill" style="width:${grpPct}%;"></div></div>
             <span class="activity-log-toggle ${ppExpandedRMAs.has(rma) ? 'expanded' : ''}">&#9654;</span>
@@ -5211,6 +5313,25 @@ function renderPPPackingSection() {
       return aTime - bTime;
     });
 
+    // Show closed boxes with Reprint option
+    const closedBoxes = job.boxes.filter(b => b.closedAt);
+    if (closedBoxes.length > 0) {
+      let closedHTML = '<div style="margin-bottom:12px;">';
+      closedHTML += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Closed Boxes</div>';
+      closedBoxes.forEach(b => {
+        closedHTML += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;margin-bottom:4px;">
+          <div>
+            <span style="font-size:12px;font-weight:600;">Box #${b.boxNum}</span>
+            <span style="font-size:11px;color:#888;margin-left:8px;">${b.imeis.length} units</span>
+            ${b.lockedDate ? '<span style="font-size:11px;color:#888;margin-left:8px;">' + b.lockedDate + '</span>' : ''}
+          </div>
+          <button class="btn btn-sm btn-outline" onclick="ppReprintBoxLabel('${ppActivePackingVendor}',${b.boxNum})" style="font-size:10px;padding:2px 8px;">Reprint Label</button>
+        </div>`;
+      });
+      closedHTML += '</div>';
+      html += closedHTML;
+    }
+
     // Show current box info
     const currentBox = job.boxes[job.currentBoxIdx];
     const currentBoxInfo = `
@@ -5221,7 +5342,10 @@ function renderPPPackingSection() {
             <span style="font-size:12px;color:#666;margin-left:12px;">${currentBox.imeis.length} units scanned</span>
             ${currentBox.lockedDate ? '<span style="font-size:11px;color:var(--info-blue);margin-left:12px;font-weight:600;">Locked to: ' + currentBox.lockedDate + '</span>' : ''}
           </div>
-          <button class="btn btn-sm btn-outline" onclick="ppCloseBox('${ppActivePackingVendor}')" style="font-size:11px;padding:4px 10px;">Close Box & Print Label</button>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-sm btn-outline" onclick="ppOpenBoxPhotoQR('${ppActivePackingVendor}',${currentBox.boxNum})" style="font-size:11px;padding:4px 10px;">Box Photo</button>
+            <button class="btn btn-sm btn-outline" onclick="ppCloseBox('${ppActivePackingVendor}')" style="font-size:11px;padding:4px 10px;">Close Box & Print Label</button>
+          </div>
         </div>
       </div>
     `;
@@ -5477,7 +5601,15 @@ function ppDownloadDailySummary() {
 }
 
 // ── COMPLETE RMA (moves from packing to history) ──
-function ppCompleteRMA(vendor, rma) {
+async function ppCheckPhotosExist(photoKey) {
+  try {
+    const resp = await fetch(`${API}/photos/list/${encodeURIComponent(photoKey)}`);
+    const photos = await resp.json();
+    return photos && photos.length > 0;
+  } catch (e) { return false; }
+}
+
+async function ppCompleteRMA(vendor, rma) {
   const job = ppJobs[vendor];
   if (!job) { alert('No packing job found for ' + vendor); return; }
   const grp = job.units.filter(u => u.rmaNumber === rma);
@@ -5488,6 +5620,14 @@ function ppCompleteRMA(vendor, rma) {
   const allActivePacked = activeUnits.every(u => u.packed);
 
   if (!allActivePacked) { alert('Not all non-fallout units in this RMA are packed yet.'); return; }
+
+  // Check box photos exist
+  const photoKey = 'box-' + rma;
+  const hasPhotos = await ppCheckPhotosExist(photoKey);
+  if (!hasPhotos) {
+    alert('Box photos are required before completing this RMA.\n\nPlease use the "Box Photo" button to take photos of the packed box first.');
+    return;
+  }
 
   let confirmMsg = `Complete RMA# ${rma}?\n\n`;
   confirmMsg += `${activeUnits.length} unit(s) packed and ready to ship.`;
@@ -5524,7 +5664,7 @@ function ppCompleteRMA(vendor, rma) {
 }
 
 // ── COMPLETE DATE GROUP (for non-VZ vendors) ──
-function ppCompleteDateGroup(vendor, subDate) {
+async function ppCompleteDateGroup(vendor, subDate) {
   const job = ppJobs[vendor];
   if (!job) return;
 
@@ -5534,6 +5674,28 @@ function ppCompleteDateGroup(vendor, subDate) {
   const allActivePacked = activeUnits.every(u => u.packed);
 
   if (!allActivePacked) { alert('Not all non-fallout units in this date group are packed yet.'); return; }
+
+  // Check that all packed IMEIs have photos
+  const missingPhotos = [];
+  for (const u of activeUnits.filter(u => u.packed)) {
+    const hasPhotos = await ppCheckPhotosExist(u.imei);
+    if (!hasPhotos) missingPhotos.push(u.imei);
+  }
+  if (missingPhotos.length > 0) {
+    alert(`${missingPhotos.length} IMEI(s) are missing photos:\n\n${missingPhotos.slice(0, 5).join('\n')}${missingPhotos.length > 5 ? '\n... and ' + (missingPhotos.length - 5) + ' more' : ''}\n\nAll units must have photos before completing the group.`);
+    return;
+  }
+
+  // Check that all closed boxes with units from this date have photos
+  const closedBoxes = job.boxes.filter(b => b.closedAt && b.lockedDate === subDate);
+  for (const box of closedBoxes) {
+    const photoKey = 'box-' + box.boxNum;
+    const hasPhotos = await ppCheckPhotosExist(photoKey);
+    if (!hasPhotos) {
+      alert(`Box #${box.boxNum} is missing photos. All boxes must have photos before completing the group.`);
+      return;
+    }
+  }
 
   // Collect RMA#s in this group
   const rmas = [...new Set(activeUnits.map(u => u.rmaNumber).filter(r => r && r !== 'UNMATCHED'))];
@@ -5597,58 +5759,80 @@ function ppCompleteDateGroup(vendor, subDate) {
 function ppPrintBoxLabel(vendor, data) {
   const isVZ = vendor === 'VERIZON';
   const isBrightpoint = vendor === 'BRIGHTPOINT';
-
-  // Build rows based on vendor
+  const tracking = data.tracking || '—';
   const unitCount = data.unitCount || 0;
-  let rows = [];
+  const packedDate = data.packedDate || new Date().toLocaleDateString();
+
+  // Build bottom info items based on vendor
+  let infoItems = [];
   if (isVZ) {
-    rows.push({ label: 'TRACKING #', value: data.tracking || '—', barcode: true });
-    rows.push({ label: 'RMA #', value: data.rma || '—', barcode: true });
-    rows.push({ label: 'DELIVERY #', value: data.deliveryNumber || '—', barcode: false });
-    rows.push({ label: 'UNITS', value: String(unitCount), barcode: false });
+    infoItems = [
+      { label: 'RMA #', value: data.rma || '—' },
+      { label: 'DELIVERY #', value: data.deliveryNumber || '—' },
+      { label: 'UNITS', value: String(unitCount) },
+    ];
   } else if (isBrightpoint) {
-    rows.push({ label: 'TRACKING #', value: data.tracking || '—', barcode: true });
-    rows.push({ label: 'PACKED DATE', value: data.packedDate || new Date().toLocaleDateString(), barcode: false });
-    rows.push({ label: 'UNITS', value: String(unitCount), barcode: false });
+    infoItems = [
+      { label: 'PACKED DATE', value: packedDate },
+      { label: 'UNITS', value: String(unitCount) },
+      { label: 'VENDOR', value: vendor },
+    ];
   } else {
-    rows.push({ label: 'TRACKING #', value: data.tracking || '—', barcode: true });
-    rows.push({ label: 'RMA #', value: data.rmas || '—', barcode: (data.rmas || '').length <= 30 });
-    rows.push({ label: 'PACKED DATE', value: data.packedDate || new Date().toLocaleDateString(), barcode: false });
-    rows.push({ label: 'UNITS', value: String(unitCount), barcode: false });
+    infoItems = [
+      { label: 'PACKED DATE', value: packedDate },
+      { label: 'UNITS', value: String(unitCount) },
+      { label: 'RMA #', value: data.rmas || '—' },
+    ];
   }
 
-  const win = window.open('', '_blank', 'width=420,height=630');
+  // Build label HTML — Layout C landscape (6x4) with 2 copies
+  const win = window.open('', '_blank', 'width=650,height=500');
   const doc = win.document;
   doc.open();
   doc.write('<!DOCTYPE html><html><head><meta charset="UTF-8">');
   doc.write('<style>');
-  doc.write('@page{size:4in 6in;margin:0}@media print{html,body{margin:0;padding:0;width:4in;height:6in}}');
+  doc.write('@page{size:6in 4in;margin:0}');
+  doc.write('@media print{html,body{margin:0;padding:0}.no-print{display:none!important}}');
   doc.write('*{box-sizing:border-box;margin:0;padding:0}');
-  doc.write('body{font-family:"Helvetica Neue",Arial,sans-serif;width:4in;height:6in;display:flex;align-items:center;justify-content:center;background:#fff}');
-  doc.write('.lbl-wrap{width:3.6in;padding:0.15in 0}');
-  doc.write('.lbl-section{padding:10px 0;border-bottom:2px solid #e0e0e0}.lbl-section:last-child{border-bottom:none}');
-  doc.write('.lbl-key{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:4px}');
-  doc.write('.lbl-val{font-size:22px;font-weight:800;color:#111;line-height:1.2;word-break:break-all}');
-  doc.write('canvas.barcode{display:block;margin-top:6px;height:40px}');
-  doc.write('.lbl-footer{margin-top:8px;padding-top:8px;border-top:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center}');
-  doc.write('.lbl-footer span{font-size:8px;color:#aaa;letter-spacing:0.5px}');
-  doc.write('</style></head><body><div class="lbl-wrap">');
+  doc.write('body{font-family:Arial,Helvetica,sans-serif;background:#fff}');
+  doc.write('.label-page{width:6in;height:4in;padding:0.25in 0.4in;display:flex;flex-direction:column;justify-content:center;page-break-after:always}');
+  doc.write('.label-page:last-child{page-break-after:auto}');
+  doc.write('.trk-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#555;text-align:center;margin-bottom:2px}');
+  doc.write('.trk-value{font-size:42px;font-weight:900;color:#000;text-align:center;margin-bottom:4px}');
+  doc.write('canvas.barcode{display:block;margin:4px auto 12px;height:30px}');
+  doc.write('.divider{height:1px;background:#ddd;margin:8px 0}');
+  doc.write('.info-row{display:flex;justify-content:space-between;align-items:center;padding:0 8px}');
+  doc.write('.info-item{text-align:center}');
+  doc.write('.info-label{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:2px}');
+  doc.write('.info-value{font-size:22px;font-weight:800;color:#000}');
+  doc.write('.footer{display:flex;justify-content:space-between;margin-top:8px}');
+  doc.write('.footer span{font-size:7px;color:#aaa;letter-spacing:0.5px}');
+  doc.write('</style></head><body>');
 
-  rows.forEach(r => {
-    doc.write('<div class="lbl-section">');
-    doc.write('<div class="lbl-key">' + r.label + '</div>');
-    doc.write('<div class="lbl-val">' + r.value + '</div>');
-    if (r.barcode && r.value && r.value !== '—') {
-      doc.write('<canvas class="barcode" data-value="' + r.value.replace(/"/g, '&quot;') + '"></canvas>');
+  // Print 2 copies (2 label pages)
+  for (let copy = 0; copy < 2; copy++) {
+    doc.write('<div class="label-page">');
+    doc.write('<div>');
+    doc.write('<div class="trk-label">TRACKING #</div>');
+    doc.write('<div class="trk-value">' + tracking + '</div>');
+    if (tracking && tracking !== '—') {
+      doc.write('<canvas class="barcode" data-value="' + tracking.replace(/"/g, '&quot;') + '"></canvas>');
     }
     doc.write('</div>');
-  });
+    doc.write('<div class="divider"></div>');
+    doc.write('<div class="info-row">');
+    infoItems.forEach(item => {
+      doc.write('<div class="info-item"><div class="info-label">' + item.label + '</div><div class="info-value">' + item.value + '</div></div>');
+    });
+    doc.write('</div>');
+    doc.write('<div class="footer"><span>' + vendor + '</span><span>' + packedDate + '</span></div>');
+    doc.write('</div>');
+  }
 
-  doc.write('<div class="lbl-footer"><span>' + vendor + '</span><span>' + new Date().toLocaleDateString() + '</span></div>');
-  doc.write('</div></body></html>');
+  doc.write('</body></html>');
   doc.close();
 
-  // Inject barcode script after document is closed
+  // Inject barcode script
   const scr = win.document.createElement('script');
   scr.textContent = ppGetBarcodeScript();
   win.document.head.appendChild(scr);
@@ -5669,8 +5853,31 @@ function ppPrintVZLabel(rma) {
   ppPrintBoxLabel(vendor, { tracking: job.tracking, rma: rma, deliveryNumber: deliveryNumber, unitCount: packedCount });
 }
 
+function ppReprintBoxLabel(vendor, boxNum) {
+  const job = ppJobs[vendor];
+  if (!job) return;
+  const box = job.boxes.find(b => b.boxNum === boxNum);
+  if (!box) { alert('Box not found.'); return; }
+  if (box.labelData) {
+    ppPrintBoxLabel(vendor, box.labelData);
+  } else {
+    // Fallback: reconstruct label data
+    const rmasInBox = new Set();
+    box.imeis.forEach(imei => {
+      const u = job.units.find(unit => unit.imei === imei);
+      if (u && u.rmaNumber && u.rmaNumber !== 'UNMATCHED') rmasInBox.add(u.rmaNumber);
+    });
+    ppPrintBoxLabel(vendor, {
+      tracking: job.tracking,
+      packedDate: box.closedAt ? new Date(box.closedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+      rmas: Array.from(rmasInBox).join(', ') || 'N/A',
+      unitCount: box.imeis.length,
+    });
+  }
+}
+
 // ── CLOSE BOX (for non-VZ) ──
-function ppCloseBox(vendor) {
+async function ppCloseBox(vendor) {
   const job = ppJobs[vendor];
   if (!job) return;
 
@@ -5680,6 +5887,14 @@ function ppCloseBox(vendor) {
   const currentBox = job.boxes[job.currentBoxIdx];
   if (!currentBox || currentBox.imeis.length === 0) {
     alert('No items in current box to close.');
+    return;
+  }
+
+  // Check box photos exist
+  const photoKey = 'box-' + currentBox.boxNum;
+  const hasPhotos = await ppCheckPhotosExist(photoKey);
+  if (!hasPhotos) {
+    alert('Box photos are required before closing the box.\n\nPlease use the "Box Photo" button to take photos of the packed box first.');
     return;
   }
 
@@ -5698,14 +5913,14 @@ function ppCloseBox(vendor) {
   });
   const rmaList = Array.from(rmasInBox).join(', ');
 
-  // Print label
-  const isBrightpoint = vendor === 'BRIGHTPOINT';
+  // Build and store label data for reprinting
   const labelData = {
     tracking: job.tracking,
     packedDate: new Date().toLocaleDateString(),
     rmas: rmaList || 'N/A',
     unitCount: currentBox.imeis.length
   };
+  currentBox.labelData = labelData;
   ppPrintBoxLabel(vendor, labelData);
 
   // Create new box
@@ -5738,15 +5953,35 @@ function ppChangeTracking(vendor) {
 }
 
 // ── SCAN ──
-function ppScanIMEI() {
+async function ppScanIMEI() {
   const input = document.getElementById('pp-scan-input');
   const imei = normalizeIMEI(input.value);
   if (!imei) return;
-  input.value = '';
 
   const vendor = ppActivePackingVendor;
   const job = ppJobs[vendor];
   if (!job) return;
+
+  // For non-VZ: check if previous scanned IMEI has photos before allowing next scan
+  const isVZ = vendor === 'VERIZON';
+  if (!isVZ && ppLastScanned && ppLastScanned.vendor === vendor) {
+    const prevUnit = job.units[ppLastScanned.unitIdx];
+    if (prevUnit && prevUnit.packed && prevUnit.imei !== imei) {
+      const hasPhotos = await ppCheckPhotosExist(prevUnit.imei);
+      if (!hasPhotos) {
+        ppLastFeedback = `
+          <div style="background:var(--critical-bg);border:2px solid var(--alert-red);border-radius:10px;padding:14px 18px;margin:0;">
+            <div style="font-size:11px;color:var(--alert-red);font-weight:600;text-transform:uppercase;">Photos Required</div>
+            <div style="font-size:14px;margin-top:4px;">IMEI <span style="font-family:monospace;font-weight:700;">${prevUnit.imei}</span> needs photos before you can scan the next unit.</div>
+            <div style="font-size:12px;color:#888;margin-top:8px;">Use the "Take Pictures" button to upload photos first.</div>
+          </div>`;
+        renderPPPackingSection();
+        return;
+      }
+    }
+  }
+
+  input.value = '';
 
   const unitIdx = job.units.findIndex(u => u.imei === imei);
   if (unitIdx < 0) {
@@ -5774,7 +6009,6 @@ function ppScanIMEI() {
   }
 
   // For non-VZ vendors, enforce same submission date per box
-  const isVZ = vendor === 'VERIZON';
   if (!isVZ) {
     const currentBox = job.boxes[job.currentBoxIdx];
     const unitDate = unit.rmaSubmissionDate || 'Unknown';
@@ -5852,6 +6086,42 @@ function ppScanIMEI() {
 }
 
 // ── FEEDBACK WITH INLINE QC ──
+// ── PHOTO QR CODE ──
+function ppOpenPhotoQR(imei, vendor, type, rma) {
+  const token = btoa(JSON.stringify({
+    imei: imei,
+    vendor: vendor,
+    type: type, // 'unit' or 'box'
+    rma: rma || '',
+    expires: Date.now() + 10 * 60 * 1000, // 10 min
+  }));
+  const url = window.location.origin + '/photo/' + encodeURIComponent(token);
+
+  document.getElementById('photo-qr-info').textContent = type === 'box'
+    ? 'Box photo for ' + vendor
+    : 'IMEI: ' + imei + (rma ? ' | RMA: ' + rma : '');
+
+  const qrContainer = document.getElementById('photo-qr-code');
+  qrContainer.innerHTML = '';
+  new QRCode(qrContainer, {
+    text: url,
+    width: 200,
+    height: 200,
+    colorDark: '#1a3a2a',
+    colorLight: '#ffffff',
+  });
+  document.getElementById('photo-qr-modal').classList.add('show');
+}
+
+function closePhotoQR() {
+  document.getElementById('photo-qr-modal').classList.remove('show');
+  document.getElementById('photo-qr-code').innerHTML = '';
+}
+
+function ppOpenBoxPhotoQR(vendor, boxNum) {
+  ppOpenPhotoQR('box-' + boxNum, vendor, 'box', '');
+}
+
 function ppBuildFeedbackHTML() {
   // If there's no last scanned info or it's an error/non-success feedback, use static
   if (!ppLastScanned || !ppLastFeedback) return ppLastFeedback;
@@ -5864,15 +6134,26 @@ function ppBuildFeedbackHTML() {
   if (!u.packed) return ppLastFeedback; // Only show QC for packed units
 
   // Build inline QC chips
+  const photoCount = (u.photos && u.photos.length) || 0;
   const qcHTML = `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.1);">
-      <div style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">QC Checks</div>
-      <div style="display:flex;gap:20px;flex-wrap:wrap;">
-        ${ppQCChip(unitIdx, vendor, 'box', u.qc.box, 'Box')}
-        ${ppQCChip(unitIdx, vendor, 'cable', u.qc.cable, 'Cable')}
-        ${ppQCChip(unitIdx, vendor, 'wallCharger', u.qc.wallCharger, 'Charger')}
-        ${ppQCChip(unitIdx, vendor, 'cosmetic', u.qc.cosmetic, 'Cosmetic')}
-        ${ppQCChip(unitIdx, vendor, 'datawipe', u.qc.datawipe, 'Datawipe')}
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">QC Checks</div>
+          <div style="display:flex;gap:20px;flex-wrap:wrap;">
+            ${ppQCChip(unitIdx, vendor, 'box', u.qc.box, 'Box')}
+            ${ppQCChip(unitIdx, vendor, 'cable', u.qc.cable, 'Cable')}
+            ${ppQCChip(unitIdx, vendor, 'wallCharger', u.qc.wallCharger, 'Charger')}
+            ${ppQCChip(unitIdx, vendor, 'cosmetic', u.qc.cosmetic, 'Cosmetic')}
+            ${ppQCChip(unitIdx, vendor, 'datawipe', u.qc.datawipe, 'Datawipe')}
+          </div>
+        </div>
+        ${vendor !== 'VERIZON' ? `<div style="text-align:center;">
+          <button onclick="event.stopPropagation();ppOpenPhotoQR('${u.imei}','${vendor}','unit','${u.rmaNumber || ''}')" style="cursor:pointer;background:#f0f7f0;border:2px solid #1a3a2a;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:700;color:#1a3a2a;">
+            Take Pictures
+          </button>
+          ${photoCount > 0 ? '<div style="font-size:11px;color:var(--success-green);margin-top:4px;">' + photoCount + ' photo(s)</div>' : ''}
+        </div>` : ''}
       </div>
     </div>`;
 
