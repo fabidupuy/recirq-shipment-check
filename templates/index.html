@@ -5521,107 +5521,46 @@ function ppPrintBoxLabel(vendor, data) {
     rows.push({ label: 'UNITS', value: String(unitCount), barcode: false });
   }
 
-  const rowsHTML = rows.map(r => `
-    <div class="lbl-section">
-      <div class="lbl-key">${r.label}</div>
-      <div class="lbl-val">${r.value}</div>
-      ${r.barcode && r.value && r.value !== '—' ? '<canvas class="barcode" data-value="' + r.value.replace(/"/g, '&quot;') + '"></canvas>' : ''}
-    </div>
-  `).join('');
-
-  const labelHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>
-  @page { size: 4in 6in; margin: 0; }
-  @media print { html, body { margin: 0; padding: 0; width: 4in; height: 6in; } }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; width: 4in; height: 6in; display: flex; align-items: center; justify-content: center; background: #fff; }
-  .lbl-wrap { width: 3.6in; padding: 0.15in 0; }
-  .lbl-section { padding: 10px 0; border-bottom: 2px solid #e0e0e0; }
-  .lbl-section:last-child { border-bottom: none; }
-  .lbl-key { font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
-  .lbl-val { font-size: 22px; font-weight: 800; color: #111; line-height: 1.2; word-break: break-all; }
-  canvas.barcode { display: block; margin-top: 6px; height: 40px; }
-  .lbl-footer { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
-  .lbl-footer span { font-size: 8px; color: #aaa; letter-spacing: 0.5px; }
-</style>
-<scr' + 'ipt>
-// Minimal Code 128B barcode generator (self-contained)
-function drawCode128(canvas, text) {
-  if (!text || text === '—') return;
-  const PATTERNS = [
-    [2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],
-    [1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],[1,3,2,2,1,2],[2,2,1,2,1,3],
-    [2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],
-    [1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,1,3,2],
-    [2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],[3,1,1,2,2,2],
-    [3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],
-    [2,1,2,1,2,3],[2,1,2,3,2,1],[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],
-    [1,3,1,3,2,1],[1,1,2,3,1,3],[1,3,2,1,1,3],[1,3,2,3,1,1],[2,1,1,3,1,3],
-    [2,3,1,1,1,3],[2,3,1,3,1,1],[1,1,2,1,3,3],[1,1,2,3,3,1],[1,3,2,1,3,1],
-    [1,1,3,1,2,3],[1,1,3,3,2,1],[1,3,3,1,2,1],[3,1,3,1,2,1],[2,1,1,3,3,1],
-    [2,3,1,1,3,1],[2,1,3,1,1,3],[2,1,3,3,1,1],[2,1,3,1,3,1],[3,1,1,1,2,3],
-    [3,1,1,3,2,1],[3,3,1,1,2,1],[3,1,2,1,1,3],[3,1,2,3,1,1],[3,3,2,1,1,1],
-    [3,1,4,1,1,1],[2,2,1,4,1,1],[4,3,1,1,1,1],[1,1,1,2,2,4],[1,1,1,4,2,2],
-    [1,2,1,1,2,4],[1,2,1,4,2,1],[1,4,1,1,2,2],[1,4,1,2,2,1],[1,1,2,2,1,4],
-    [1,1,2,4,1,2],[1,2,2,1,1,4],[1,2,2,4,1,1],[1,4,2,1,1,2],[1,4,2,2,1,1],
-    [2,4,1,2,1,1],[2,2,1,1,1,4],[4,1,3,1,1,1],[2,4,1,1,1,2],[1,3,4,1,1,1],
-    [1,1,1,2,4,2],[1,2,1,1,4,2],[1,2,1,2,4,1],[1,1,4,2,1,2],[1,2,4,1,1,2],
-    [1,2,4,2,1,1],[4,1,1,2,1,2],[4,2,1,1,1,2],[4,2,1,2,1,1],[2,1,2,1,4,1],
-    [2,1,4,1,2,1],[4,1,2,1,2,1],[1,1,1,1,4,3],[1,1,1,3,4,1],[1,3,1,1,4,1],
-    [1,1,4,1,1,3],[1,1,4,3,1,1],[4,1,1,1,1,3],[4,1,1,3,1,1],[1,1,3,1,4,1],
-    [1,1,4,1,3,1],[3,1,1,1,4,1],[4,1,1,1,3,1],[2,1,1,4,1,2],[2,1,1,2,1,4],
-    [2,1,1,2,3,2],[2,3,3,1,1,1,2]
-  ];
-  const START_B = 104, STOP = 106;
-  let codes = [START_B];
-  let checksum = START_B;
-  for (let i = 0; i < text.length; i++) {
-    let code = text.charCodeAt(i) - 32;
-    if (code < 0 || code > 94) code = 0;
-    codes.push(code);
-    checksum += code * (i + 1);
-  }
-  codes.push(checksum % 103);
-  codes.push(STOP);
-
-  let bits = '';
-  codes.forEach(c => {
-    const p = PATTERNS[c];
-    for (let i = 0; i < p.length; i++) {
-      bits += (i % 2 === 0 ? '1' : '0').repeat(p[i]);
-    }
-  });
-
-  const scale = 1.5;
-  canvas.width = bits.length * scale;
-  canvas.height = 40;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#000';
-  for (let i = 0; i < bits.length; i++) {
-    if (bits[i] === '1') ctx.fillRect(i * scale, 0, scale, 40);
-  }
-}
-window.onload = function() {
-  document.querySelectorAll('canvas.barcode').forEach(c => {
-    drawCode128(c, c.getAttribute('data-value'));
-  });
-  setTimeout(function() { window.print(); }, 200);
-};
-<\/script></head><body>
-<div class="lbl-wrap">
-  ${rowsHTML}
-  <div class="lbl-footer">
-    <span>${vendor}</span>
-    <span>${new Date().toLocaleDateString()}</span>
-  </div>
-</div>
-</body></html>`;
-
   const win = window.open('', '_blank', 'width=420,height=630');
-  win.document.write(labelHTML);
-  win.document.close();
+  const doc = win.document;
+  doc.open();
+  doc.write('<!DOCTYPE html><html><head><meta charset="UTF-8">');
+  doc.write('<style>');
+  doc.write('@page{size:4in 6in;margin:0}@media print{html,body{margin:0;padding:0;width:4in;height:6in}}');
+  doc.write('*{box-sizing:border-box;margin:0;padding:0}');
+  doc.write('body{font-family:"Helvetica Neue",Arial,sans-serif;width:4in;height:6in;display:flex;align-items:center;justify-content:center;background:#fff}');
+  doc.write('.lbl-wrap{width:3.6in;padding:0.15in 0}');
+  doc.write('.lbl-section{padding:10px 0;border-bottom:2px solid #e0e0e0}.lbl-section:last-child{border-bottom:none}');
+  doc.write('.lbl-key{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:4px}');
+  doc.write('.lbl-val{font-size:22px;font-weight:800;color:#111;line-height:1.2;word-break:break-all}');
+  doc.write('canvas.barcode{display:block;margin-top:6px;height:40px}');
+  doc.write('.lbl-footer{margin-top:8px;padding-top:8px;border-top:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center}');
+  doc.write('.lbl-footer span{font-size:8px;color:#aaa;letter-spacing:0.5px}');
+  doc.write('</style></head><body><div class="lbl-wrap">');
+
+  rows.forEach(r => {
+    doc.write('<div class="lbl-section">');
+    doc.write('<div class="lbl-key">' + r.label + '</div>');
+    doc.write('<div class="lbl-val">' + r.value + '</div>');
+    if (r.barcode && r.value && r.value !== '—') {
+      doc.write('<canvas class="barcode" data-value="' + r.value.replace(/"/g, '&quot;') + '"></canvas>');
+    }
+    doc.write('</div>');
+  });
+
+  doc.write('<div class="lbl-footer"><span>' + vendor + '</span><span>' + new Date().toLocaleDateString() + '</span></div>');
+  doc.write('</div></body></html>');
+  doc.close();
+
+  // Inject barcode script after document is closed
+  const scr = win.document.createElement('script');
+  scr.textContent = ppGetBarcodeScript();
+  win.document.head.appendChild(scr);
+}
+
+function ppGetBarcodeScript() {
+  var P = '[[2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],[1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],[1,3,2,2,1,2],[2,2,1,2,1,3],[2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],[1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,1,3,2],[2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],[3,1,1,2,2,2],[3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],[2,1,2,1,2,3],[2,1,2,3,2,1],[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],[1,3,1,3,2,1],[1,1,2,3,1,3],[1,3,2,1,1,3],[1,3,2,3,1,1],[2,1,1,3,1,3],[2,3,1,1,1,3],[2,3,1,3,1,1],[1,1,2,1,3,3],[1,1,2,3,3,1],[1,3,2,1,3,1],[1,1,3,1,2,3],[1,1,3,3,2,1],[1,3,3,1,2,1],[3,1,3,1,2,1],[2,1,1,3,3,1],[2,3,1,1,3,1],[2,1,3,1,1,3],[2,1,3,3,1,1],[2,1,3,1,3,1],[3,1,1,1,2,3],[3,1,1,3,2,1],[3,3,1,1,2,1],[3,1,2,1,1,3],[3,1,2,3,1,1],[3,3,2,1,1,1],[3,1,4,1,1,1],[2,2,1,4,1,1],[4,3,1,1,1,1],[1,1,1,2,2,4],[1,1,1,4,2,2],[1,2,1,1,2,4],[1,2,1,4,2,1],[1,4,1,1,2,2],[1,4,1,2,2,1],[1,1,2,2,1,4],[1,1,2,4,1,2],[1,2,2,1,1,4],[1,2,2,4,1,1],[1,4,2,1,1,2],[1,4,2,2,1,1],[2,4,1,2,1,1],[2,2,1,1,1,4],[4,1,3,1,1,1],[2,4,1,1,1,2],[1,3,4,1,1,1],[1,1,1,2,4,2],[1,2,1,1,4,2],[1,2,1,2,4,1],[1,1,4,2,1,2],[1,2,4,1,1,2],[1,2,4,2,1,1],[4,1,1,2,1,2],[4,2,1,1,1,2],[4,2,1,2,1,1],[2,1,2,1,4,1],[2,1,4,1,2,1],[4,1,2,1,2,1],[1,1,1,1,4,3],[1,1,1,3,4,1],[1,3,1,1,4,1],[1,1,4,1,1,3],[1,1,4,3,1,1],[4,1,1,1,1,3],[4,1,1,3,1,1],[1,1,3,1,4,1],[1,1,4,1,3,1],[3,1,1,1,4,1],[4,1,1,1,3,1],[2,1,1,4,1,2],[2,1,1,2,1,4],[2,1,1,2,3,2],[2,3,3,1,1,1,2]]';
+  return 'var PATTERNS='+P+';function drawCode128(c,t){if(!t||t==="—")return;var codes=[104],cs=104;for(var i=0;i<t.length;i++){var cd=t.charCodeAt(i)-32;if(cd<0||cd>94)cd=0;codes.push(cd);cs+=cd*(i+1)}codes.push(cs%103);codes.push(106);var bits="";codes.forEach(function(c){var p=PATTERNS[c];for(var i=0;i<p.length;i++)bits+=(i%2===0?"1":"0").repeat(p[i])});var s=1.5;c.width=bits.length*s;c.height=40;var ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle="#000";for(var i=0;i<bits.length;i++)if(bits[i]==="1")ctx.fillRect(i*s,0,s,40)}document.querySelectorAll("canvas.barcode").forEach(function(c){drawCode128(c,c.getAttribute("data-value"))});setTimeout(function(){window.print()},300);';
 }
 
 function ppPrintVZLabel(rma) {
