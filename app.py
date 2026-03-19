@@ -37,8 +37,10 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 @app.route('/')
 def index():
-    """Serve the main application — send_from_directory to bypass Jinja parsing."""
-    return send_from_directory('templates', 'index.html')
+    """Serve the main application — read file directly to bypass Jinja parsing."""
+    import pathlib
+    html_path = pathlib.Path(__file__).parent / 'templates' / 'index.html'
+    return html_path.read_text(encoding='utf-8'), 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 
 # ════════════════════════════════════
