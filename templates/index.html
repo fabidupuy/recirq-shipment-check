@@ -5094,11 +5094,12 @@ function ppDownloadUnmatched(vendor) {
 function ppCopyIMEIs(rma, vendor) {
   const job = ppJobs[vendor || ppActivePackingVendor];
   if (!job || !job.rmaGroups[rma]) return;
-  const imeis = job.rmaGroups[rma].map(u => u.imei).join('\n');
+  const unpacked = job.rmaGroups[rma].filter(u => !u.packed && !u.fallout);
+  const imeis = unpacked.map(u => u.imei).join('\n');
   navigator.clipboard.writeText(imeis).catch(() => {
     const ta = document.createElement('textarea'); ta.value = imeis; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
   });
-  ppLastFeedback = `<div class="callout info" style="margin:0;padding:6px 12px;font-size:12px;">${job.rmaGroups[rma].length} IMEI(s) from RMA# ${rma} copied to clipboard.</div>`;
+  ppLastFeedback = `<div class="callout info" style="margin:0;padding:6px 12px;font-size:12px;">${unpacked.length} unpacked IMEI(s) from RMA# ${rma} copied.</div>`;
   const fb = document.getElementById('pp-scan-feedback');
   if (fb) fb.innerHTML = ppLastFeedback;
 }
@@ -5106,12 +5107,12 @@ function ppCopyIMEIs(rma, vendor) {
 function ppCopyIMEIsByDate(subDate, vendor) {
   const job = ppJobs[vendor || ppActivePackingVendor];
   if (!job) return;
-  const units = job.units.filter(u => (u.rmaSubmissionDate || 'Unknown') === subDate && !u.fallout);
-  const imeis = units.map(u => u.imei).join('\n');
+  const unpacked = job.units.filter(u => (u.rmaSubmissionDate || 'Unknown') === subDate && !u.packed && !u.fallout);
+  const imeis = unpacked.map(u => u.imei).join('\n');
   navigator.clipboard.writeText(imeis).catch(() => {
     const ta = document.createElement('textarea'); ta.value = imeis; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
   });
-  ppLastFeedback = `<div class="callout info" style="margin:0;padding:6px 12px;font-size:12px;">${units.length} IMEI(s) from ${subDate} copied to clipboard.</div>`;
+  ppLastFeedback = `<div class="callout info" style="margin:0;padding:6px 12px;font-size:12px;">${unpacked.length} unpacked IMEI(s) from ${subDate} copied.</div>`;
   const fb = document.getElementById('pp-scan-feedback');
   if (fb) fb.innerHTML = ppLastFeedback;
 }
