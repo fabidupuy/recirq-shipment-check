@@ -322,18 +322,26 @@ def get_presigned_upload_url():
     today = date.today().isoformat()
     key = f"{today}/{vendor}/{photo_type}/{imei}_{photo_id}.{file_ext}"
 
+    content_type = 'image/jpeg' if file_ext in ('jpg', 'jpeg') else f'image/{file_ext}'
+
     try:
         url = s3_client.generate_presigned_url('put_object',
             Params={
                 'Bucket': S3_BUCKET,
                 'Key': key,
-                'ContentType': f'image/{file_ext}',
+                'ContentType': content_type,
             },
             ExpiresIn=600,  # 10 minutes
         )
-        # Also generate a GET URL for viewing
-        view_url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{key}"
-        return jsonify({'uploadUrl': url, 'viewUrl': view_url, 'key': key, 'photoId': photo_id})
+        # Generate a presigned GET URL for viewing (works even if bucket is not public)
+        view_url = s3_client.generate_presigned_url('get_object',
+            Params={
+                'Bucket': S3_BUCKET,
+                'Key': key,
+            },
+            ExpiresIn=604800,  # 7 days
+        )
+        return jsonify({'uploadUrl': url, 'viewUrl': view_url, 'key': key, 'photoId': photo_id, 'contentType': content_type})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

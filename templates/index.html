@@ -4464,7 +4464,7 @@ async function uploadShipmentPhotos(batchId, input) {
       // Upload to S3
       const uploadResp = await fetch(presignData.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': 'image/jpg' },
+        headers: { 'Content-Type': presignData.contentType || 'image/jpeg' },
         body: compressed,
       });
 

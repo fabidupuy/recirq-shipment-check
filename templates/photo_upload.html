@@ -191,7 +191,7 @@ async function uploadAll() {
       // Upload directly to S3
       const uploadResp = await fetch(presignData.uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': 'image/jpg' },
+        headers: { 'Content-Type': presignData.contentType || 'image/jpeg' },
         body: photos[i].blob,
       });
 
