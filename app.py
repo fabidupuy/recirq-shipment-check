@@ -37,8 +37,8 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 @app.route('/')
 def index():
-    """Serve the main application."""
-    return render_template('index.html')
+    """Serve the main application — send_from_directory to bypass Jinja parsing."""
+    return send_from_directory('templates', 'index.html')
 
 
 # ════════════════════════════════════
