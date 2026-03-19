@@ -175,33 +175,26 @@ async function uploadAll() {
     statusEl.innerHTML = `<div class="upload-progress"><div class="bar" style="width:${Math.round((i / photos.length) * 100)}%"></div></div><div class="status-msg">Uploading photo ${i + 1} of ${photos.length}...</div>`;
 
     try {
-      // Get presigned URL
-      const presignResp = await fetch(API_BASE + '/api/photos/presign', {
+      // Upload through server (avoids CORS issues with S3)
+      const formData = new FormData();
+      formData.append('photo', photos[i].blob, 'photo.jpg');
+      formData.append('imei', sessionData.imei || 'box-' + (sessionData.boxNum || '0'));
+      formData.append('type', sessionData.type);
+      formData.append('vendor', sessionData.vendor);
+
+      const uploadResp = await fetch(API_BASE + '/api/photos/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imei: sessionData.imei || 'box-' + (sessionData.boxNum || '0'),
-          type: sessionData.type,
-          vendor: sessionData.vendor,
-          ext: 'jpg',
-        }),
+        body: formData,
       });
-      const presignData = await presignResp.json();
+      const uploadData = await uploadResp.json();
 
-      // Upload directly to S3
-      const uploadResp = await fetch(presignData.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': presignData.contentType || 'image/jpeg' },
-        body: photos[i].blob,
-      });
-
-      if (uploadResp.ok) {
+      if (uploadData.viewUrl) {
         photos[i].uploaded = true;
-        photos[i].viewUrl = presignData.viewUrl;
-        photos[i].key = presignData.key;
-        results.push({ viewUrl: presignData.viewUrl, key: presignData.key, photoId: presignData.photoId });
+        photos[i].viewUrl = uploadData.viewUrl;
+        photos[i].key = uploadData.key;
+        results.push({ viewUrl: uploadData.viewUrl, key: uploadData.key, photoId: uploadData.photoId });
       } else {
-        throw new Error('Upload failed: ' + uploadResp.status);
+        throw new Error(uploadData.error || 'Upload failed');
       }
     } catch (e) {
       statusEl.innerHTML = `<div class="status-msg error">Failed to upload photo ${i + 1}: ${e.message}</div>`;

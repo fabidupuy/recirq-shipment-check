@@ -307,43 +307,38 @@ def save_pp_state(key):
 # PHOTO UPLOAD API (S3)
 # ════════════════════════════════════
 
-@app.route('/api/photos/presign', methods=['POST'])
-def get_presigned_upload_url():
-    """Generate a presigned S3 URL for direct upload from the phone."""
+@app.route('/api/photos/upload', methods=['POST'])
+def upload_photo():
+    """Upload a photo through the server to S3 (avoids CORS issues)."""
     if not s3_client:
         return jsonify({'error': 'S3 not configured'}), 500
-    data = request.get_json()
-    imei = data.get('imei', 'unknown')
-    photo_type = data.get('type', 'unit')  # 'unit' or 'box'
-    vendor = data.get('vendor', '')
-    file_ext = data.get('ext', 'jpg')
+
+    if 'photo' not in request.files:
+        return jsonify({'error': 'No photo file provided'}), 400
+
+    file = request.files['photo']
+    imei = request.form.get('imei', 'unknown')
+    photo_type = request.form.get('type', 'unit')
+    vendor = request.form.get('vendor', '')
     photo_id = str(uuid.uuid4())[:8]
 
-    # Organize by date/vendor/type
     from datetime import date
     today = date.today().isoformat()
-    key = f"{today}/{vendor}/{photo_type}/{imei}_{photo_id}.{file_ext}"
-
-    content_type = 'image/jpeg' if file_ext in ('jpg', 'jpeg') else f'image/{file_ext}'
+    key = f"{today}/{vendor}/{photo_type}/{imei}_{photo_id}.jpg"
 
     try:
-        url = s3_client.generate_presigned_url('put_object',
-            Params={
-                'Bucket': S3_BUCKET,
-                'Key': key,
-                'ContentType': content_type,
-            },
-            ExpiresIn=600,  # 10 minutes
+        s3_client.upload_fileobj(
+            file,
+            S3_BUCKET,
+            key,
+            ExtraArgs={'ContentType': 'image/jpeg'}
         )
-        # Generate a presigned GET URL for viewing (works even if bucket is not public)
+        # Generate a presigned GET URL for viewing
         view_url = s3_client.generate_presigned_url('get_object',
-            Params={
-                'Bucket': S3_BUCKET,
-                'Key': key,
-            },
+            Params={'Bucket': S3_BUCKET, 'Key': key},
             ExpiresIn=604800,  # 7 days
         )
-        return jsonify({'uploadUrl': url, 'viewUrl': view_url, 'key': key, 'photoId': photo_id, 'contentType': content_type})
+        return jsonify({'viewUrl': view_url, 'key': key, 'photoId': photo_id})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

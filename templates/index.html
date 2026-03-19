@@ -4447,33 +4447,27 @@ async function uploadShipmentPhotos(batchId, input) {
       // Compress
       const compressed = await compressImage(file, 1200, 0.75);
 
-      // Get presigned URL
-      const presignResp = await fetch(`${API}/photos/presign`, {
+      // Upload through server (avoids CORS issues with S3)
+      const formData = new FormData();
+      formData.append('photo', compressed, 'photo.jpg');
+      formData.append('imei', 'shipment-' + batchId);
+      formData.append('type', 'shipment');
+      formData.append('vendor', batch.vendor);
+
+      const uploadResp = await fetch(`${API}/photos/upload`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imei: 'shipment-' + batchId,
-          type: 'shipment',
-          vendor: batch.vendor,
-          ext: 'jpg',
-        }),
+        body: formData,
       });
-      const presignData = await presignResp.json();
-      if (presignData.error) { console.error(presignData.error); continue; }
+      const uploadData = await uploadResp.json();
 
-      // Upload to S3
-      const uploadResp = await fetch(presignData.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': presignData.contentType || 'image/jpeg' },
-        body: compressed,
-      });
-
-      if (uploadResp.ok) {
+      if (uploadData.viewUrl) {
         batch.shipmentPhotos.push({
-          viewUrl: presignData.viewUrl,
-          key: presignData.key,
+          viewUrl: uploadData.viewUrl,
+          key: uploadData.key,
           uploadedAt: new Date().toISOString(),
         });
+      } else if (uploadData.error) {
+        console.error('Upload error:', uploadData.error);
       }
     } catch (e) {
       console.error('Shipment photo upload failed:', e);
