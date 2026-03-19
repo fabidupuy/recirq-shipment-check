@@ -35,16 +35,17 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 # PAGE ROUTES
 # ════════════════════════════════════
 
-_cached_index = None
 @app.route('/')
 def index():
-    """Serve the main application — cached in memory, bypasses Jinja."""
-    global _cached_index
-    if _cached_index is None:
-        import pathlib
-        html_path = pathlib.Path(__file__).parent / 'templates' / 'index.html'
-        _cached_index = html_path.read_text(encoding='utf-8')
-    return _cached_index, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    """Serve the main application."""
+    print("Serving index.html...")
+    try:
+        result = render_template('index.html')
+        print(f"index.html rendered OK, length={len(result)}")
+        return result
+    except Exception as e:
+        print(f"ERROR rendering index.html: {e}")
+        return f"<h1>Error</h1><pre>{e}</pre>", 500
 
 
 # ════════════════════════════════════
