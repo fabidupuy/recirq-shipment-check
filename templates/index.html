@@ -6616,6 +6616,48 @@ function ppResolveAllConflicts(action, vendor) {
     await initSlackSettings();
     await loadBatchesFromServer();
     await ppLoadState();
+    // Auto-refresh PP state every 30 seconds
+    setInterval(async () => {
+      try {
+        const resp = await fetch(API + '/pp/state');
+        const state = await resp.json();
+        let changed = false;
+        if (state.ppJobs) {
+          const newJobs = JSON.parse(state.ppJobs);
+          if (JSON.stringify(newJobs) !== JSON.stringify(Object.fromEntries(Object.entries(ppJobs).map(([k,v]) => [k, {...v, rmaGroups: undefined}])))) {
+            ppJobs = newJobs;
+            Object.values(ppJobs).forEach(job => {
+              if (!job.rmaGroups) job.rmaGroups = {};
+              if (job.units && job.units.length > 0) ppRebuildGroups(job);
+              if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
+              if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
+            });
+            changed = true;
+          }
+        }
+        if (state.ppCompletedRMAs) {
+          const newCompleted = JSON.parse(state.ppCompletedRMAs);
+          if (newCompleted.length !== ppCompletedRMAs.length) {
+            ppCompletedRMAs = newCompleted;
+            changed = true;
+          }
+        }
+        // Refresh photos cache
+        const photoResp = await fetch(API + '/photos/all');
+        ppAllPhotos = await photoResp.json();
+
+        // Re-render current section if data changed
+        if (changed) {
+          const activeSection = document.querySelector('.section:not([style*="display: none"])');
+          if (activeSection) {
+            const id = activeSection.id;
+            if (id === 'sec-pp-upload') renderPPUploadSection();
+            else if (id === 'sec-pp-packing') renderPPPackingSection();
+            else if (id === 'sec-pp-history') renderPPHistorySection();
+          }
+        }
+      } catch (e) { /* silent fail */ }
+    }, 30000);
   }
 })();
 </script>
