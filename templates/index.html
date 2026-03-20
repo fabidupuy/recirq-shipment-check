@@ -4640,10 +4640,30 @@ async function sendHistoryToSlack(batchId) {
   let threadTs = batch.slackThreadTs || null;
   let sent = 0, failed = 0;
 
-  // If no thread exists yet, post a new parent message
+  // If no stored thread_ts, search Slack for the clearance message
   if (!threadTs) {
     try {
-      const parentMsg = `📦 *${vendorLabel} Shipment — ${fmtDate(batch.shipDate)}*\nTracking: ${trackingStr} | ${batch.units.length} units`;
+      const searchText = `CLEARED TO SHIP — ${batch.vendor} — ${fmtDate(batch.shipDate)}`;
+      const searchResp = await fetch(`${API}/slack/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ botToken: s.botToken, channelId: s.channelId, searchText }),
+      });
+      const searchResult = await searchResp.json();
+      if (searchResult.ok && searchResult.ts) {
+        threadTs = searchResult.ts;
+        batch.slackThreadTs = threadTs;
+        saveBatchToServer(batch);
+      }
+    } catch (e) {
+      console.warn('Slack search failed:', e);
+    }
+  }
+
+  // If still no thread, post a new clearance-style parent message
+  if (!threadTs) {
+    try {
+      const parentMsg = `✅ *CLEARED TO SHIP — ${batch.vendor} — ${fmtDate(batch.shipDate)}*\nTracking: ${trackingStr} | ${batch.units.length} units\n_Attachments below._`;
       const resp = await fetch(`${API}/slack/post`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5822,7 +5842,8 @@ function renderPPPackingSection() {
           </div>
           <div style="display:flex;gap:6px;">
             <button class="btn btn-sm btn-outline" onclick="ppOpenBoxPhotoQR('${ppActivePackingVendor}',${currentBox.boxNum})" style="font-size:11px;padding:4px 10px;">Box Photo</button>
-            <button class="btn btn-sm btn-outline" onclick="ppCloseBox('${ppActivePackingVendor}')" style="font-size:11px;padding:4px 10px;">Close Box & Print Label</button>
+            <button class="btn btn-sm btn-outline" onclick="ppPrintCurrentBoxLabel('${ppActivePackingVendor}')" style="font-size:11px;padding:4px 10px;">Print Label</button>
+            <button class="btn btn-sm" onclick="ppCloseBox('${ppActivePackingVendor}')" style="font-size:11px;padding:4px 10px;background:var(--dark-green);color:white;border:none;">Close Box</button>
           </div>
         </div>
       </div>
@@ -5954,7 +5975,10 @@ function renderPPHistorySection() {
       <td style="font-family:monospace;font-size:11px;">${entry.tracking || '—'}</td>
       <td>${new Date(entry.completedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
       <td>${entry.completedBy || '—'}</td>
-      <td><button class="btn btn-sm btn-outline" onclick="ppToggleHistoryDetail(${idx})">Details</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-outline" onclick="ppToggleHistoryDetail(${idx})" style="font-size:10px;padding:2px 8px;margin-right:4px;">Details</button>
+        <button class="btn btn-sm btn-outline" onclick="ppOpenRMAPhotos('${entry.rma}',${JSON.stringify(entry.units.map(u=>u.imei)).replace(/"/g,'&quot;')},'${entry.vendor}')" style="font-size:10px;padding:2px 8px;border-color:#1976d2;color:#1976d2;">&#128247; Photos</button>
+      </td>
     </tr>
     <tr id="pp-hist-detail-${idx}" style="display:none;">
       <td colspan="8" style="padding:12px;background:var(--light-gray);">
@@ -5981,7 +6005,10 @@ function renderPPHistorySection() {
       <td style="font-family:monospace;font-size:11px;">${group.tracking || '—'}</td>
       <td>${new Date(group.completedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
       <td>${group.completedBy || '—'}</td>
-      <td><button class="btn btn-sm btn-outline" onclick="ppToggleHistoryDetail('${gIdx}')">Details</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-outline" onclick="ppToggleHistoryDetail('${gIdx}')" style="font-size:10px;padding:2px 8px;margin-right:4px;">Details</button>
+        <button class="btn btn-sm btn-outline" onclick="ppOpenRMAPhotos('${group.tracking}',${JSON.stringify(group.allUnits.map(u=>u.imei)).replace(/"/g,'&quot;')},'${group.vendor}')" style="font-size:10px;padding:2px 8px;border-color:#1976d2;color:#1976d2;">&#128247; Photos</button>
+      </td>
     </tr>
     <tr id="pp-hist-detail-${gIdx}" style="display:none;">
       <td colspan="8" style="padding:12px;background:var(--light-gray);">
@@ -6001,6 +6028,65 @@ function renderPPHistorySection() {
 function ppToggleHistoryDetail(idx) {
   const row = document.getElementById('pp-hist-detail-' + idx);
   if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+// ── RMA PHOTO GALLERY (Packed RMAs) ──
+async function ppOpenRMAPhotos(groupLabel, imeis, vendor) {
+  // Fetch latest photos from server
+  let allPhotos = ppAllPhotos;
+  try {
+    const resp = await fetch(API + '/photos/all');
+    if (resp.ok) allPhotos = await resp.json();
+  } catch (e) {}
+
+  // Build gallery content: group photos by IMEI + include box photos
+  let totalPhotos = 0;
+  let html = `<div style="max-height:70vh;overflow-y:auto;padding:8px;">`;
+
+  // Box-level photos (check for box-RMA keys)
+  const boxKey = 'box-' + groupLabel;
+  const boxPhotos = allPhotos[boxKey] || [];
+  if (boxPhotos.length > 0) {
+    totalPhotos += boxPhotos.length;
+    html += `<div style="margin-bottom:16px;">
+      <div style="font-weight:600;font-size:13px;color:var(--dark-green);margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid var(--dark-green);">&#128230; Box Photos (${boxPhotos.length})</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+        ${boxPhotos.map(p => `<div style="border-radius:6px;overflow:hidden;border:1px solid #e0e0e0;aspect-ratio:1;background:#f5f5f5;">
+          <img src="${p.viewUrl}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="window.open('${p.viewUrl}','_blank')" title="Click to view full size">
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // IMEI-level photos
+  for (const imei of imeis) {
+    const photos = allPhotos[imei] || [];
+    if (photos.length === 0) continue;
+    totalPhotos += photos.length;
+    html += `<div style="margin-bottom:16px;">
+      <div style="font-weight:600;font-size:12px;color:#333;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #e0e0e0;">&#128241; ${imei} (${photos.length} photo${photos.length > 1 ? 's' : ''})</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+        ${photos.map(p => `<div style="border-radius:6px;overflow:hidden;border:1px solid #e0e0e0;aspect-ratio:1;background:#f5f5f5;">
+          <img src="${p.viewUrl}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="window.open('${p.viewUrl}','_blank')" title="Click to view full size">
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  if (totalPhotos === 0) {
+    html += '<div style="text-align:center;padding:40px 20px;color:#888;"><div style="font-size:36px;margin-bottom:8px;">&#128247;</div><p>No photos found for this group.</p></div>';
+  } else {
+    html += `<div style="text-align:center;font-size:12px;color:#888;margin-top:8px;">${totalPhotos} total photo(s)</div>`;
+  }
+  html += '</div>';
+
+  // Use the existing photo gallery modal
+  const vendorLabel = vendor === 'VERIZON' ? 'VZ' : vendor.substring(0, 3).toUpperCase();
+  document.getElementById('photo-gallery-title').textContent = `Photos — ${vendorLabel} — ${groupLabel}`;
+  document.getElementById('photo-gallery-content').innerHTML = html;
+  // Hide the upload button (these are historical, read-only)
+  document.getElementById('photo-gallery-upload-btn').style.display = 'none';
+  document.getElementById('photo-gallery-modal').classList.add('show');
 }
 
 // ── DAILY PACKED SUMMARY CSV ──
@@ -6352,7 +6438,11 @@ function ppPrintBoxLabel(vendor, data) {
     doc.write('<div class="divider"></div>');
     doc.write('<div class="info-row">');
     infoItems.forEach(item => {
-      doc.write('<div class="info-item"><div class="info-label">' + item.label + '</div><div class="info-value">' + item.value + '</div></div>');
+      doc.write('<div class="info-item"><div class="info-label">' + item.label + '</div><div class="info-value">' + item.value + '</div>');
+      if (isVZ && item.label === 'RMA #' && item.value && item.value !== '—') {
+        doc.write('<canvas class="barcode" data-value="' + item.value.replace(/"/g, '&quot;') + '" style="margin-top:4px;"></canvas>');
+      }
+      doc.write('</div>');
     });
     doc.write('</div>');
     doc.write('<div class="footer"><span>' + vendor + '</span><span>' + packedDate + '</span></div>');
@@ -6410,6 +6500,34 @@ function ppReprintBoxLabel(vendor, boxNum) {
   }
 }
 
+// ── PRINT LABEL FOR CURRENT BOX (without closing) ──
+function ppPrintCurrentBoxLabel(vendor) {
+  const job = ppJobs[vendor];
+  if (!job) return;
+  const currentBox = job.boxes[job.currentBoxIdx];
+  if (!currentBox || currentBox.imeis.length === 0) {
+    alert('No items in current box to print a label for.');
+    return;
+  }
+  if (!job.tracking || !job.trackingConfirmed) {
+    alert('A tracking number must be confirmed before printing a label.');
+    return;
+  }
+  const rmasInBox = new Set();
+  currentBox.imeis.forEach(imei => {
+    const u = job.units.find(unit => unit.imei === imei);
+    if (u && u.rmaNumber && u.rmaNumber !== 'UNMATCHED') rmasInBox.add(u.rmaNumber);
+  });
+  const labelData = {
+    tracking: job.tracking,
+    packedDate: new Date().toLocaleDateString(),
+    rmas: Array.from(rmasInBox).join(', ') || 'N/A',
+    unitCount: currentBox.imeis.length,
+  };
+  currentBox.labelData = labelData;
+  ppPrintBoxLabel(vendor, labelData);
+}
+
 // ── CLOSE BOX (for non-VZ) ──
 async function ppCloseBox(vendor) {
   const job = ppJobs[vendor];
@@ -6430,15 +6548,7 @@ async function ppCloseBox(vendor) {
     return;
   }
 
-  // Check box photos exist
-  const photoKey = 'box-' + currentBox.boxNum;
-  const hasPhotos = await ppCheckPhotosExist(photoKey);
-  if (!hasPhotos) {
-    alert('Box photos are required before closing the box.\n\nPlease use the "Box Photo" button to take photos of the packed box first.');
-    return;
-  }
-
-  if (!confirm(`Close Box #${currentBox.boxNum}? (${currentBox.imeis.length} units)\n\nThis will print a label and open a new box.`)) return;
+  if (!confirm(`Close Box #${currentBox.boxNum}? (${currentBox.imeis.length} units)\n\nThis will close the current box and open a new one.`)) return;
 
   // Mark box as closed and capture tracking at close time
   currentBox.closedAt = new Date().toISOString();
@@ -6462,7 +6572,6 @@ async function ppCloseBox(vendor) {
     unitCount: currentBox.imeis.length
   };
   currentBox.labelData = labelData;
-  ppPrintBoxLabel(vendor, labelData);
 
   // Create new box
   const newBoxNum = currentBox.boxNum + 1;

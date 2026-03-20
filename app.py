@@ -648,6 +648,42 @@ def slack_upload_file():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+@app.route('/api/slack/search', methods=['POST'])
+def slack_search_message():
+    """Search for a message in a Slack channel by text content.
+    Used to find the clearance message thread_ts for batches cleared before threading was added."""
+    import requests as req
+    data = request.get_json()
+    bot_token = data.get('botToken', '')
+    channel_id = data.get('channelId', '')
+    search_text = data.get('searchText', '')
+
+    if not bot_token or not channel_id or not search_text:
+        return jsonify({'ok': False, 'error': 'botToken, channelId, and searchText required'}), 400
+
+    headers = {'Authorization': f'Bearer {bot_token}'}
+
+    try:
+        # Use conversations.history to scan recent messages
+        resp = req.get('https://slack.com/api/conversations.history',
+            headers=headers,
+            params={'channel': channel_id, 'limit': 100},
+            timeout=10)
+        result = resp.json()
+        if not result.get('ok'):
+            return jsonify({'ok': False, 'error': result.get('error', 'Unknown')}), 400
+
+        # Search through messages for one containing the search text
+        for msg in result.get('messages', []):
+            text = msg.get('text', '')
+            if search_text in text:
+                return jsonify({'ok': True, 'ts': msg.get('ts')})
+
+        return jsonify({'ok': False, 'error': 'Message not found'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 # ════════════════════════════════════
 # SETTINGS API
 # ════════════════════════════════════
