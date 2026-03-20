@@ -308,6 +308,22 @@ def save_pp_state(key):
     return jsonify({'status': 'saved', 'key': key})
 
 
+@app.route('/api/pp/jobs/<vendor>', methods=['DELETE'])
+def delete_pp_job(vendor):
+    """Delete a packing job for a specific vendor (admin only)."""
+    # Load current ppJobs, remove the vendor, save back
+    state_json = db.get_pp_state('ppJobs')
+    if not state_json:
+        return jsonify({'error': 'No packing jobs found'}), 404
+    jobs = json.loads(state_json)
+    if vendor not in jobs:
+        return jsonify({'error': f'No job found for vendor {vendor}'}), 404
+    unit_count = len(jobs[vendor].get('units', []))
+    del jobs[vendor]
+    db.save_pp_state('ppJobs', json.dumps(jobs))
+    return jsonify({'status': 'deleted', 'vendor': vendor, 'unitsRemoved': unit_count})
+
+
 # ════════════════════════════════════
 # PHOTO UPLOAD API (S3)
 # ════════════════════════════════════
@@ -367,22 +383,45 @@ def save_photo_refs():
     return jsonify({'status': 'saved', 'count': len(all_photos[key])})
 
 
+def _refresh_presigned_urls(photo_list):
+    """Regenerate presigned URLs for photos whose S3 keys are known.
+    This ensures photos remain viewable even after the original URL expires."""
+    if not s3_client or not photo_list:
+        return photo_list
+    refreshed = []
+    for p in photo_list:
+        s3_key = p.get('key')
+        if s3_key:
+            try:
+                p['viewUrl'] = s3_client.generate_presigned_url('get_object',
+                    Params={'Bucket': S3_BUCKET, 'Key': s3_key},
+                    ExpiresIn=604800)  # 7 days
+            except Exception:
+                pass  # Keep existing viewUrl if regeneration fails
+        refreshed.append(p)
+    return refreshed
+
+
 @app.route('/api/photos/list/<key>', methods=['GET'])
 def list_photos(key):
-    """List all photos for an IMEI or box key."""
+    """List all photos for an IMEI or box key, with fresh presigned URLs."""
     state = db.get_pp_state('ppPhotos')
     if state:
         photos = json.loads(state)
-        return jsonify(photos.get(key, []))
+        result = photos.get(key, [])
+        return jsonify(_refresh_presigned_urls(result))
     return jsonify([])
 
 
 @app.route('/api/photos/all', methods=['GET'])
 def all_photos():
-    """Get all photo references."""
+    """Get all photo references with fresh presigned URLs."""
     state = db.get_pp_state('ppPhotos')
     if state:
-        return jsonify(json.loads(state))
+        all_photos_data = json.loads(state)
+        for key in all_photos_data:
+            all_photos_data[key] = _refresh_presigned_urls(all_photos_data[key])
+        return jsonify(all_photos_data)
     return jsonify({})
 
 

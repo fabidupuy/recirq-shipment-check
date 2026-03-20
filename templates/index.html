@@ -1174,6 +1174,19 @@ async function loadBatchesFromServer() {
   } catch (e) { console.warn('Load failed:', e); }
 }
 
+function hydrateShipmentPhotos() {
+  // Restore shipmentPhotos on batch objects from ppAllPhotos (persisted in pp_state)
+  const allBatches = [...vzBatches, ...bpBatches];
+  allBatches.forEach(b => {
+    const photoKey = 'shipment-' + b.id;
+    if (ppAllPhotos[photoKey] && ppAllPhotos[photoKey].length > 0) {
+      b.shipmentPhotos = ppAllPhotos[photoKey];
+    }
+  });
+  // Re-render history to show photo counts
+  refreshHistory();
+}
+
 async function saveSlackSettingsToServer(settings) {
   try {
     await fetch(`${API}/settings`, {
@@ -4401,6 +4414,10 @@ function openShipmentPhotos(batchId) {
 
 function renderPhotoGallery(batch) {
   const content = document.getElementById('photo-gallery-content');
+  // Fallback to ppAllPhotos if shipmentPhotos not on batch object
+  if ((!batch.shipmentPhotos || batch.shipmentPhotos.length === 0) && ppAllPhotos['shipment-' + batch.id]) {
+    batch.shipmentPhotos = ppAllPhotos['shipment-' + batch.id];
+  }
   const photos = batch.shipmentPhotos || [];
 
   if (photos.length === 0) {
@@ -4433,6 +4450,7 @@ async function uploadShipmentPhotos(batchId, input) {
   const batch = findBatch(batchId);
   if (!batch) { alert('Batch not found.'); return; }
   if (!batch.shipmentPhotos) batch.shipmentPhotos = [];
+  const newPhotos = []; // Track newly uploaded photos for persistence
 
   const files = Array.from(input.files);
   const statusMsg = `Uploading ${files.length} photo(s)...`;
@@ -4461,17 +4479,33 @@ async function uploadShipmentPhotos(batchId, input) {
       const uploadData = await uploadResp.json();
 
       if (uploadData.viewUrl) {
-        batch.shipmentPhotos.push({
+        const photoRef = {
           viewUrl: uploadData.viewUrl,
           key: uploadData.key,
           uploadedAt: new Date().toISOString(),
-        });
+        };
+        batch.shipmentPhotos.push(photoRef);
+        newPhotos.push(photoRef);
       } else if (uploadData.error) {
         console.error('Upload error:', uploadData.error);
       }
     } catch (e) {
       console.error('Shipment photo upload failed:', e);
     }
+  }
+
+  // Save NEW photo references to ppPhotos state (persists across refresh)
+  if (newPhotos.length > 0) {
+    const photoKey = 'shipment-' + batchId;
+    try {
+      await fetch(`${API}/photos/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: photoKey, photos: newPhotos }),
+      });
+      // Update local cache
+      ppAllPhotos[photoKey] = batch.shipmentPhotos.slice();
+    } catch (e) { console.warn('Failed to save shipment photo refs:', e); }
   }
 
   // Save batch with photo references
@@ -5065,6 +5099,44 @@ function ppRebuildGroups(job) {
     job.rmaGroups[u.rmaNumber].push(u);
   });
 }
+async function ppDeleteJob(vendor) {
+  if (!currentUser || currentUser.role !== 'admin') {
+    alert('Only admins can delete packing jobs.');
+    return;
+  }
+  const job = ppJobs[vendor];
+  if (!job) return;
+  const total = job.units.length;
+  const packed = job.units.filter(u => u.packed).length;
+
+  // Two-step confirmation for safety
+  const msg = `⚠️ DELETE PACKING JOB: ${vendor}\n\nThis will permanently remove:\n• ${total} units (${packed} packed, ${total - packed} remaining)\n• ${Object.keys(job.rmaGroups).length} RMA groups\n• All box tracking data\n\nThis action CANNOT be undone.\n\nType "DELETE" below to confirm:`;
+  const confirmation = prompt(msg);
+  if (confirmation !== 'DELETE') {
+    if (confirmation !== null) alert('Deletion cancelled — you must type DELETE exactly.');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${API}/pp/jobs/${encodeURIComponent(vendor)}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (resp.ok) {
+      // Remove from local state
+      delete ppJobs[vendor];
+      logAction('delete_packing_job', null, { vendor, unitsRemoved: total, packedCount: packed });
+      // Re-render
+      renderPPUploadSection();
+      renderPPPackingSection();
+      alert(`Packing job for ${vendor} has been deleted (${total} units removed).`);
+    } else {
+      alert('Delete failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch (e) {
+    console.error('Delete packing job failed:', e);
+    alert('Failed to delete packing job. Check console for details.');
+  }
+}
+
 function ppVendorsWithJobs() {
   return Object.keys(ppJobs).filter(v => ppJobs[v].units.length > 0);
 }
@@ -5125,9 +5197,15 @@ function renderPPUploadSection() {
       const packed = job.units.filter(u => u.packed).length;
       const rmaCount = Object.keys(job.rmaGroups).filter(k => k !== 'UNMATCHED').length;
       const badgeClass = v === 'VERIZON' ? 'badge-verizon' : 'badge-3pl';
+      const deleteBtn = currentUser && currentUser.role === 'admin'
+        ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();ppDeleteJob('${v}')" style="margin-left:6px;font-size:11px;" title="Delete this packing job">Delete Job</button>`
+        : '';
       jobsSummary += `<div class="callout success" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
         <div><span class="badge ${badgeClass}">${v}</span> <b>${total} units</b> across <b>${rmaCount} RMAs</b> (${packed} packed, ${total - packed} remaining)</div>
-        <button class="btn btn-sm btn-outline" onclick="ppLastFeedback='';ppLastScanned=null;sidebarNav('pp-packing');ppActivePackingVendor='${v}';renderPPPackingSection();">View Packing</button>
+        <div style="display:flex;align-items:center;">
+          <button class="btn btn-sm btn-outline" onclick="ppLastFeedback='';ppLastScanned=null;sidebarNav('pp-packing');ppActivePackingVendor='${v}';renderPPPackingSection();">View Packing</button>
+          ${deleteBtn}
+        </div>
       </div>`;
     });
     jobsSummary += '</div>';
@@ -6616,6 +6694,8 @@ function ppResolveAllConflicts(action, vendor) {
     await initSlackSettings();
     await loadBatchesFromServer();
     await ppLoadState();
+    // Restore shipment photos onto batch objects from ppAllPhotos
+    hydrateShipmentPhotos();
     // Auto-refresh PP state every 30 seconds
     setInterval(async () => {
       try {
@@ -6645,6 +6725,8 @@ function ppResolveAllConflicts(action, vendor) {
         // Refresh photos cache
         const photoResp = await fetch(API + '/photos/all');
         ppAllPhotos = await photoResp.json();
+        // Keep shipment photos on batch objects in sync
+        hydrateShipmentPhotos();
 
         // Re-render current section if data changed
         if (changed) {
