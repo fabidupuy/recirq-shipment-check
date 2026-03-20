@@ -425,9 +425,33 @@ def all_photos():
     return jsonify({})
 
 
+# In-memory store for short photo tokens (they expire in 10 min anyway)
+_photo_tokens = {}
+
+@app.route('/api/photos/token', methods=['POST'])
+def create_photo_token():
+    """Create a short token for photo upload QR codes."""
+    import time
+    data = request.get_json()
+    token_id = uuid.uuid4().hex[:8]
+    _photo_tokens[token_id] = data
+    # Clean up expired tokens
+    now = time.time() * 1000
+    expired = [k for k, v in _photo_tokens.items() if v.get('expires', 0) < now]
+    for k in expired:
+        del _photo_tokens[k]
+    return jsonify({'token': token_id})
+
+
 @app.route('/photo/<token>', methods=['GET'])
 def photo_upload_page(token):
-    """Serve the phone camera upload page."""
+    """Serve the phone camera upload page. Supports both short tokens and legacy base64 tokens."""
+    # Check if it's a short token
+    if token in _photo_tokens:
+        import base64
+        full_token = base64.b64encode(json.dumps(_photo_tokens[token]).encode()).decode()
+        return render_template('photo_upload.html', token=full_token)
+    # Legacy: token is already base64-encoded JSON
     return render_template('photo_upload.html', token=token)
 
 

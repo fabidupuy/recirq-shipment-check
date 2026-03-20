@@ -5077,6 +5077,8 @@ let ppPendingConflicts = [];
 let ppConflictAllUnits = [];
 let ppConflictRmaGroups = {};
 let ppActivePackingVendor = ''; // which vendor tab is active in packing view
+let ppSelectMode = false; // admin selection mode for deleting RMAs/units
+let ppSelectedUnits = new Set(); // set of IMEI strings currently selected
 
 // ── HELPERS ──
 function ppGetJob(vendor) {
@@ -5135,6 +5137,78 @@ async function ppDeleteJob(vendor) {
     console.error('Delete packing job failed:', e);
     alert('Failed to delete packing job. Check console for details.');
   }
+}
+
+function ppToggleSelectMode() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  ppSelectMode = !ppSelectMode;
+  ppSelectedUnits = new Set();
+  renderPPPackingSection();
+}
+
+function ppToggleSelectUnit(imei) {
+  if (ppSelectedUnits.has(imei)) ppSelectedUnits.delete(imei);
+  else ppSelectedUnits.add(imei);
+  renderPPPackingSection();
+}
+
+function ppSelectGroup(groupIMEIs) {
+  // If all in group are selected, deselect all; otherwise select all
+  const allSelected = groupIMEIs.every(i => ppSelectedUnits.has(i));
+  groupIMEIs.forEach(i => { if (allSelected) ppSelectedUnits.delete(i); else ppSelectedUnits.add(i); });
+  renderPPPackingSection();
+}
+
+function ppSelectAll() {
+  const vendor = ppActivePackingVendor;
+  const job = ppJobs[vendor];
+  if (!job) return;
+  const actionable = job.units.filter(u => u.rmaNumber !== 'UNMATCHED').map(u => u.imei);
+  const allSelected = actionable.every(i => ppSelectedUnits.has(i));
+  actionable.forEach(i => { if (allSelected) ppSelectedUnits.delete(i); else ppSelectedUnits.add(i); });
+  renderPPPackingSection();
+}
+
+async function ppDeleteSelected() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  if (ppSelectedUnits.size === 0) { alert('No units selected.'); return; }
+  const vendor = ppActivePackingVendor;
+  const job = ppJobs[vendor];
+  if (!job) return;
+
+  const selected = [...ppSelectedUnits];
+  const selectedUnits = job.units.filter(u => selected.includes(u.imei));
+  const rmasAffected = [...new Set(selectedUnits.map(u => u.rmaNumber).filter(r => r && r !== 'UNMATCHED'))];
+  const packedCount = selectedUnits.filter(u => u.packed).length;
+
+  let msg = `⚠️ DELETE ${selected.length} UNIT(S) from ${vendor}\n\n`;
+  if (packedCount > 0) msg += `WARNING: ${packedCount} of these units are already PACKED.\n\n`;
+  msg += `RMAs affected: ${rmasAffected.join(', ') || 'N/A'}\n\n`;
+  msg += `This will permanently remove these units from the packing job.\nThis action CANNOT be undone.\n\nType "DELETE" to confirm:`;
+
+  const confirmation = prompt(msg);
+  if (confirmation !== 'DELETE') {
+    if (confirmation !== null) alert('Deletion cancelled — you must type DELETE exactly.');
+    return;
+  }
+
+  // Remove selected units from job
+  const removedIMEIs = new Set(selected);
+  job.units = job.units.filter(u => !removedIMEIs.has(u.imei));
+  ppRebuildGroups(job);
+
+  // Also remove from any open box imeis lists
+  job.boxes.forEach(box => {
+    box.imeis = box.imeis.filter(i => !removedIMEIs.has(i));
+  });
+
+  logAction('delete_packing_units', null, { vendor, imeis: selected, rmasAffected, count: selected.length });
+  ppSelectedUnits = new Set();
+  ppSelectMode = false;
+  ppSaveState();
+  renderPPPackingSection();
+  renderPPUploadSection();
+  alert(`${selected.length} unit(s) removed from ${vendor} packing job.`);
 }
 
 function ppVendorsWithJobs() {
@@ -5284,8 +5358,9 @@ function renderPPPackingSection() {
   }
 
   const job = ppJobs[ppActivePackingVendor];
-  const totalUnits = job.units.length;
-  const packedUnits = job.units.filter(u => u.packed).length;
+  const actionableUnits = job.units.filter(u => u.rmaNumber !== 'UNMATCHED');
+  const totalUnits = actionableUnits.length;
+  const packedUnits = actionableUnits.filter(u => u.packed).length;
   const pctPacked = totalUnits > 0 ? Math.round((packedUnits / totalUnits) * 100) : 0;
   const rmaKeys = Object.keys(job.rmaGroups).filter(k => k !== 'UNMATCHED');
   const isVZ = ppActivePackingVendor === 'VERIZON';
@@ -5311,7 +5386,7 @@ function renderPPPackingSection() {
   let vendorTabs = '<div style="display:flex;gap:4px;margin-bottom:16px;">';
   vendors.forEach(v => {
     const isActive = v === ppActivePackingVendor;
-    const cnt = ppJobs[v].units.length;
+    const cnt = ppJobs[v].units.filter(u => u.rmaNumber !== 'UNMATCHED').length;
     const badgeClass = v === 'VERIZON' ? 'badge-verizon' : 'badge-3pl';
     vendorTabs += `<button class="btn ${isActive ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="ppLastFeedback='';ppLastScanned=null;ppActivePackingVendor='${v}';renderPPPackingSection();">
       ${v} (${cnt})
@@ -5334,6 +5409,19 @@ function renderPPPackingSection() {
         </div>
         <div class="pp-progress-bar"><div class="pp-progress-fill" style="width:${pctPacked}%;"></div></div>
       </div>
+
+      ${currentUser && currentUser.role === 'admin' ? `
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-sm ${ppSelectMode ? 'btn-danger' : 'btn-outline'}" onclick="ppToggleSelectMode()" style="font-size:11px;">
+          ${ppSelectMode ? 'Cancel Selection' : 'Select Units'}
+        </button>
+        ${ppSelectMode ? `
+          <button class="btn btn-sm btn-outline" onclick="ppSelectAll()" style="font-size:11px;">Select All</button>
+          <span style="font-size:12px;color:#666;">${ppSelectedUnits.size} selected</span>
+          ${ppSelectedUnits.size > 0 ? '<button class="btn btn-sm btn-danger" onclick="ppDeleteSelected()" style="font-size:11px;">Delete Selected</button>' : ''}
+        ` : ''}
+      </div>
+      ` : ''}
 
       ${job.trackingConfirmed ? `
       <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;">
@@ -5392,9 +5480,12 @@ function renderPPPackingSection() {
       const printBtn = `<button class="btn btn-sm btn-outline" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();ppPrintVZLabel('${rma}')">Print Label</button>`;
       const boxPhotoBtn = `<button class="btn btn-sm btn-outline" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();ppOpenPhotoQR('box-${rma}','${ppActivePackingVendor}','box','${rma}')">Box Photo</button>`;
 
+      const grpIMEIs = grp.map(u => u.imei);
+      const grpAllSelected = ppSelectMode && grpIMEIs.every(i => ppSelectedUnits.has(i));
       html += `
       <div class="pp-rma-group" style="${urgencyClass}">
         <div class="pp-rma-header" onclick="ppToggleRMA('${rma}')">
+          ${ppSelectMode ? `<input type="checkbox" ${grpAllSelected ? 'checked' : ''} onclick="event.stopPropagation();ppSelectGroup(${JSON.stringify(grpIMEIs).replace(/"/g,'&quot;')})" style="width:18px;height:18px;margin-right:4px;cursor:pointer;flex-shrink:0;">` : ''}
           <div style="flex:1;">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <h4>RMA# ${rma}</h4>
@@ -5420,9 +5511,11 @@ function renderPPPackingSection() {
         const isFallout = u.fallout;
         const statusBadge = isFallout ? '<span class="badge badge-fail">FALLOUT</span>' : (u.packed ? '<span class="badge badge-pass">PACKED</span>' : '<span class="badge badge-pending">PENDING</span>');
         const cardBg = isFallout ? 'background:var(--critical-bg);opacity:0.8;' : '';
+        const unitChecked = ppSelectedUnits.has(u.imei);
         html += `
-          <div class="pp-unit-card" style="padding:12px 16px;border-bottom:1px solid #f0f0f0;${cardBg}">
+          <div class="pp-unit-card" style="padding:12px 16px;border-bottom:1px solid #f0f0f0;${cardBg}${unitChecked ? 'background:#fff3e0;' : ''}">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+              ${ppSelectMode ? `<input type="checkbox" ${unitChecked ? 'checked' : ''} onclick="ppToggleSelectUnit('${u.imei}')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">` : ''}
               <span style="font-family:monospace;font-size:13px;font-weight:600;min-width:150px;${isFallout ? 'text-decoration:line-through;color:#999;' : ''}">${u.imei}</span>
               <span style="font-size:11px;color:#666;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;" title="${u.description}">${u.description || '—'}</span>
               <span style="font-size:11px;color:#888;">Rack ${u.rackId || '—'}</span>
@@ -5442,9 +5535,9 @@ function renderPPPackingSection() {
     });
   } else {
     // ── NON-VERIZON: GROUP BY SUBMISSION DATE ──
-    // Group units by submission date
+    // Group units by submission date (exclude UNMATCHED)
     const dateGroups = {};
-    job.units.forEach(u => {
+    job.units.filter(u => u.rmaNumber !== 'UNMATCHED').forEach(u => {
       const subDate = u.rmaSubmissionDate || 'Unknown';
       if (!dateGroups[subDate]) dateGroups[subDate] = [];
       dateGroups[subDate].push(u);
@@ -5506,10 +5599,13 @@ function renderPPPackingSection() {
       const grpPct = grpActive.length > 0 ? Math.round((grpPacked / grpActive.length) * 100) : 0;
 
       const groupId = `date-${subDate.replace(/[\/\-]/g, '_')}`;
+      const dateGrpIMEIs = grp.map(u => u.imei);
+      const dateGrpAllSelected = ppSelectMode && dateGrpIMEIs.every(i => ppSelectedUnits.has(i));
 
       html += `
       <div class="pp-rma-group">
         <div class="pp-rma-header" onclick="ppToggleRMA('${groupId}')">
+          ${ppSelectMode ? `<input type="checkbox" ${dateGrpAllSelected ? 'checked' : ''} onclick="event.stopPropagation();ppSelectGroup(${JSON.stringify(dateGrpIMEIs).replace(/"/g,'&quot;')})" style="width:18px;height:18px;margin-right:4px;cursor:pointer;flex-shrink:0;">` : ''}
           <div style="flex:1;">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <h4>${fmtDate(subDate)} — ${grpActive.length} units${grpFallout.length > 0 ? ' <span style="font-size:12px;color:var(--alert-red);font-weight:400;">(' + grpFallout.length + ' fallout)</span>' : ''}</h4>
@@ -5530,13 +5626,15 @@ function renderPPPackingSection() {
         const isFallout = u.fallout;
         const statusBadge = isFallout ? '<span class="badge badge-fail">FALLOUT</span>' : (u.packed ? '<span class="badge badge-pass">PACKED</span>' : '<span class="badge badge-pending">PENDING</span>');
         const cardBg = isFallout ? 'background:var(--critical-bg);opacity:0.8;' : '';
+        const unitChecked2 = ppSelectedUnits.has(u.imei);
         const imeiPhotoCount = ppGetPhotoCount(u.imei);
         const photoIndicator = imeiPhotoCount > 0
           ? `<span style="cursor:pointer;font-size:11px;color:var(--success-green);font-weight:600;" onclick="event.stopPropagation();ppOpenIMEIPhotos('${u.imei}')" title="View ${imeiPhotoCount} photo(s)">&#128247; ${imeiPhotoCount}</span>`
           : (u.packed && !isFallout ? '<span style="font-size:11px;color:var(--alert-red);" title="No photos">&#128247; 0</span>' : '');
         html += `
-          <div class="pp-unit-card" style="padding:12px 16px;border-bottom:1px solid #f0f0f0;${cardBg}">
+          <div class="pp-unit-card" style="padding:12px 16px;border-bottom:1px solid #f0f0f0;${cardBg}${unitChecked2 ? 'background:#fff3e0;' : ''}">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+              ${ppSelectMode ? `<input type="checkbox" ${unitChecked2 ? 'checked' : ''} onclick="ppToggleSelectUnit('${u.imei}')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">` : ''}
               <span style="font-family:monospace;font-size:13px;font-weight:600;min-width:150px;${isFallout ? 'text-decoration:line-through;color:#999;' : ''}">${u.imei}</span>
               <span style="font-size:11px;color:#666;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;" title="${u.description}">${u.description || '—'}</span>
               <span style="font-size:11px;color:#888;">Rack ${u.rackId || '—'}</span>
@@ -5558,21 +5656,8 @@ function renderPPPackingSection() {
     });
   }
 
-  // Unmatched
-  if (job.rmaGroups['UNMATCHED'] && job.rmaGroups['UNMATCHED'].length > 0) {
-    const unmatched = job.rmaGroups['UNMATCHED'];
-    html += `
-    <div class="pp-rma-group" style="border-color:var(--alert-red);">
-      <div class="pp-rma-header" style="background:var(--critical-bg);" onclick="ppToggleRMA('UNMATCHED')">
-        <h4 style="color:var(--alert-red);">UNMATCHED (${unmatched.length} units)</h4>
-        <span class="activity-log-toggle ${ppExpandedRMAs.has('UNMATCHED') ? 'expanded' : ''}">&#9654;</span>
-      </div>
-      <div class="pp-rma-body ${ppExpandedRMAs.has('UNMATCHED') ? 'expanded' : ''}">`;
-    unmatched.forEach(u => {
-      html += `<div style="padding:6px 16px;font-size:12px;border-bottom:1px solid #f0f0f0;"><span style="font-family:monospace;">${u.imei}</span> — ${u.route} — ${u.description || '—'}</div>`;
-    });
-    html += `</div></div>`;
-  }
+  // UNMATCHED units are intentionally excluded from the packing screen
+  // (no action can be taken on them). They remain visible on the Upload Job screen.
 
   el.innerHTML = html;
   setTimeout(() => { const inp = document.getElementById('pp-scan-input'); if (inp) inp.focus(); }, 100);
@@ -6191,6 +6276,10 @@ async function ppScanIMEI() {
             <div style="font-size:11px;color:var(--alert-red);font-weight:600;text-transform:uppercase;">Photos Required</div>
             <div style="font-size:14px;margin-top:4px;">IMEI <span style="font-family:monospace;font-weight:700;">${prevUnit.imei}</span> needs photos before you can scan the next unit.</div>
             <div style="font-size:12px;color:#888;margin-top:8px;">Use the "Take Pictures" button to upload photos first.</div>
+            <div style="margin-top:10px;display:flex;gap:8px;">
+              <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();ppOpenPhotoQR('${prevUnit.imei}','${vendor}','unit','${prevUnit.rmaNumber || ''}')" style="font-size:12px;">Take Pictures</button>
+              <button class="btn btn-sm btn-outline" onclick="ppLastScanned=null;ppLastFeedback='';renderPPPackingSection();" style="font-size:12px;color:var(--warn-orange);border-color:var(--warn-orange);">Skip & Continue</button>
+            </div>
           </div>`;
         renderPPPackingSection();
         return;
@@ -6201,6 +6290,16 @@ async function ppScanIMEI() {
   input.value = '';
 
   const unitIdx = job.units.findIndex(u => u.imei === imei);
+  if (unitIdx >= 0 && job.units[unitIdx].rmaNumber === 'UNMATCHED') {
+    ppLastScanned = null;
+    ppLastFeedback = `
+      <div style="background:var(--warn-bg);border:2px solid var(--warn-orange);border-radius:10px;padding:14px 18px;margin:0;">
+        <div style="font-size:11px;color:var(--warn-orange);font-weight:600;text-transform:uppercase;">Unmatched IMEI</div>
+        <div style="font-size:14px;margin-top:4px;">IMEI <span style="font-family:monospace;font-weight:700;">${imei}</span> has no matching RMA and cannot be packed.</div>
+      </div>`;
+    renderPPPackingSection();
+    return;
+  }
   if (unitIdx < 0) {
     ppLastScanned = null;
     ppLastFeedback = `
@@ -6304,30 +6403,59 @@ async function ppScanIMEI() {
 
 // ── FEEDBACK WITH INLINE QC ──
 // ── PHOTO QR CODE ──
-function ppOpenPhotoQR(imei, vendor, type, rma) {
-  const token = btoa(JSON.stringify({
-    imei: imei,
-    vendor: vendor,
-    type: type, // 'unit' or 'box'
-    rma: rma || '',
-    expires: Date.now() + 10 * 60 * 1000, // 10 min
-  }));
-  const url = window.location.origin + '/photo/' + encodeURIComponent(token);
+async function ppOpenPhotoQR(imei, vendor, type, rma) {
+  try {
+    const payload = {
+      imei: imei,
+      vendor: vendor,
+      type: type, // 'unit' or 'box'
+      rma: rma || '',
+      expires: Date.now() + 10 * 60 * 1000, // 10 min
+    };
 
-  document.getElementById('photo-qr-info').textContent = type === 'box'
-    ? 'Box photo for ' + vendor
-    : 'IMEI: ' + imei + (rma ? ' | RMA: ' + rma : '');
+    document.getElementById('photo-qr-info').textContent = type === 'box'
+      ? 'Box photo for ' + vendor
+      : 'IMEI: ' + imei + (rma ? ' | RMA: ' + rma : '');
 
-  const qrContainer = document.getElementById('photo-qr-code');
-  qrContainer.innerHTML = '';
-  new QRCode(qrContainer, {
-    text: url,
-    width: 200,
-    height: 200,
-    colorDark: '#1a3a2a',
-    colorLight: '#ffffff',
-  });
-  document.getElementById('photo-qr-modal').classList.add('show');
+    const qrContainer = document.getElementById('photo-qr-code');
+    qrContainer.innerHTML = '<div style="color:#888;font-size:13px;">Generating QR code...</div>';
+    document.getElementById('photo-qr-modal').classList.add('show');
+
+    // Get a short token from the server to keep the QR URL compact
+    let url;
+    try {
+      const resp = await fetch(API + '/photos/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      url = window.location.origin + '/photo/' + data.token;
+    } catch (e) {
+      // Fallback to legacy base64 token if server call fails
+      const token = btoa(JSON.stringify(payload));
+      url = window.location.origin + '/photo/' + encodeURIComponent(token);
+    }
+
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
+      text: url,
+      width: 200,
+      height: 200,
+      colorDark: '#1a3a2a',
+      colorLight: '#ffffff',
+    });
+
+    // Add clickable fallback link
+    const linkDiv = document.createElement('div');
+    linkDiv.style.cssText = 'margin-top:8px;font-size:11px;';
+    linkDiv.innerHTML = '<a href="' + url + '" target="_blank" style="color:var(--dark-green);word-break:break-all;">Open photo page directly</a>';
+    qrContainer.appendChild(linkDiv);
+  } catch (e) {
+    console.error('Failed to open photo QR:', e);
+    const qrContainer = document.getElementById('photo-qr-code');
+    if (qrContainer) qrContainer.innerHTML = '<div style="color:var(--alert-red);font-size:13px;">Failed to generate QR code. See console for details.</div>';
+  }
 }
 
 function closePhotoQR() {
@@ -6351,7 +6479,7 @@ function ppBuildFeedbackHTML() {
   if (!u.packed) return ppLastFeedback; // Only show QC for packed units
 
   // Build inline QC chips
-  const photoCount = (u.photos && u.photos.length) || 0;
+  const photoCount = ppGetPhotoCount(u.imei);
   const qcHTML = `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.1);">
       <div style="display:flex;justify-content:space-between;align-items:start;">
