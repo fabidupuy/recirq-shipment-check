@@ -5463,10 +5463,12 @@ function renderPPPackingSection() {
       let closedHTML = '<div style="margin-bottom:12px;">';
       closedHTML += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Closed Boxes</div>';
       closedBoxes.forEach(b => {
+        const boxTracking = b.tracking || (b.labelData && b.labelData.tracking) || '';
         closedHTML += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;margin-bottom:4px;">
           <div>
             <span style="font-size:12px;font-weight:600;">Box #${b.boxNum}</span>
             <span style="font-size:11px;color:#888;margin-left:8px;">${b.imeis.length} units</span>
+            ${boxTracking ? '<span style="font-size:11px;color:var(--dark-green);margin-left:8px;font-family:monospace;">' + boxTracking + '</span>' : ''}
             ${b.lockedDate ? '<span style="font-size:11px;color:#888;margin-left:8px;">' + b.lockedDate + '</span>' : ''}
           </div>
           <button class="btn btn-sm btn-outline" onclick="ppReprintBoxLabel('${ppActivePackingVendor}',${b.boxNum})" style="font-size:10px;padding:2px 8px;">Reprint Label</button>
@@ -6063,16 +6065,20 @@ function ppReprintBoxLabel(vendor, boxNum) {
   const box = job.boxes.find(b => b.boxNum === boxNum);
   if (!box) { alert('Box not found.'); return; }
   if (box.labelData) {
+    // Use box-level tracking as authoritative source (captured at close time)
+    if (box.tracking && !box.labelData.tracking) {
+      box.labelData.tracking = box.tracking;
+    }
     ppPrintBoxLabel(vendor, box.labelData);
   } else {
-    // Fallback: reconstruct label data
+    // Fallback: reconstruct label data using box-level tracking (NOT current job.tracking which may have been reset)
     const rmasInBox = new Set();
     box.imeis.forEach(imei => {
       const u = job.units.find(unit => unit.imei === imei);
       if (u && u.rmaNumber && u.rmaNumber !== 'UNMATCHED') rmasInBox.add(u.rmaNumber);
     });
     ppPrintBoxLabel(vendor, {
-      tracking: job.tracking,
+      tracking: box.tracking || job.tracking,
       packedDate: box.closedAt ? new Date(box.closedAt).toLocaleDateString() : new Date().toLocaleDateString(),
       rmas: Array.from(rmasInBox).join(', ') || 'N/A',
       unitCount: box.imeis.length,
@@ -6094,6 +6100,12 @@ async function ppCloseBox(vendor) {
     return;
   }
 
+  // Require tracking number before closing
+  if (!job.tracking || !job.trackingConfirmed) {
+    alert('A tracking number must be confirmed before closing a box.\n\nPlease enter and confirm a tracking number first.');
+    return;
+  }
+
   // Check box photos exist
   const photoKey = 'box-' + currentBox.boxNum;
   const hasPhotos = await ppCheckPhotosExist(photoKey);
@@ -6104,8 +6116,9 @@ async function ppCloseBox(vendor) {
 
   if (!confirm(`Close Box #${currentBox.boxNum}? (${currentBox.imeis.length} units)\n\nThis will print a label and open a new box.`)) return;
 
-  // Mark box as closed
+  // Mark box as closed and capture tracking at close time
   currentBox.closedAt = new Date().toISOString();
+  currentBox.tracking = job.tracking;
 
   // Get all RMAs for this box
   const rmasInBox = new Set();
