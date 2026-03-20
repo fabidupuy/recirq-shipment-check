@@ -1187,6 +1187,23 @@ function hydrateShipmentPhotos() {
   refreshHistory();
 }
 
+async function hydrateShippingLabels() {
+  // Fetch all label refs from server and attach to batch objects
+  try {
+    const resp = await fetch(`${API}/labels/all`);
+    if (!resp.ok) return;
+    const allLabels = await resp.json();
+    const allBatches = [...vzBatches, ...bpBatches];
+    allBatches.forEach(b => {
+      const labels = allLabels[String(b.id)];
+      if (labels && labels.length > 0) {
+        b.shippingLabels = labels;
+      }
+    });
+    refreshHistory();
+  } catch (e) { console.warn('Label hydration failed:', e); }
+}
+
 async function saveSlackSettingsToServer(settings) {
   try {
     await fetch(`${API}/settings`, {
@@ -4382,6 +4399,9 @@ function refreshHistory() {
         <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadAllReports('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Download all reports as CSV">&#11015; CSV</button>
         <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openShipmentPhotos('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Shipment photos">&#128247; Photos${b.shipmentPhotos && b.shipmentPhotos.length > 0 ? ' (' + b.shipmentPhotos.length + ')' : ''}</button>
         <input type="file" id="shipment-photo-input-${b.id}" accept="image/*" multiple style="display:none" onchange="uploadShipmentPhotos('${b.id}',this)">
+        <button class="btn btn-sm btn-outline" id="label-btn-${b.id}" onclick="event.stopPropagation();document.getElementById('label-input-${b.id}').click()" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;border-color:#1976d2;color:#1976d2;" title="Upload shipping label">&#128206; Label${b.shippingLabels && b.shippingLabels.length > 0 ? ' (' + b.shippingLabels.length + ')' : ''}</button>
+        <input type="file" id="label-input-${b.id}" accept=".pdf,image/*" style="display:none" onchange="uploadShippingLabel('${b.id}','${b.vendor}',this)">
+        ${b.status === 'CLEARED' ? `<button class="btn btn-sm" id="slack-hist-btn-${b.id}" onclick="event.stopPropagation();sendHistoryToSlack('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;background:#4A154B;color:white;border:none;" title="Send label & photos to Slack thread">&#128268; Slack</button>` : ''}
         <button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button>
       </td>
     </tr>`;
@@ -4541,6 +4561,203 @@ function compressImage(file, maxDim, quality) {
     };
     reader.readAsDataURL(file);
   });
+}
+
+// ═══════════ SHIPPING LABEL UPLOAD ═══════════
+async function uploadShippingLabel(batchId, vendor, input) {
+  if (!input.files.length) return;
+  const batch = findBatch(batchId);
+  if (!batch) { alert('Batch not found.'); return; }
+  if (!batch.shippingLabels) batch.shippingLabels = [];
+
+  const btn = document.getElementById('label-btn-' + batchId);
+  const origText = btn.innerHTML;
+  btn.innerHTML = '&#8987; Uploading...';
+  btn.disabled = true;
+
+  const file = input.files[0];
+  const formData = new FormData();
+  formData.append('label', file, file.name);
+  formData.append('batchId', batchId);
+  formData.append('vendor', vendor);
+
+  try {
+    const resp = await fetch(`${API}/labels/upload`, { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.viewUrl) {
+      const labelRef = {
+        viewUrl: data.viewUrl,
+        key: data.key,
+        labelId: data.labelId,
+        filename: data.filename,
+        contentType: data.contentType,
+        uploadedAt: new Date().toISOString(),
+      };
+      batch.shippingLabels.push(labelRef);
+      // Persist label ref server-side
+      await fetch(`${API}/labels/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId, label: labelRef }),
+      });
+      saveBatchToServer(batch);
+      refreshHistory();
+    } else {
+      alert('Label upload failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch (e) {
+    console.error('Label upload failed:', e);
+    alert('Label upload failed. Please try again.');
+  }
+
+  input.value = '';
+  btn.disabled = false;
+  btn.innerHTML = origText;
+}
+
+// ═══════════ SEND HISTORY TO SLACK (label + photos in thread) ═══════════
+async function sendHistoryToSlack(batchId) {
+  const batch = findBatch(batchId);
+  if (!batch) return;
+
+  const s = getSlackConfig();
+  if (!s.botToken || !s.channelId) {
+    alert('Slack bot token and channel ID are required for this feature.\nGo to Slack Settings (gear icon) and configure both.');
+    return;
+  }
+
+  const btn = document.getElementById('slack-hist-btn-' + batchId);
+  if (!btn) return;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '&#8987; Sending...';
+  btn.disabled = true;
+
+  const vendorLabel = batch.vendor === 'VERIZON' ? 'VZ' : getVendorLabel(batch).substring(0, 3).toUpperCase();
+  const trackings = [...new Set(batch.units.map(u => u.trackingOut).filter(Boolean))];
+  const trackingStr = trackings.length > 0 ? trackings.map(t => '`' + t + '`').join(', ') : '—';
+
+  // Determine the thread_ts — if the clearance message stored one, use it
+  let threadTs = batch.slackThreadTs || null;
+  let sent = 0, failed = 0;
+
+  // If no thread exists yet, post a new parent message
+  if (!threadTs) {
+    try {
+      const parentMsg = `📦 *${vendorLabel} Shipment — ${fmtDate(batch.shipDate)}*\nTracking: ${trackingStr} | ${batch.units.length} units`;
+      const resp = await fetch(`${API}/slack/post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ botToken: s.botToken, channelId: s.channelId, text: parentMsg }),
+      });
+      const result = await resp.json();
+      if (result.ok && result.ts) {
+        threadTs = result.ts;
+        batch.slackThreadTs = threadTs;
+        saveBatchToServer(batch);
+        sent++;
+      }
+    } catch (e) {
+      console.error('Failed to post parent Slack message:', e);
+    }
+  }
+
+  if (!threadTs) {
+    btn.disabled = false;
+    btn.innerHTML = '&#9888; No thread';
+    setTimeout(() => { btn.innerHTML = origText; }, 3000);
+    alert('Could not create Slack thread. Check your bot token and channel ID.');
+    return;
+  }
+
+  // Upload shipping labels to thread
+  const labels = batch.shippingLabels || [];
+  // Also fetch labels from server in case they were uploaded elsewhere
+  if (labels.length === 0) {
+    try {
+      const lblResp = await fetch(`${API}/labels/${batchId}`);
+      const serverLabels = await lblResp.json();
+      if (serverLabels.length > 0) {
+        batch.shippingLabels = serverLabels;
+        labels.push(...serverLabels);
+      }
+    } catch (e) {}
+  }
+
+  for (const lbl of labels) {
+    try {
+      // Fetch the file from S3 presigned URL and re-upload to Slack
+      const fileResp = await fetch(lbl.viewUrl);
+      const blob = await fileResp.blob();
+
+      const formData = new FormData();
+      formData.append('file', blob, lbl.filename || 'shipping-label.pdf');
+      formData.append('botToken', s.botToken);
+      formData.append('channelId', s.channelId);
+      formData.append('threadTs', threadTs);
+      formData.append('title', `Shipping Label — ${vendorLabel} ${fmtDate(batch.shipDate)}`);
+      formData.append('comment', '📋 Shipping label attached');
+
+      const slackResp = await fetch(`${API}/slack/upload`, { method: 'POST', body: formData });
+      const slackResult = await slackResp.json();
+      if (slackResult.ok) sent++; else failed++;
+    } catch (e) {
+      console.error('Failed to upload label to Slack:', e);
+      failed++;
+    }
+  }
+
+  // Upload shipment photos to thread
+  const photos = batch.shipmentPhotos || ppAllPhotos['shipment-' + batchId] || [];
+  if (photos.length > 0) {
+    // Post a thread reply mentioning photos
+    try {
+      await fetch(`${API}/slack/post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: s.botToken, channelId: s.channelId,
+          text: `📸 *${photos.length} shipment photo(s)* attached below`,
+          threadTs: threadTs,
+        }),
+      });
+    } catch (e) {}
+
+    for (const photo of photos) {
+      try {
+        const fileResp = await fetch(photo.viewUrl);
+        const blob = await fileResp.blob();
+        const formData = new FormData();
+        formData.append('file', blob, 'shipment-photo.jpg');
+        formData.append('botToken', s.botToken);
+        formData.append('channelId', s.channelId);
+        formData.append('threadTs', threadTs);
+        formData.append('title', `Shipment Photo — ${vendorLabel}`);
+
+        const slackResp = await fetch(`${API}/slack/upload`, { method: 'POST', body: formData });
+        const slackResult = await slackResp.json();
+        if (slackResult.ok) sent++; else failed++;
+      } catch (e) {
+        console.error('Failed to upload photo to Slack:', e);
+        failed++;
+      }
+    }
+  }
+
+  // Show result
+  btn.disabled = false;
+  if (failed === 0 && sent > 0) {
+    btn.innerHTML = '&#9989; Sent!';
+    setTimeout(() => { btn.innerHTML = origText; }, 3000);
+  } else if (sent === 0) {
+    btn.innerHTML = '&#9888; No files to send';
+    if (labels.length === 0 && photos.length === 0) {
+      alert('No shipping labels or photos found for this batch. Upload a label or photos first.');
+    }
+    setTimeout(() => { btn.innerHTML = origText; }, 3000);
+  } else {
+    btn.innerHTML = `&#9888; ${sent} sent, ${failed} failed`;
+    setTimeout(() => { btn.innerHTML = origText; }, 4000);
+  }
 }
 
 // ═══════════ DOWNLOAD ALL REPORTS ═══════════
@@ -5014,6 +5231,28 @@ async function sendClearanceMessage(batch) {
   }
   msg += `_Cleared at ${new Date().toLocaleString()}_`;
 
+  // Try server-side post first to capture thread_ts for future thread replies
+  const s = getSlackConfig();
+  if (s.botToken && s.channelId) {
+    try {
+      const resp = await fetch(`${API}/slack/post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ botToken: s.botToken, channelId: s.channelId, text: msg }),
+      });
+      const result = await resp.json();
+      if (result.ok && result.ts) {
+        // Store thread timestamp on the batch for future thread replies
+        batch.slackThreadTs = result.ts;
+        saveBatchToServer(batch);
+        return; // Successfully sent via bot, done
+      }
+    } catch (e) {
+      console.warn('Server-side Slack post failed, falling back to webhook:', e);
+    }
+  }
+
+  // Fallback: send via webhook (no thread_ts capture)
   await sendSlackMessage(msg);
 }
 
@@ -6835,8 +7074,9 @@ function ppResolveAllConflicts(action, vendor) {
     await initSlackSettings();
     await loadBatchesFromServer();
     await ppLoadState();
-    // Restore shipment photos onto batch objects from ppAllPhotos
+    // Restore shipment photos and shipping labels onto batch objects
     hydrateShipmentPhotos();
+    hydrateShippingLabels();
     // Auto-refresh PP state every 30 seconds
     setInterval(async () => {
       try {

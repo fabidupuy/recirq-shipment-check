@@ -456,6 +456,199 @@ def photo_upload_page(token):
 
 
 # ════════════════════════════════════
+# SHIPPING LABEL UPLOAD API
+# ════════════════════════════════════
+
+@app.route('/api/labels/upload', methods=['POST'])
+def upload_label():
+    """Upload a shipping label (PDF or image) to S3."""
+    if not s3_client:
+        return jsonify({'error': 'S3 not configured'}), 500
+
+    if 'label' not in request.files:
+        return jsonify({'error': 'No label file provided'}), 400
+
+    file = request.files['label']
+    batch_id = request.form.get('batchId', 'unknown')
+    vendor = request.form.get('vendor', '')
+    label_id = str(uuid.uuid4())[:8]
+
+    # Determine content type
+    filename = file.filename or 'label'
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'pdf'
+    content_types = {
+        'pdf': 'application/pdf',
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+    }
+    content_type = content_types.get(ext, 'application/octet-stream')
+
+    from datetime import date
+    today = date.today().isoformat()
+    key = f"{today}/{vendor}/labels/batch_{batch_id}_{label_id}.{ext}"
+
+    try:
+        s3_client.upload_fileobj(
+            file,
+            S3_BUCKET,
+            key,
+            ExtraArgs={'ContentType': content_type}
+        )
+        view_url = s3_client.generate_presigned_url('get_object',
+            Params={'Bucket': S3_BUCKET, 'Key': key},
+            ExpiresIn=604800,
+        )
+        return jsonify({
+            'viewUrl': view_url,
+            'key': key,
+            'labelId': label_id,
+            'filename': filename,
+            'contentType': content_type
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/labels/all', methods=['GET'])
+def get_all_labels():
+    """Get all labels for all batches, with refreshed presigned URLs."""
+    state_json = db.get_pp_state('ppLabels')
+    all_labels = json.loads(state_json) if state_json else {}
+    if s3_client:
+        for batch_id in all_labels:
+            for lbl in all_labels[batch_id]:
+                s3_key = lbl.get('key')
+                if s3_key:
+                    try:
+                        lbl['viewUrl'] = s3_client.generate_presigned_url('get_object',
+                            Params={'Bucket': S3_BUCKET, 'Key': s3_key},
+                            ExpiresIn=604800)
+                    except Exception:
+                        pass
+    return jsonify(all_labels)
+
+
+@app.route('/api/labels/<batch_id>', methods=['GET'])
+def get_labels(batch_id):
+    """Get all labels for a batch, with refreshed presigned URLs."""
+    state_json = db.get_pp_state('ppLabels')
+    all_labels = json.loads(state_json) if state_json else {}
+    labels = all_labels.get(str(batch_id), [])
+    # Refresh presigned URLs
+    if s3_client:
+        for lbl in labels:
+            s3_key = lbl.get('key')
+            if s3_key:
+                try:
+                    lbl['viewUrl'] = s3_client.generate_presigned_url('get_object',
+                        Params={'Bucket': S3_BUCKET, 'Key': s3_key},
+                        ExpiresIn=604800)
+                except Exception:
+                    pass
+    return jsonify(labels)
+
+
+@app.route('/api/labels/save', methods=['POST'])
+def save_label_ref():
+    """Save a label reference for a batch."""
+    data = request.get_json()
+    batch_id = str(data.get('batchId', ''))
+    label = data.get('label', {})
+    if not batch_id or not label:
+        return jsonify({'error': 'batchId and label required'}), 400
+
+    state_json = db.get_pp_state('ppLabels')
+    all_labels = json.loads(state_json) if state_json else {}
+    if batch_id not in all_labels:
+        all_labels[batch_id] = []
+    all_labels[batch_id].append(label)
+    db.save_pp_state('ppLabels', json.dumps(all_labels))
+    return jsonify({'status': 'saved', 'count': len(all_labels[batch_id])})
+
+
+# ════════════════════════════════════
+# SLACK PROXY API (for threading support)
+# ════════════════════════════════════
+
+@app.route('/api/slack/post', methods=['POST'])
+def slack_post_message():
+    """Post a message to Slack via bot token and return the thread timestamp."""
+    import requests as req
+    data = request.get_json()
+    bot_token = data.get('botToken', '')
+    channel_id = data.get('channelId', '')
+    text = data.get('text', '')
+    thread_ts = data.get('threadTs', None)
+
+    if not bot_token or not channel_id or not text:
+        return jsonify({'error': 'botToken, channelId, and text required'}), 400
+
+    headers = {
+        'Authorization': f'Bearer {bot_token}',
+        'Content-Type': 'application/json; charset=utf-8'
+    }
+    payload = {
+        'channel': channel_id,
+        'text': text,
+        'unfurl_links': False,
+    }
+    if thread_ts:
+        payload['thread_ts'] = thread_ts
+
+    try:
+        resp = req.post('https://slack.com/api/chat.postMessage', json=payload, headers=headers, timeout=10)
+        result = resp.json()
+        if result.get('ok'):
+            return jsonify({'ok': True, 'ts': result.get('ts'), 'channel': result.get('channel')})
+        else:
+            return jsonify({'ok': False, 'error': result.get('error', 'Unknown')}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/slack/upload', methods=['POST'])
+def slack_upload_file():
+    """Upload a file to Slack channel or thread via bot token."""
+    import requests as req
+    bot_token = request.form.get('botToken', '')
+    channel_id = request.form.get('channelId', '')
+    thread_ts = request.form.get('threadTs', '')
+    title = request.form.get('title', 'File')
+    comment = request.form.get('comment', '')
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if not bot_token or not channel_id:
+        return jsonify({'error': 'botToken and channelId required'}), 400
+
+    headers = {'Authorization': f'Bearer {bot_token}'}
+    form = {
+        'channels': (None, channel_id),
+        'title': (None, title),
+    }
+    if thread_ts:
+        form['thread_ts'] = (None, thread_ts)
+    if comment:
+        form['initial_comment'] = (None, comment)
+
+    files_data = {'file': (file.filename or 'file', file.stream, file.content_type or 'application/octet-stream')}
+
+    try:
+        resp = req.post('https://slack.com/api/files.upload',
+            headers=headers, files={**files_data, **form}, timeout=30)
+        result = resp.json()
+        if result.get('ok'):
+            return jsonify({'ok': True})
+        else:
+            return jsonify({'ok': False, 'error': result.get('error', 'Unknown')}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ════════════════════════════════════
 # SETTINGS API
 # ════════════════════════════════════
 
