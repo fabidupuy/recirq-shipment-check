@@ -685,6 +685,140 @@ def slack_search_message():
 
 
 # ════════════════════════════════════
+# EMAIL API
+# ════════════════════════════════════
+
+@app.route('/api/email/test', methods=['POST'])
+def email_test():
+    """Send a test email to verify SMTP configuration."""
+    import smtplib
+    from email.mime.text import MIMEText
+    data = request.get_json()
+    sender = data.get('sender', '')
+    app_password = data.get('appPassword', '')
+    to = data.get('to', sender)
+
+    if not sender or not app_password:
+        return jsonify({'ok': False, 'error': 'Sender and app password required'}), 400
+
+    try:
+        msg = MIMEText('This is a test email from RecirQ 3PL Reventory.\n\nEmail configuration is working correctly!')
+        msg['Subject'] = 'RecirQ Shipment Check — Test Email'
+        msg['From'] = sender
+        msg['To'] = to
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10) as smtp:
+            smtp.login(sender, app_password)
+            smtp.sendmail(sender, [to], msg.as_string())
+
+        return jsonify({'ok': True})
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'ok': False, 'error': 'Authentication failed. Check your email and app password.'}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/email/send-victra', methods=['POST'])
+def email_send_victra():
+    """Send a shipment email to Victra with photos and CSV attached."""
+    import smtplib
+    import requests as req
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.base import MIMEBase
+    from email import encoders
+
+    data = request.get_json()
+    sender = data.get('sender', '')
+    app_password = data.get('appPassword', '')
+    to = data.get('to', '')
+    cc = data.get('cc', '')
+    vendor = data.get('vendor', '')
+    ship_date = data.get('shipDate', '')
+    trackings = data.get('trackings', [])
+    unit_count = data.get('unitCount', 0)
+    removed_count = data.get('removedCount', 0)
+    photos = data.get('photos', [])
+    csv_content = data.get('csvContent', '')
+    batch_id = data.get('batchId', '')
+
+    if not sender or not app_password or not to:
+        return jsonify({'ok': False, 'error': 'Sender, app password, and recipients required'}), 400
+
+    try:
+        msg = MIMEMultipart()
+        tracking_subj = ', '.join(trackings) if trackings else 'No Tracking'
+        msg['Subject'] = f'{vendor} {tracking_subj} ASN {ship_date}'
+        msg['From'] = sender
+        msg['To'] = to
+        if cc:
+            msg['Cc'] = cc
+
+        # Build HTML body
+        tracking_str = ', '.join(trackings) if trackings else '—'
+        body_html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;">
+            <h2 style="color:#2d5016;">RecirQ Global — Shipment Notification</h2>
+            <table style="border-collapse:collapse;width:100%;margin:16px 0;">
+                <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;background:#f5f5f5;width:140px;">Vendor</td><td style="padding:8px;border:1px solid #ddd;">{vendor}</td></tr>
+                <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;background:#f5f5f5;">Ship Date</td><td style="padding:8px;border:1px solid #ddd;">{ship_date}</td></tr>
+                <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;background:#f5f5f5;">Tracking #(s)</td><td style="padding:8px;border:1px solid #ddd;font-family:monospace;">{tracking_str}</td></tr>
+                <tr><td style="padding:8px;border:1px solid #ddd;font-weight:bold;background:#f5f5f5;">Units Shipped</td><td style="padding:8px;border:1px solid #ddd;">{unit_count}</td></tr>
+                {"<tr><td style='padding:8px;border:1px solid #ddd;font-weight:bold;background:#f5f5f5;'>Units Removed</td><td style='padding:8px;border:1px solid #ddd;color:red;'>" + str(removed_count) + "</td></tr>" if removed_count > 0 else ""}
+            </table>
+            <p style="color:#888;font-size:12px;">Ship advice CSV and shipment photos are attached.</p>
+            <hr style="border:none;border-top:1px solid #ddd;margin:16px 0;">
+            <p style="color:#aaa;font-size:11px;">Sent from RecirQ 3PL Reventory</p>
+        </div>
+        """
+        msg.attach(MIMEText(body_html, 'html'))
+
+        # Attach CSV
+        if csv_content:
+            csv_part = MIMEBase('text', 'csv')
+            csv_part.set_payload(csv_content.encode('utf-8'))
+            encoders.encode_base64(csv_part)
+            csv_part.add_header('Content-Disposition', 'attachment', filename=f'Ship_Advice_{vendor}_{ship_date}.csv')
+            msg.attach(csv_part)
+
+        # Attach photos (download from S3 presigned URLs)
+        for i, photo in enumerate(photos):
+            try:
+                s3_key = photo.get('key', '')
+                view_url = photo.get('viewUrl', '')
+                # Regenerate presigned URL if we have the key
+                if s3_key and s3_client:
+                    view_url = s3_client.generate_presigned_url('get_object',
+                        Params={'Bucket': S3_BUCKET, 'Key': s3_key},
+                        ExpiresIn=300)
+                if view_url:
+                    photo_resp = req.get(view_url, timeout=15)
+                    if photo_resp.status_code == 200:
+                        photo_part = MIMEBase('image', 'jpeg')
+                        photo_part.set_payload(photo_resp.content)
+                        encoders.encode_base64(photo_part)
+                        photo_part.add_header('Content-Disposition', 'attachment', filename=f'shipment_photo_{i+1}.jpg')
+                        msg.attach(photo_part)
+            except Exception as pe:
+                print(f"  Failed to attach photo {i+1}: {pe}")
+
+        # Send
+        recipients = [r.strip() for r in to.split(',') if r.strip()]
+        if cc:
+            recipients += [r.strip() for r in cc.split(',') if r.strip()]
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=30) as smtp:
+            smtp.login(sender, app_password)
+            smtp.sendmail(sender, recipients, msg.as_string())
+
+        return jsonify({'ok': True, 'recipientCount': len(recipients)})
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'ok': False, 'error': 'Gmail authentication failed. Check app password.'}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ════════════════════════════════════
 # SETTINGS API
 # ════════════════════════════════════
 

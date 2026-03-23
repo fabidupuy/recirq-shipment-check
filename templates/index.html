@@ -118,6 +118,26 @@
   .btn-sm { padding: 5px 12px; font-size: 12px; }
   .btn:disabled { opacity: .5; cursor: not-allowed; }
 
+  /* ── HISTORY ROW ACTION BUTTONS ── */
+  .hist-actions { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .hist-icon-btn { width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid var(--medium-green); background: white; color: var(--dark-green); font-size: 15px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background .15s, transform .1s; position: relative; }
+  .hist-icon-btn:hover { background: var(--light-green); transform: scale(1.08); }
+  .hist-icon-btn.blue { border-color: #1976d2; color: #1976d2; }
+  .hist-icon-btn.blue:hover { background: #e3f2fd; }
+  .hist-icon-btn .badge-count { position: absolute; top: -5px; right: -5px; background: var(--dark-green); color: white; font-size: 9px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+  .hist-icon-btn.blue .badge-count { background: #1976d2; }
+  .hist-more-wrap { position: relative; display: inline-flex; }
+  .hist-more-btn { width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid #bbb; background: white; color: #666; font-size: 18px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background .15s; line-height: 1; letter-spacing: 1px; }
+  .hist-more-btn:hover { background: #f5f5f5; }
+  .hist-dropdown { display: none; position: absolute; top: 36px; right: 0; background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,.15); min-width: 160px; z-index: 100; overflow: hidden; border: 1px solid #e0e0e0; }
+  .hist-dropdown.show { display: block; }
+  .hist-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: none; width: 100%; text-align: left; color: #333; transition: background .12s; }
+  .hist-dropdown-item:hover { background: #f5f5f5; }
+  .hist-dropdown-item .dd-icon { font-size: 16px; width: 20px; text-align: center; }
+  .hist-dropdown-item.slack-item { color: #4A154B; }
+  .hist-dropdown-item.email-item { color: #e67e22; }
+  .hist-dropdown-item.delete-item { color: var(--alert-red); border-top: 1px solid #eee; }
+
   /* ── FORM ── */
   .form-group { margin-bottom: 16px; }
   .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--dark-gray); margin-bottom: 6px; }
@@ -309,6 +329,9 @@
         <div class="sidebar-item" onclick="toggleSlackSettings()">
           <span class="icon">&#9881;</span> Slack Settings
         </div>
+        <div class="sidebar-item" onclick="toggleEmailSettings()">
+          <span class="icon">&#9993;</span> Email Settings
+        </div>
         <div class="sidebar-item" id="sidebar-user-mgmt" onclick="openUserManagementModal()" style="display:none;">
           <span class="icon">&#128101;</span> User Management
         </div>
@@ -447,6 +470,39 @@
   <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
     <button class="btn btn-sm btn-primary" onclick="testSlackConnection()" style="padding:5px 14px;">Test Connection</button>
     <span id="slack-test-status" style="font-size:12px;"></span>
+  </div>
+</div>
+
+<!-- ═══ EMAIL SETTINGS PANEL ═══ -->
+<div id="email-settings" style="display:none;background:#fef9f0;border-bottom:2px solid #e67e22;padding:14px 20px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <h3 style="color:#e67e22;font-size:14px;">&#9993; Email Settings</h3>
+    <button onclick="toggleEmailSettings()" style="background:none;border:none;cursor:pointer;font-size:16px;color:#888;">&times;</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div>
+      <label style="font-size:12px;font-weight:600;color:#555;">Sender Gmail Address</label>
+      <input type="email" id="email-sender" placeholder="yourname@gmail.com" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:12px;margin-top:4px;" oninput="saveEmailSettings()">
+      <p style="font-size:10px;color:#888;margin-top:2px;">Gmail account that will send shipment emails</p>
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:600;color:#555;">Gmail App Password</label>
+      <input type="password" id="email-app-password" placeholder="xxxx xxxx xxxx xxxx" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:12px;margin-top:4px;" oninput="saveEmailSettings()">
+      <p style="font-size:10px;color:#888;margin-top:2px;"><a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#1976d2;">Generate an App Password</a> (requires 2FA enabled)</p>
+    </div>
+  </div>
+  <div style="margin-top:8px;">
+    <label style="font-size:12px;font-weight:600;color:#555;">Victra Recipient Email(s)</label>
+    <input type="text" id="email-victra-recipients" placeholder="contact@victra.com, another@victra.com" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:12px;margin-top:4px;" oninput="saveEmailSettings()">
+    <p style="font-size:10px;color:#888;margin-top:2px;">Comma-separated email addresses for Victra shipment notifications</p>
+  </div>
+  <div style="margin-top:8px;">
+    <label style="font-size:12px;font-weight:600;color:#555;">CC (optional)</label>
+    <input type="text" id="email-cc" placeholder="manager@recirqglobal.com" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:12px;margin-top:4px;" oninput="saveEmailSettings()">
+  </div>
+  <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+    <button class="btn btn-sm" onclick="testEmailConnection()" style="padding:5px 14px;background:#e67e22;color:white;border:none;border-radius:4px;">Send Test Email</button>
+    <span id="email-test-status" style="font-size:12px;"></span>
   </div>
 </div>
 
@@ -4395,14 +4451,22 @@ function refreshHistory() {
       <td>${fmtDate(b.shipDate)}</td><td>${vendorBadge}</td><td style="font-size:12px;">${trackingDisplay || '—'}</td><td>${b.units.length}</td>
       <td><span class="badge badge-${statusClass}">${b.status}</span></td>
       <td>${new Date(b.createdAt).toLocaleString()}</td>
-      <td style="white-space:nowrap;">
-        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();downloadAllReports('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Download all reports as CSV">&#11015; CSV</button>
-        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openShipmentPhotos('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;" title="Shipment photos">&#128247; Photos${b.shipmentPhotos && b.shipmentPhotos.length > 0 ? ' (' + b.shipmentPhotos.length + ')' : ''}</button>
-        <input type="file" id="shipment-photo-input-${b.id}" accept="image/*" multiple style="display:none" onchange="uploadShipmentPhotos('${b.id}',this)">
-        <button class="btn btn-sm btn-outline" id="label-btn-${b.id}" onclick="event.stopPropagation();document.getElementById('label-input-${b.id}').click()" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;border-color:#1976d2;color:#1976d2;" title="Upload shipping label">&#128206; Label${b.shippingLabels && b.shippingLabels.length > 0 ? ' (' + b.shippingLabels.length + ')' : ''}</button>
-        <input type="file" id="label-input-${b.id}" accept=".pdf,image/*" style="display:none" onchange="uploadShippingLabel('${b.id}','${b.vendor}',this)">
-        ${b.status === 'CLEARED' ? `<button class="btn btn-sm" id="slack-hist-btn-${b.id}" onclick="event.stopPropagation();sendHistoryToSlack('${b.id}')" style="padding:3px 10px;font-size:11px;border-radius:4px;margin-right:4px;background:#4A154B;color:white;border:none;" title="Send label & photos to Slack thread">&#128268; Slack</button>` : ''}
-        <button class="btn btn-sm" onclick="event.stopPropagation();deleteBatch('${b.id}','${b.vendor}')" style="padding:2px 8px;font-size:11px;border:1px solid var(--alert-red);color:var(--alert-red);background:white;border-radius:4px;cursor:pointer;">&#128465;</button>
+      <td>
+        <div class="hist-actions">
+          <button class="hist-icon-btn" onclick="event.stopPropagation();downloadAllReports('${b.id}')" title="Download CSV">&#11015;</button>
+          <button class="hist-icon-btn" onclick="event.stopPropagation();openShipmentPhotos('${b.id}')" title="Photos">${b.shipmentPhotos && b.shipmentPhotos.length > 0 ? '<span class="badge-count">' + b.shipmentPhotos.length + '</span>' : ''}&#128247;</button>
+          <input type="file" id="shipment-photo-input-${b.id}" accept="image/*" multiple style="display:none" onchange="uploadShipmentPhotos('${b.id}',this)">
+          <button class="hist-icon-btn blue" id="label-btn-${b.id}" onclick="event.stopPropagation();document.getElementById('label-input-${b.id}').click()" title="Upload label">${b.shippingLabels && b.shippingLabels.length > 0 ? '<span class="badge-count">' + b.shippingLabels.length + '</span>' : ''}&#128206;</button>
+          <input type="file" id="label-input-${b.id}" accept=".pdf,image/*" style="display:none" onchange="uploadShippingLabel('${b.id}','${b.vendor}',this)">
+          <div class="hist-more-wrap">
+            <button class="hist-more-btn" onclick="event.stopPropagation();toggleHistDropdown('${b.id}')" title="More actions">&middot;&middot;&middot;</button>
+            <div class="hist-dropdown" id="hist-dd-${b.id}">
+              ${b.status === 'CLEARED' ? `<button class="hist-dropdown-item slack-item" id="slack-hist-btn-${b.id}" onclick="event.stopPropagation();closeAllHistDropdowns();sendHistoryToSlack('${b.id}')"><span class="dd-icon">&#128268;</span> Send to Slack</button>` : ''}
+              ${b.status === 'CLEARED' ? `<button class="hist-dropdown-item email-item" id="email-hist-btn-${b.id}" onclick="event.stopPropagation();closeAllHistDropdowns();sendVictraEmail('${b.id}')"><span class="dd-icon">&#9993;</span> Email Victra</button>` : ''}
+              <button class="hist-dropdown-item delete-item" onclick="event.stopPropagation();closeAllHistDropdowns();deleteBatch('${b.id}','${b.vendor}')"><span class="dd-icon">&#128465;</span> Delete</button>
+            </div>
+          </div>
+        </div>
       </td>
     </tr>`;
   });
@@ -4411,6 +4475,20 @@ function refreshHistory() {
     ${rows}
   </table></div>`;
 }
+
+// ═══════════ HISTORY ROW DROPDOWN ═══════════
+function toggleHistDropdown(batchId) {
+  const dd = document.getElementById('hist-dd-' + batchId);
+  if (!dd) return;
+  const isOpen = dd.classList.contains('show');
+  closeAllHistDropdowns();
+  if (!isOpen) dd.classList.add('show');
+}
+function closeAllHistDropdowns() {
+  document.querySelectorAll('.hist-dropdown.show').forEach(d => d.classList.remove('show'));
+}
+// Close dropdown when clicking anywhere else
+document.addEventListener('click', function() { closeAllHistDropdowns(); });
 
 // ═══════════ SHIPMENT PHOTO GALLERY ═══════════
 let photoGalleryBatchId = null;
@@ -4863,6 +4941,157 @@ async function initSlackSettings() {
   document.getElementById('slack-webhook-url').value = s.webhookUrl || '';
   document.getElementById('slack-bot-token').value = s.botToken || '';
   document.getElementById('slack-channel-id').value = s.channelId || '';
+}
+
+// ═══════════ EMAIL SETTINGS ═══════════
+function toggleEmailSettings() {
+  const el = document.getElementById('email-settings');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveEmailSettings() {
+  const settings = {
+    emailSender: document.getElementById('email-sender').value.trim(),
+    emailAppPassword: document.getElementById('email-app-password').value.trim(),
+    emailVictraRecipients: document.getElementById('email-victra-recipients').value.trim(),
+    emailCC: document.getElementById('email-cc').value.trim(),
+  };
+  saveSlackSettingsToServer({ ...loadSlackSettings(), ...settings });
+  window._emailSettings = settings;
+}
+
+function loadEmailSettings() {
+  return window._emailSettings || { emailSender: '', emailAppPassword: '', emailVictraRecipients: '', emailCC: '' };
+}
+
+async function initEmailSettings() {
+  const serverSettings = await loadSlackSettingsFromServer();
+  window._emailSettings = {
+    emailSender: serverSettings.emailSender || '',
+    emailAppPassword: serverSettings.emailAppPassword || '',
+    emailVictraRecipients: serverSettings.emailVictraRecipients || '',
+    emailCC: serverSettings.emailCC || '',
+  };
+  const s = window._emailSettings;
+  document.getElementById('email-sender').value = s.emailSender || '';
+  document.getElementById('email-app-password').value = s.emailAppPassword || '';
+  document.getElementById('email-victra-recipients').value = s.emailVictraRecipients || '';
+  document.getElementById('email-cc').value = s.emailCC || '';
+}
+
+async function testEmailConnection() {
+  const statusEl = document.getElementById('email-test-status');
+  const s = loadEmailSettings();
+  if (!s.emailSender || !s.emailAppPassword) {
+    statusEl.innerHTML = '<span style="color:var(--alert-red);">Please enter sender email and app password first.</span>';
+    return;
+  }
+  statusEl.innerHTML = '<span style="color:#e67e22;">Sending test email...</span>';
+  try {
+    const resp = await fetch(`${API}/email/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sender: s.emailSender, appPassword: s.emailAppPassword, to: s.emailSender }),
+    });
+    const result = await resp.json();
+    if (result.ok) {
+      statusEl.innerHTML = '<span style="color:var(--success-green);">&#9989; Test email sent! Check your inbox.</span>';
+    } else {
+      statusEl.innerHTML = '<span style="color:var(--alert-red);">&#10060; ' + (result.error || 'Failed') + '</span>';
+    }
+  } catch (e) {
+    statusEl.innerHTML = '<span style="color:var(--alert-red);">&#10060; ' + e.message + '</span>';
+  }
+}
+
+async function sendVictraEmail(batchId) {
+  const batch = findBatch(batchId);
+  if (!batch) return;
+
+  const s = loadEmailSettings();
+  if (!s.emailSender || !s.emailAppPassword || !s.emailVictraRecipients) {
+    alert('Email not configured. Go to Settings → Email Settings and enter sender, app password, and Victra recipient email(s).');
+    return;
+  }
+
+  const btn = document.getElementById('email-hist-btn-' + batchId);
+  if (!btn) return;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '&#8987; Sending...';
+  btn.disabled = true;
+
+  const vendorFull = getVendorLabel(batch);
+  const trackings = [...new Set(batch.units.map(u => u.trackingOut).filter(Boolean))];
+  const activeUnits = batch.units.filter(u => !isRemoved(u));
+  const removed = batch.units.filter(u => isRemoved(u));
+
+  // Collect photo URLs
+  const photos = batch.shipmentPhotos || ppAllPhotos['shipment-' + batchId] || [];
+  const photoUrls = photos.map(p => ({ viewUrl: p.viewUrl, key: p.key }));
+
+  // Build CSV data — use actual ship advice (same as download reports)
+  let csvContent = '';
+  const isVZ = batch.vendor === 'VERIZON';
+  const headers = isVZ ? batch._vzHeaders : batch._bpHeaders;
+  if (headers && headers.length > 0) {
+    const colMap = mapRMAColumns(headers);
+    const outboundTk = (!isVZ && batch.shippingMethod === 'carrier' && batch.outboundTracking) ? batch.outboundTracking : '';
+    const rows = [headers.map(escapeCSV).join(',')];
+    activeUnits.forEach(u => {
+      if (u._raw) {
+        rows.push(headers.map(h => {
+          if (outboundTk && h === colMap.trackingOut) return escapeCSV(outboundTk);
+          if (colMap.shipDate && h === colMap.shipDate) return escapeCSV(fmtDate(batch.shipDate));
+          if (isVZ && colMap.deliveryNumber && batch.deliveryByRMA && batch.deliveryByRMA[u.rmaNumber] && h === colMap.deliveryNumber) return escapeCSV(batch.deliveryByRMA[u.rmaNumber]);
+          return escapeCSV(u._raw[h] || '');
+        }).join(','));
+      }
+    });
+    csvContent = rows.join('\n');
+  } else {
+    // Fallback: basic CSV if no raw headers available
+    const rows = [['IMEI', 'RMA #', 'Tracking', 'Route'].map(escapeCSV).join(',')];
+    activeUnits.forEach(u => {
+      rows.push([u.imei, u.rmaNumber || '', u.trackingOut || '', u.route || ''].map(escapeCSV).join(','));
+    });
+    csvContent = rows.join('\n');
+  }
+
+  try {
+    const resp = await fetch(`${API}/email/send-victra`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: s.emailSender,
+        appPassword: s.emailAppPassword,
+        to: s.emailVictraRecipients,
+        cc: s.emailCC,
+        vendor: vendorFull,
+        shipDate: fmtDate(batch.shipDate),
+        trackings: trackings,
+        unitCount: activeUnits.length,
+        removedCount: removed.length,
+        photos: photoUrls,
+        csvContent: csvContent,
+        batchId: batchId,
+      }),
+    });
+    const result = await resp.json();
+    btn.disabled = false;
+    if (result.ok) {
+      btn.innerHTML = '&#9989; Sent!';
+      setTimeout(() => { btn.innerHTML = origText; }, 3000);
+    } else {
+      btn.innerHTML = '&#9888; Failed';
+      alert('Email failed: ' + (result.error || 'Unknown error'));
+      setTimeout(() => { btn.innerHTML = origText; }, 3000);
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '&#9888; Error';
+    alert('Email error: ' + e.message);
+    setTimeout(() => { btn.innerHTML = origText; }, 3000);
+  }
 }
 
 function getSlackConfig() {
@@ -5742,7 +5971,7 @@ function renderPPPackingSection() {
       const grpIMEIs = grp.map(u => u.imei);
       const grpAllSelected = ppSelectMode && grpIMEIs.every(i => ppSelectedUnits.has(i));
       html += `
-      <div class="pp-rma-group" style="${urgencyClass}">
+      <div class="pp-rma-group" id="pp-group-${rma}" style="${urgencyClass}">
         <div class="pp-rma-header" onclick="ppToggleRMA('${rma}')">
           ${ppSelectMode ? `<input type="checkbox" ${grpAllSelected ? 'checked' : ''} onclick="event.stopPropagation();ppSelectGroup(${JSON.stringify(grpIMEIs).replace(/"/g,'&quot;')})" style="width:18px;height:18px;margin-right:4px;cursor:pointer;flex-shrink:0;">` : ''}
           <div style="flex:1;">
@@ -5863,7 +6092,7 @@ function renderPPPackingSection() {
       const dateGrpAllSelected = ppSelectMode && dateGrpIMEIs.every(i => ppSelectedUnits.has(i));
 
       html += `
-      <div class="pp-rma-group">
+      <div class="pp-rma-group" id="pp-group-${groupId}">
         <div class="pp-rma-header" onclick="ppToggleRMA('${groupId}')">
           ${ppSelectMode ? `<input type="checkbox" ${dateGrpAllSelected ? 'checked' : ''} onclick="event.stopPropagation();ppSelectGroup(${JSON.stringify(dateGrpIMEIs).replace(/"/g,'&quot;')})" style="width:18px;height:18px;margin-right:4px;cursor:pointer;flex-shrink:0;">` : ''}
           <div style="flex:1;">
@@ -6237,11 +6466,11 @@ async function ppCompleteRMA(vendor, rma) {
 
   if (!allActivePacked) { alert('Not all non-fallout units in this RMA are packed yet.'); return; }
 
-  // Check box photos exist
-  const photoKey = 'box-' + rma;
-  const hasPhotos = await ppCheckPhotosExist(photoKey);
-  if (!hasPhotos) {
-    alert('Box photos are required before completing this RMA.\n\nPlease use the "Box Photo" button to take photos of the packed box first.');
+  // Photo gate: VZ box photo must exist for this RMA
+  const boxPhotoKey = 'box-' + rma;
+  const hasBoxPhoto = await ppCheckPhotosExist(boxPhotoKey);
+  if (!hasBoxPhoto) {
+    alert(`Box photo is missing for RMA# ${rma}.\n\nPlease take a box photo before completing the RMA.`);
     return;
   }
 
@@ -6291,24 +6520,22 @@ async function ppCompleteDateGroup(vendor, subDate) {
 
   if (!allActivePacked) { alert('Not all non-fallout units in this date group are packed yet.'); return; }
 
-  // Check that all packed IMEIs have photos
-  const missingPhotos = [];
-  for (const u of activeUnits.filter(u => u.packed)) {
-    const hasPhotos = await ppCheckPhotosExist(u.imei);
-    if (!hasPhotos) missingPhotos.push(u.imei);
-  }
-  if (missingPhotos.length > 0) {
-    alert(`${missingPhotos.length} IMEI(s) are missing photos:\n\n${missingPhotos.slice(0, 5).join('\n')}${missingPhotos.length > 5 ? '\n... and ' + (missingPhotos.length - 5) + ' more' : ''}\n\nAll units must have photos before completing the group.`);
-    return;
+  // Photo gate: check that all closed boxes have photos
+  const closedBoxes = (job.boxes || []).filter(b => b.closedAt);
+  for (const box of closedBoxes) {
+    const boxKey = 'box-' + box.boxNum;
+    const hasBoxPhoto = await ppCheckPhotosExist(boxKey);
+    if (!hasBoxPhoto) {
+      alert(`Box #${box.boxNum} is missing photos. All boxes must have photos before completing the group.`);
+      return;
+    }
   }
 
-  // Check that all closed boxes with units from this date have photos
-  const closedBoxes = job.boxes.filter(b => b.closedAt && b.lockedDate === subDate);
-  for (const box of closedBoxes) {
-    const photoKey = 'box-' + box.boxNum;
-    const hasPhotos = await ppCheckPhotosExist(photoKey);
-    if (!hasPhotos) {
-      alert(`Box #${box.boxNum} is missing photos. All boxes must have photos before completing the group.`);
+  // Photo gate: check that all active (non-fallout) packed IMEIs have photos
+  for (const u of activeUnits) {
+    const hasIMEIPhoto = await ppCheckPhotosExist(u.imei);
+    if (!hasIMEIPhoto) {
+      alert(`IMEI ${u.imei} is missing photos. All units must have photos before completing the group.`);
       return;
     }
   }
@@ -6747,6 +6974,27 @@ async function ppScanIMEI() {
 
   ppSaveState();
   renderPPPackingSection();
+
+  // Auto-scroll to the completed group so the packer can take action immediately
+  if (groupComplete) {
+    requestAnimationFrame(() => {
+      let scrollId;
+      if (!isVZ) {
+        const dateStr = (unit.rmaSubmissionDate || 'Unknown').replace(/[\/\-]/g, '_');
+        scrollId = 'pp-group-date-' + dateStr;
+      } else {
+        scrollId = 'pp-group-' + unit.rmaNumber;
+      }
+      const el = document.getElementById(scrollId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Brief highlight pulse
+        el.style.transition = 'box-shadow 0.3s';
+        el.style.boxShadow = '0 0 0 3px var(--success-green)';
+        setTimeout(() => { el.style.boxShadow = ''; }, 2000);
+      }
+    });
+  }
 }
 
 // ── FEEDBACK WITH INLINE QC ──
@@ -7181,6 +7429,7 @@ function ppResolveAllConflicts(action, vendor) {
   checkAuth();
   if (currentUser) {
     await initSlackSettings();
+    await initEmailSettings();
     await loadBatchesFromServer();
     await ppLoadState();
     // Restore shipment photos and shipping labels onto batch objects

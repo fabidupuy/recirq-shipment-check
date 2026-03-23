@@ -206,9 +206,10 @@ async function uploadAll() {
 
   // Save photo references to server
   try {
-    const photoKey = sessionData.type === 'box'
-      ? 'box-' + (sessionData.rma || sessionData.boxNum || '0')
-      : sessionData.imei;
+    // sessionData.imei already contains the correct key:
+    // For box photos: 'box-{rma}' (VZ) or 'box-{boxNum}' (non-VZ)
+    // For unit photos: the IMEI string
+    const photoKey = sessionData.imei;
     await fetch(API_BASE + '/api/photos/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
