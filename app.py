@@ -370,6 +370,7 @@ def save_photo_refs():
     data = request.get_json()
     key = data.get('key', '')  # e.g., 'box-326134905' or '355606780524844'
     photos = data.get('photos', [])
+    print(f"[PhotoSave] key={key!r}, photos_count={len(photos)}")
     if not key or not photos:
         return jsonify({'error': 'key and photos required'}), 400
 
@@ -380,6 +381,7 @@ def save_photo_refs():
         all_photos[key] = []
     all_photos[key].extend(photos)
     db.save_pp_state('ppPhotos', json.dumps(all_photos))
+    print(f"[PhotoSave] Saved. Total for key {key!r}: {len(all_photos[key])}. All keys: {list(all_photos.keys())}")
     return jsonify({'status': 'saved', 'count': len(all_photos[key])})
 
 
@@ -409,7 +411,9 @@ def list_photos(key):
     if state:
         photos = json.loads(state)
         result = photos.get(key, [])
+        print(f"[PhotoList] key={key!r}, found={len(result)} photos. All keys: {list(photos.keys())}")
         return jsonify(_refresh_presigned_urls(result))
+    print(f"[PhotoList] key={key!r}, NO ppPhotos state at all")
     return jsonify([])
 
 

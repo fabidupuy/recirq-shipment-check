@@ -6392,18 +6392,35 @@ function ppDownloadDailySummary() {
 
 // ── COMPLETE RMA (moves from packing to history) ──
 async function ppCheckPhotosExist(photoKey) {
+  console.log('[PhotoCheck] Checking key:', photoKey);
   // Check cached photos first
-  if (ppAllPhotos[photoKey] && ppAllPhotos[photoKey].length > 0) return true;
-  // Fallback to API (in case photos were just uploaded from phone)
+  if (ppAllPhotos[photoKey] && ppAllPhotos[photoKey].length > 0) {
+    console.log('[PhotoCheck] Found in cache:', ppAllPhotos[photoKey].length, 'photos');
+    return true;
+  }
+  // Fallback 1: single-key API check
   try {
     const resp = await fetch(`${API}/photos/list/${encodeURIComponent(photoKey)}`);
     const photos = await resp.json();
+    console.log('[PhotoCheck] API /photos/list response for', photoKey, ':', photos);
     if (photos && photos.length > 0) {
-      ppAllPhotos[photoKey] = photos; // Cache it
+      ppAllPhotos[photoKey] = photos;
       return true;
     }
-    return false;
-  } catch (e) { return false; }
+  } catch (e) { console.warn('[PhotoCheck] /photos/list failed:', e); }
+  // Fallback 2: reload ALL photos from server (covers race conditions / cache staleness)
+  try {
+    const resp2 = await fetch(`${API}/photos/all`);
+    const allData = await resp2.json();
+    console.log('[PhotoCheck] Reloaded all photos, keys:', Object.keys(allData));
+    ppAllPhotos = allData;
+    if (ppAllPhotos[photoKey] && ppAllPhotos[photoKey].length > 0) {
+      console.log('[PhotoCheck] Found after full reload:', ppAllPhotos[photoKey].length, 'photos');
+      return true;
+    }
+  } catch (e) { console.warn('[PhotoCheck] /photos/all failed:', e); }
+  console.log('[PhotoCheck] NOT FOUND for key:', photoKey, '| All known keys:', Object.keys(ppAllPhotos));
+  return false;
 }
 
 function ppGetPhotoCount(key) {
