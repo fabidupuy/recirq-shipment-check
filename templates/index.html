@@ -6538,13 +6538,21 @@ async function ppCompleteDateGroup(vendor, subDate) {
   if (!allActivePacked) { alert('Not all non-fallout units in this date group are packed yet.'); return; }
 
   // Photo gate: check that all closed boxes have photos
+  // Also checks legacy key 'box-0' (old bug saved all non-VZ box photos there)
   const closedBoxes = (job.boxes || []).filter(b => b.closedAt);
-  for (const box of closedBoxes) {
-    const boxKey = 'box-' + box.boxNum;
-    const hasBoxPhoto = await ppCheckPhotosExist(boxKey);
-    if (!hasBoxPhoto) {
-      alert(`Box #${box.boxNum} is missing photos. All boxes must have photos before completing the group.`);
-      return;
+  if (closedBoxes.length > 0) {
+    // First try to migrate any photos stuck under legacy 'box-0' key
+    try { await fetch(`${API}/photos/migrate-box0`); } catch(e) {}
+    // Re-load photos after migration
+    try { const r = await fetch(`${API}/photos/all`); ppAllPhotos = await r.json(); } catch(e) {}
+
+    for (const box of closedBoxes) {
+      const boxKey = 'box-' + box.boxNum;
+      const hasBoxPhoto = await ppCheckPhotosExist(boxKey);
+      if (!hasBoxPhoto) {
+        alert(`Box #${box.boxNum} is missing photos. All boxes must have photos before completing the group.`);
+        return;
+      }
     }
   }
 

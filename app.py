@@ -417,6 +417,51 @@ def list_photos(key):
     return jsonify([])
 
 
+@app.route('/api/photos/migrate-box0', methods=['GET'])
+def migrate_box0_photos():
+    """One-time migration: photos saved under the buggy 'box-0' key need to be
+    distributed to the correct 'box-{N}' keys.  We look at each photo's S3 key
+    path which contains the IMEI field (which was always correct, e.g. 'box-1')
+    and re-key accordingly."""
+    state_json = db.get_pp_state('ppPhotos')
+    if not state_json:
+        return jsonify({'migrated': 0})
+    all_p = json.loads(state_json)
+    box0 = all_p.get('box-0', [])
+    if not box0:
+        return jsonify({'migrated': 0})
+
+    migrated = 0
+    remaining = []
+    for photo in box0:
+        s3_key = photo.get('key', '')
+        # S3 key format: date/vendor/type/box-N_photoId.jpg
+        # Extract the 'box-N' part from the filename
+        filename = s3_key.rsplit('/', 1)[-1] if '/' in s3_key else s3_key
+        # filename looks like 'box-1_abc12345.jpg' or 'box-0_abc12345.jpg'
+        parts = filename.split('_', 1)
+        real_key = parts[0] if parts[0].startswith('box-') else None
+
+        if real_key and real_key != 'box-0':
+            # Move to correct key
+            if real_key not in all_p:
+                all_p[real_key] = []
+            all_p[real_key].append(photo)
+            migrated += 1
+            print(f"[PhotoMigrate] Moved photo from box-0 -> {real_key}: {s3_key}")
+        else:
+            remaining.append(photo)
+
+    if migrated > 0:
+        all_p['box-0'] = remaining
+        if not remaining:
+            del all_p['box-0']
+        db.save_pp_state('ppPhotos', json.dumps(all_p))
+        print(f"[PhotoMigrate] Done. Migrated {migrated} photos. Remaining in box-0: {len(remaining)}")
+
+    return jsonify({'migrated': migrated, 'remaining': len(remaining)})
+
+
 @app.route('/api/photos/all', methods=['GET'])
 def all_photos():
     """Get all photo references with fresh presigned URLs."""
