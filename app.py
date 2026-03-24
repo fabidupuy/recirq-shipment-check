@@ -462,6 +462,26 @@ def migrate_box0_photos():
     return jsonify({'migrated': migrated, 'remaining': len(remaining)})
 
 
+@app.route('/api/fix/swap-tracking', methods=['GET'])
+def fix_swap_tracking():
+    """One-time fix: swap tracking numbers between two Brightpoint groups."""
+    state_json = db.get_pp_state('ppCompletedRMAs')
+    if not state_json:
+        return jsonify({'error': 'No completed RMAs found'}), 404
+    entries = json.loads(state_json)
+    swapped = 0
+    for e in entries:
+        if e.get('vendor') != 'VERIZON' and e.get('submissionDate') == '3/17/2026' and e.get('tracking') == 'BRP03232026':
+            e['tracking'] = 'BRP03182026'
+            swapped += 1
+        elif e.get('vendor') != 'VERIZON' and e.get('submissionDate') == '3/19/2026' and e.get('tracking', '') in ('', 'NO_TRACKING'):
+            e['tracking'] = 'BRP03232026'
+            swapped += 1
+    if swapped > 0:
+        db.save_pp_state('ppCompletedRMAs', json.dumps(entries))
+    return jsonify({'swapped': swapped, 'details': '3/17 -> BRP03182026, 3/19 -> BRP03232026'})
+
+
 @app.route('/api/photos/all', methods=['GET'])
 def all_photos():
     """Get all photo references with fresh presigned URLs."""
