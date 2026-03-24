@@ -485,6 +485,27 @@ def fix_swap_tracking():
     return jsonify({'swapped': swapped, 'details': '3/17 -> BRP03182026, 3/19 -> BRP03232026'})
 
 
+@app.route('/api/fix/rename-tracking', methods=['GET'])
+def fix_rename_tracking():
+    """One-time fix: rename a tracking number. Usage: ?old=X&new=Y"""
+    old_val = request.args.get('old', '')
+    new_val = request.args.get('new', '')
+    if not old_val or not new_val:
+        return jsonify({'error': 'Provide ?old=...&new=... query params'}), 400
+    state_json = db.get_pp_state('ppCompletedRMAs')
+    if not state_json:
+        return jsonify({'error': 'No completed RMAs found'}), 404
+    entries = json.loads(state_json)
+    updated = 0
+    for e in entries:
+        if e.get('tracking') == old_val:
+            e['tracking'] = new_val
+            updated += 1
+    if updated > 0:
+        db.save_pp_state('ppCompletedRMAs', json.dumps(entries))
+    return jsonify({'updated': updated, 'old': old_val, 'new': new_val})
+
+
 @app.route('/api/photos/all', methods=['GET'])
 def all_photos():
     """Get all photo references with fresh presigned URLs."""
