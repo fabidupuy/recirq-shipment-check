@@ -275,6 +275,53 @@
     .login-container { padding: 32px 24px; }
     .user-mgmt-modal { width: 90%; }
   }
+
+  /* ── REEBELO ── */
+  .reebelo-dropzone { border: 2px dashed #ccc; border-radius: 10px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all .2s; background: #FAFBFC; }
+  .reebelo-dropzone:hover, .reebelo-dropzone.over { border-color: var(--info-blue); background: #E3F2FD; }
+  .reebelo-dropzone.loaded { border-color: var(--success-green); background: var(--light-green); border-style: solid; }
+  .reebelo-dz-ico { font-size: 36px; margin-bottom: 6px; }
+  .reebelo-dz-txt { font-size: 13px; color: #888; }
+  .reebelo-dz-fname { font-size: 13px; font-weight: 600; color: var(--success-green); margin-top: 6px; }
+
+  .reebelo-status-strip { display: flex; align-items: center; gap: 14px; padding: 14px 20px; background: #fff; border-radius: 10px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .reebelo-sbadge { padding: 5px 16px; border-radius: 16px; font-weight: 700; font-size: 13px; color: #fff; }
+  .reebelo-sbadge.pass { background: var(--success-green); }
+  .reebelo-sbadge.warn { background: var(--warn-orange); }
+  .reebelo-sbadge.fail { background: var(--alert-red); }
+  .reebelo-alert-pills { margin-left: auto; display: flex; gap: 6px; }
+  .reebelo-alert-pill { font-size: 11px; padding: 3px 10px; border-radius: 10px; font-weight: 600; }
+  .reebelo-alert-pill.ok { background: var(--light-green); color: var(--success-green); }
+  .reebelo-alert-pill.no { background: var(--alert-bg); color: var(--alert-red); }
+
+  .reebelo-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .reebelo-card { background: #fff; border-radius: 10px; padding: 16px 12px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .reebelo-card .n { font-size: 26px; font-weight: 700; }
+  .reebelo-card .l { font-size: 10px; color: #777; text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+
+  .reebelo-sec { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 14px; overflow: hidden; }
+  .reebelo-sec-h { padding: 12px 18px; font-weight: 600; font-size: 13px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+  .reebelo-sec-h:hover { background: #FAFBFC; }
+  .reebelo-sec-h .ct { background: #eee; padding: 2px 8px; border-radius: 10px; font-size: 11px; color: #555; }
+  .reebelo-sec-b { max-height: 350px; overflow-y: auto; }
+  .reebelo-sec-b.hide { display: none; }
+  .reebelo-sec-b table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .reebelo-sec-b th { background: #F8F9FA; padding: 8px 12px; text-align: left; font-weight: 600; color: #555; border-bottom: 2px solid #eee; position: sticky; top: 0; }
+  .reebelo-sec-b td { padding: 7px 12px; border-bottom: 1px solid #f0f0f0; }
+  .reebelo-sec-b tr:hover td { background: #FAFBFC; }
+
+  .reebelo-bars { display: flex; align-items: flex-end; gap: 4px; height: 160px; padding-top: 10px; }
+  .reebelo-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .reebelo-bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 2px; transition: height .3s; }
+  .reebelo-bar-label { font-size: 9px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .reebelo-bar-val { font-size: 10px; font-weight: 600; }
+
+  /* ── CUSTOMER SWITCHER ── */
+  .customer-switcher { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .customer-switcher label { font-size: 9px; text-transform: uppercase; letter-spacing: .8px; color: rgba(255,255,255,.4); font-weight: 700; display: block; margin-bottom: 6px; }
+  .customer-switcher select { width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.08); color: #fff; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 5.5l6.5 6 6.5-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+  .customer-switcher select:focus { outline: none; border-color: var(--accent-gold); }
+  .customer-switcher select option { background: var(--dark-green); color: #fff; }
 </style>
 </head>
 <body>
@@ -284,6 +331,14 @@
   <div class="sidebar-brand">
     <h1>3PL Reventory</h1>
     <div class="subtitle">RecirQ Global</div>
+  </div>
+  <!-- Customer Switcher -->
+  <div class="customer-switcher">
+    <label>Working on</label>
+    <select id="customer-select" onchange="switchCustomer(this.value)">
+      <option value="victra">Victra</option>
+      <option value="reebelo">Reebelo</option>
+    </select>
   </div>
   <div class="sidebar-nav">
     <!-- Pick & Pack -->
@@ -320,6 +375,20 @@
         </div>
       </div>
     </div>
+    <!-- Reconciliation (Reebelo only) -->
+    <div class="sidebar-section" id="sidebar-reconciliation" style="display:none;">
+      <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
+        Reconciliation <span class="arrow open">&#9654;</span>
+      </div>
+      <div class="sidebar-section-items">
+        <div class="sidebar-item" data-section="reebelo-reconcile" onclick="sidebarNav('reebelo-reconcile')">
+          <span class="icon">&#128269;</span> Reconcile
+        </div>
+        <div class="sidebar-item" data-section="reebelo-trends" onclick="sidebarNav('reebelo-trends')">
+          <span class="icon">&#128200;</span> Trends
+        </div>
+      </div>
+    </div>
     <!-- Settings -->
     <div class="sidebar-section">
       <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
@@ -331,6 +400,9 @@
         </div>
         <div class="sidebar-item" onclick="toggleEmailSettings()">
           <span class="icon">&#9993;</span> Email Settings
+        </div>
+        <div class="sidebar-item" id="sidebar-reebelo-settings" data-section="reebelo-settings" onclick="sidebarNav('reebelo-settings')" style="display:none;">
+          <span class="icon">&#128269;</span> Reconciliation Alerts
         </div>
         <div class="sidebar-item" id="sidebar-user-mgmt" onclick="openUserManagementModal()" style="display:none;">
           <span class="icon">&#128101;</span> User Management
@@ -610,6 +682,66 @@
     </div>
   </div>
 </div>
+
+<!-- ═══════════ REEBELO — RECONCILE ═══════════ -->
+<div id="sec-reebelo-reconcile" class="section">
+  <div class="container">
+    <div id="reebelo-upload-ui">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
+        <div class="card">
+          <h3 style="font-size:14px;margin-bottom:12px;">&#128202; PowerBI Export</h3>
+          <div class="reebelo-dropzone" id="reebelo-dz1" onclick="this.querySelector('input').click()">
+            <div class="reebelo-dz-ico">&#128193;</div>
+            <div class="reebelo-dz-txt">Drop file here or click to browse</div>
+            <div class="reebelo-dz-fname" id="reebelo-fn1" style="display:none"></div>
+            <input type="file" accept=".xlsx,.csv,.xls" onchange="reebeloFileSelected(0,this)" style="display:none">
+          </div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:14px;margin-bottom:12px;">&#128203; Spreadsheet Export</h3>
+          <div class="reebelo-dropzone" id="reebelo-dz2" onclick="this.querySelector('input').click()">
+            <div class="reebelo-dz-ico">&#128193;</div>
+            <div class="reebelo-dz-txt">Drop file here or click to browse</div>
+            <div class="reebelo-dz-fname" id="reebelo-fn2" style="display:none"></div>
+            <input type="file" accept=".xlsx,.csv,.xls" onchange="reebeloFileSelected(1,this)" style="display:none">
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="reebelo-btn-run" disabled onclick="reebeloRunReconcile()" style="width:100%;padding:16px;font-size:16px;font-weight:700;">Run Reconciliation</button>
+    </div>
+    <div id="reebelo-results-ui" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ═══════════ REEBELO — TRENDS ═══════════ -->
+<div id="sec-reebelo-trends" class="section">
+  <div class="container">
+    <h2 style="font-size:18px;color:var(--dark-green);margin-bottom:16px;">Daily Match Rate Trend</h2>
+    <div class="card" id="reebelo-trend-chart"><div class="empty-state"><p>Loading...</p></div></div>
+    <div class="card" id="reebelo-trend-table" style="padding:0;overflow:hidden;"></div>
+  </div>
+</div>
+
+<!-- ═══════════ REEBELO — SETTINGS ═══════════ -->
+<div id="sec-reebelo-settings" class="section">
+  <div class="container">
+    <h2 style="font-size:18px;color:var(--dark-green);margin-bottom:16px;">Reebelo Alert Settings</h2>
+    <div class="card">
+      <h3>&#128172; Slack Webhooks</h3>
+      <div class="form-group"><label>Channel Webhook (#3pl-data-verification)</label><input type="text" id="reebelo-cfg-slack-channel" class="form-input" placeholder="https://hooks.slack.com/services/..."></div>
+      <div class="form-group"><label>DM Webhook</label><input type="text" id="reebelo-cfg-slack-dm" class="form-input" placeholder="https://hooks.slack.com/services/..."></div>
+    </div>
+    <div class="card">
+      <h3>&#9993;&#65039; Email Alerts</h3>
+      <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="reebelo-cfg-email-enabled"> Enable email alerts</label></div>
+      <div class="form-group"><label>From Email</label><input type="text" id="reebelo-cfg-email-from" class="form-input" placeholder="alerts@recirqglobal.com"></div>
+      <div class="form-group"><label>Gmail App Password</label><input type="password" id="reebelo-cfg-email-pass" class="form-input" placeholder="xxxx xxxx xxxx xxxx"></div>
+      <div class="form-group"><label>Send To</label><input type="text" id="reebelo-cfg-email-to" class="form-input" placeholder="fabi@recirqglobal.com"></div>
+    </div>
+    <button class="btn btn-primary" onclick="reebeloSaveSettings()">Save Settings</button>
+  </div>
+</div>
+
 </div>
 
 <!-- ═══ FALLOUT MODAL ═══ -->
@@ -1297,10 +1429,33 @@ function showSection(id) {
   if (id === 'pp-upload') renderPPUploadSection();
   if (id === 'pp-packing') renderPPPackingSection();
   if (id === 'pp-history') renderPPHistorySection();
+  if (id === 'reebelo-trends') reebeloLoadTrends();
+  if (id === 'reebelo-settings') reebeloLoadSettings();
 }
 
 function sidebarNav(sectionId) {
   showSection(sectionId);
+}
+
+// ════════════════════════════════════
+// CUSTOMER SWITCHER
+// ════════════════════════════════════
+let currentCustomer = 'victra';
+
+function switchCustomer(customer) {
+  currentCustomer = customer;
+  // Toggle Reebelo-only sidebar sections
+  const reconSection = document.getElementById('sidebar-reconciliation');
+  const reconAlerts = document.getElementById('sidebar-reebelo-settings');
+  if (reconSection) reconSection.style.display = customer === 'reebelo' ? '' : 'none';
+  if (reconAlerts) reconAlerts.style.display = customer === 'reebelo' ? '' : 'none';
+
+  // Navigate to a sensible default for the customer
+  if (customer === 'reebelo') {
+    showSection('reebelo-reconcile');
+  } else {
+    showSection('dashboard');
+  }
 }
 
 function toggleSidebarSection(header) {
@@ -6184,7 +6339,8 @@ function renderPPHistorySection() {
         <p style="font-size:12px;color:#888;margin:4px 0 0;">Download a CSV of all packed units for a specific date.</p>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <input type="date" id="pp-daily-date" value="${today}" style="padding:6px 10px;border:2px solid var(--medium-gray);border-radius:6px;font-size:13px;">
+        <input type="date" id="pp-daily-date" value="${today}" style="padding:6px 10px;border:2px solid var(--medium-gray);border-radius:6px;font-size:13px;" onchange="ppFilterHistoryByDate()">
+        <button class="btn btn-sm btn-outline" onclick="ppClearHistoryDateFilter()" style="font-size:11px;padding:4px 10px;" title="Show all">All</button>
         <button class="btn btn-primary btn-sm" onclick="ppDownloadDailySummary()">Download CSV</button>
       </div>
     </div>
@@ -6197,7 +6353,8 @@ function renderPPHistorySection() {
   vzEntries.slice().reverse().forEach((entry) => {
     const idx = ppCompletedRMAs.indexOf(entry);
     const activeUnits = entry.units.filter(u => !u.fallout);
-    html += `<tr>
+    const completedDate = entry.completedAt ? entry.completedAt.split('T')[0] : '';
+    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}">
       <td><b>RMA# ${entry.rma}</b></td>
       <td><span class="badge badge-verizon">VERIZON</span></td>
       <td>${activeUnits.length}</td>
@@ -6210,7 +6367,7 @@ function renderPPHistorySection() {
         <button class="btn btn-sm btn-outline" onclick="ppOpenRMAPhotos('${entry.rma}',${JSON.stringify(entry.units.map(u=>u.imei)).replace(/"/g,'&quot;')},'${entry.vendor}')" style="font-size:10px;padding:2px 8px;border-color:#1976d2;color:#1976d2;">&#128247; Photos</button>
       </td>
     </tr>
-    <tr id="pp-hist-detail-${idx}" style="display:none;">
+    <tr id="pp-hist-detail-${idx}" class="pp-hist-detail-row" data-completed-date="${completedDate}" style="display:none;">
       <td colspan="8" style="padding:12px;background:var(--light-gray);">
         <div style="font-size:12px;max-height:200px;overflow-y:auto;">
           ${entry.units.map(u => `<div style="padding:2px 0;"><span style="font-family:monospace;">${u.imei}</span> — ${u.description || '—'} ${u.fallout ? '<span class="badge badge-fail" style="font-size:9px;">FALLOUT</span>' : ''} — Packed: ${u.packedAt ? new Date(u.packedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</div>`).join('')}
@@ -6227,7 +6384,8 @@ function renderPPHistorySection() {
     const rmaSet = new Set(group.entries.filter(e => !(e.rma && e.rma.startsWith('FALLOUT'))).map(e => e.rma));
     const badgeClass = 'badge-3pl';
     const subDate = group.entries.find(e => e.submissionDate)?.submissionDate || '';
-    html += `<tr>
+    const groupCompletedDate = group.completedAt ? group.completedAt.split('T')[0] : '';
+    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}">
       <td><b>${subDate || group.tracking}</b>${falloutUnits.length > 0 ? ' <span style="font-size:11px;color:var(--alert-red);">(' + falloutUnits.length + ' fallout)</span>' : ''}</td>
       <td><span class="badge ${badgeClass}">${group.vendor}</span></td>
       <td>${activeUnits.length}</td>
@@ -6240,7 +6398,7 @@ function renderPPHistorySection() {
         <button class="btn btn-sm btn-outline" onclick="ppOpenRMAPhotos('${group.tracking}',${JSON.stringify(group.allUnits.map(u=>u.imei)).replace(/"/g,'&quot;')},'${group.vendor}',${JSON.stringify(group.boxNumbers).replace(/"/g,'&quot;')})" style="font-size:10px;padding:2px 8px;border-color:#1976d2;color:#1976d2;">&#128247; Photos</button>
       </td>
     </tr>
-    <tr id="pp-hist-detail-${gIdx}" style="display:none;">
+    <tr id="pp-hist-detail-${gIdx}" class="pp-hist-detail-row" data-completed-date="${groupCompletedDate}" style="display:none;">
       <td colspan="8" style="padding:12px;background:var(--light-gray);">
         <div style="font-size:12px;max-height:250px;overflow-y:auto;">
           <div style="margin-bottom:8px;font-weight:600;">RMAs: ${[...rmaSet].join(', ')}</div>
@@ -6258,6 +6416,57 @@ function renderPPHistorySection() {
 function ppToggleHistoryDetail(idx) {
   const row = document.getElementById('pp-hist-detail-' + idx);
   if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+function ppFilterHistoryByDate() {
+  const dateInput = document.getElementById('pp-daily-date');
+  if (!dateInput || !dateInput.value) return;
+  const selectedDate = dateInput.value; // YYYY-MM-DD
+  const rows = document.querySelectorAll('.pp-hist-row');
+  const detailRows = document.querySelectorAll('.pp-hist-detail-row');
+  let visibleCount = 0;
+  rows.forEach(row => {
+    const rowDate = row.getAttribute('data-completed-date');
+    if (rowDate === selectedDate) {
+      row.style.display = '';
+      visibleCount++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+  // Hide all detail rows when filtering (they can be re-expanded)
+  detailRows.forEach(row => {
+    const rowDate = row.getAttribute('data-completed-date');
+    if (rowDate !== selectedDate) {
+      row.style.display = 'none';
+    }
+  });
+  // Show a message if no rows match
+  let noMatchRow = document.getElementById('pp-hist-no-match');
+  if (visibleCount === 0) {
+    if (!noMatchRow) {
+      const table = document.querySelector('#pp-history-content table');
+      if (table) {
+        const tr = document.createElement('tr');
+        tr.id = 'pp-hist-no-match';
+        tr.innerHTML = '<td colspan="8" style="text-align:center;padding:20px;color:#888;font-size:13px;">No completed RMAs found for ' + selectedDate + '</td>';
+        table.querySelector('tbody') ? table.querySelector('tbody').appendChild(tr) : table.appendChild(tr);
+      }
+    }
+  } else if (noMatchRow) {
+    noMatchRow.remove();
+  }
+}
+
+function ppClearHistoryDateFilter() {
+  const dateInput = document.getElementById('pp-daily-date');
+  if (dateInput) {
+    dateInput.value = new Date().toISOString().split('T')[0];
+  }
+  // Show all rows
+  document.querySelectorAll('.pp-hist-row').forEach(row => { row.style.display = ''; });
+  const noMatchRow = document.getElementById('pp-hist-no-match');
+  if (noMatchRow) noMatchRow.remove();
 }
 
 // ── RMA PHOTO GALLERY (Packed RMAs) ──
@@ -7343,11 +7552,51 @@ function ppTryMerge() {
   const existingIMEItoRMA = {};
   job.units.forEach(u => { existingIMEItoRMA[u.imei] = u.rmaNumber; });
 
+  // ── Check for RMAs that already exist in completed/packed history ──
+  const completedRMASet = new Set();
+  const completedIMEISet = new Set();
+  ppCompletedRMAs.forEach(entry => {
+    if (entry.rma) completedRMASet.add(entry.rma);
+    if (entry.units) entry.units.forEach(u => { if (u.imei) completedIMEISet.add(u.imei); });
+  });
+
+  // Build a map of upload RMA# → units to detect which RMAs are already completed
+  const uploadRMAtoUnits = {};
+  ppVendorData.forEach(v => {
+    const rmaInfo = ppRMAData[v.imei];
+    const rma = rmaInfo ? rmaInfo.rmaNumber : 'UNMATCHED';
+    if (!uploadRMAtoUnits[rma]) uploadRMAtoUnits[rma] = [];
+    uploadRMAtoUnits[rma].push(v);
+  });
+
+  const alreadyCompletedRMAs = {};  // RMA# → list of IMEIs
+  const alreadyCompletedIMEIs = new Set();
+  ppVendorData.forEach(v => {
+    const rmaInfo = ppRMAData[v.imei];
+    const rma = rmaInfo ? rmaInfo.rmaNumber : null;
+    // Check if the IMEI itself was already packed in history
+    if (completedIMEISet.has(v.imei)) {
+      alreadyCompletedIMEIs.add(v.imei);
+      const rmaLabel = rma || 'UNMATCHED';
+      if (!alreadyCompletedRMAs[rmaLabel]) alreadyCompletedRMAs[rmaLabel] = [];
+      alreadyCompletedRMAs[rmaLabel].push(v.imei);
+    }
+    // Also check if the RMA# was already fully completed
+    else if (rma && rma !== 'UNMATCHED' && completedRMASet.has(rma)) {
+      alreadyCompletedIMEIs.add(v.imei);
+      if (!alreadyCompletedRMAs[rma]) alreadyCompletedRMAs[rma] = [];
+      alreadyCompletedRMAs[rma].push(v.imei);
+    }
+  });
+
+  // Filter out already-completed units from vendor data before merging
+  const filteredVendorData = ppVendorData.filter(v => !alreadyCompletedIMEIs.has(v.imei));
+
   let matched = 0, unmatched = 0, skipped = 0, rmaConflict = 0;
   const rmaConflicts = [];
   const newUnits = [];
 
-  ppVendorData.forEach(v => {
+  filteredVendorData.forEach(v => {
     const rmaInfo = ppRMAData[v.imei];
     const newRMA = rmaInfo ? rmaInfo.rmaNumber : 'UNMATCHED';
     if (existingIMEItoRMA.hasOwnProperty(v.imei)) {
@@ -7377,6 +7626,27 @@ function ppTryMerge() {
   const summaryEl = document.getElementById('pp-match-summary');
   let summaryHTML = `<b>${matched}</b> new IMEIs added to <b>${vendor}</b> job across <b>${rmaCount} RMA(s)</b>.`;
   if (skipped > 0) summaryHTML += ` <span style="color:var(--warn-orange);"><b>${skipped}</b> duplicates skipped.</span>`;
+
+  // ── Warning for already-completed RMAs ──
+  const completedRMAKeys = Object.keys(alreadyCompletedRMAs);
+  if (completedRMAKeys.length > 0) {
+    const totalExcluded = alreadyCompletedIMEIs.size;
+    summaryHTML += ` <span style="color:var(--alert-red);"><b>${totalExcluded}</b> unit(s) excluded (already packed).</span>`;
+    summaryHTML += `<div style="margin-top:8px;border:1px solid var(--warn-orange);border-radius:8px;overflow:hidden;">
+      <div style="background:#fff8e1;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <span style="font-weight:600;color:#e65100;font-size:13px;">&#9888; ${totalExcluded} Unit(s) from ${completedRMAKeys.length} RMA(s) Already Packed</span>
+        <span style="font-size:11px;color:#e65100;">click to expand</span>
+      </div>
+      <div style="display:none;max-height:250px;overflow-y:auto;background:white;">
+        <div style="padding:10px 14px;font-size:12px;color:#555;">These units were found in the Completed RMAs history and have been <b>excluded</b> from this upload to prevent duplicates.</div>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;">
+          <tr style="background:var(--light-gray);"><th style="padding:6px 10px;text-align:left;">RMA#</th><th style="padding:6px 10px;text-align:left;">IMEIs Excluded</th></tr>
+          ${completedRMAKeys.map(rma => '<tr><td style="padding:4px 10px;font-weight:600;">' + rma + '</td><td style="padding:4px 10px;font-family:monospace;font-size:11px;">' + alreadyCompletedRMAs[rma].join(', ') + '</td></tr>').join('')}
+        </table>
+      </div>
+    </div>`;
+  }
+
   if (unmatched > 0) {
     const unmatchedUnits = newUnits.filter(u => u.rmaNumber === 'UNMATCHED');
     summaryHTML += ` <span style="color:var(--alert-red);"><b>${unmatched}</b> unmatched.</span>`;
@@ -7531,6 +7801,278 @@ function ppResolveAllConflicts(action, vendor) {
     }, 30000);
   }
 })();
+
+// ════════════════════════════════════════════════
+// REEBELO RECONCILIATION MODULE
+// ════════════════════════════════════════════════
+
+let reebeloFiles = [null, null];
+const REEBELO_API = window.location.origin + '/api/reebelo';
+
+// -- Drag & Drop --
+['reebelo-dz1','reebelo-dz2'].forEach((id, i) => {
+  const dz = document.getElementById(id);
+  if (!dz) return;
+  ['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave','drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', ev => { if(ev.dataTransfer.files[0]) reebeloSetFile(i, ev.dataTransfer.files[0]); });
+});
+
+function reebeloFileSelected(i, input) { if(input.files[0]) reebeloSetFile(i, input.files[0]); }
+
+function reebeloSetFile(i, file) {
+  reebeloFiles[i] = file;
+  const dz = document.getElementById('reebelo-dz'+(i+1));
+  const fn = document.getElementById('reebelo-fn'+(i+1));
+  dz.classList.add('loaded');
+  dz.querySelector('.reebelo-dz-ico').textContent = '\u2705';
+  fn.textContent = file.name;
+  fn.style.display = 'block';
+  document.getElementById('reebelo-btn-run').disabled = !(reebeloFiles[0] && reebeloFiles[1]);
+}
+
+// -- Run Reconciliation --
+async function reebeloRunReconcile() {
+  const btn = document.getElementById('reebelo-btn-run');
+  btn.disabled = true; btn.textContent = 'Processing...';
+  const fd = new FormData();
+  fd.append('file1', reebeloFiles[0]); fd.append('file2', reebeloFiles[1]);
+  try {
+    const res = await fetch(REEBELO_API + '/reconcile', { method: 'POST', body: fd });
+    const data = await res.json();
+    if(data.error) { alert(data.error); btn.disabled = false; btn.textContent = 'Run Reconciliation'; return; }
+    reebeloRenderResults(data);
+  } catch(e) { alert('Error: '+e.message); }
+  btn.disabled = false; btn.textContent = 'Run Reconciliation';
+}
+
+function reebeloRenderResults(r) {
+  document.getElementById('reebelo-upload-ui').style.display = 'none';
+  const el = document.getElementById('reebelo-results-ui');
+  el.style.display = 'block';
+  const nr = r.notRegistered || [];
+  const tc = r.totalCommon - r.obrAlerts.length - nr.length;
+  const mr = tc > 0 ? (r.matches.length/tc*100) : 0;
+  const ti = r.mismatches.length + r.missingFromSheet.length + r.missingFromPBI.length + nr.length;
+  const st = mr>=95?'pass':mr>=85?'warn':'fail';
+  const stxt = st==='pass'?'PASS':st==='warn'?'WARNING':'FAIL';
+
+  const aSlack = r.alerts?.slack_channel;
+  const aDM = r.alerts?.slack_dm;
+  const aEmail = r.alerts?.email;
+
+  let h = `<div class="reebelo-status-strip"><span class="reebelo-sbadge ${st}">${stxt}</span><span style="font-size:13px;color:#555">Match Rate: <b>${mr.toFixed(1)}%</b> &middot; ${r.matches.length} matched of ${tc} &middot; ${ti} issues</span>
+  <div class="reebelo-alert-pills">
+    <span class="reebelo-alert-pill ${aSlack?'ok':'no'}">${aSlack?'\u2713':'\u2717'} Slack</span>
+    <span class="reebelo-alert-pill ${aDM?'ok':'no'}">${aDM?'\u2713':'\u2717'} DM</span>
+    <span class="reebelo-alert-pill ${aEmail?'ok':'no'}">${aEmail?'\u2713':'\u2717'} Email</span>
+  </div></div>`;
+
+  h += `<div class="reebelo-cards">
+    <div class="reebelo-card"><div class="n">${r.totalPBI}</div><div class="l">PBI Records</div></div>
+    <div class="reebelo-card"><div class="n">${r.totalSheet}</div><div class="l">Sheet Records</div></div>
+    <div class="reebelo-card"><div class="n" style="color:var(--success-green)">${r.matches.length}</div><div class="l">Matched</div></div>
+    <div class="reebelo-card"><div class="n" style="color:var(--alert-red)">${r.mismatches.length}</div><div class="l">Mismatches</div></div>
+    <div class="reebelo-card"><div class="n" style="color:var(--warn-orange)">${r.obrAlerts.length}</div><div class="l">OBR</div></div>
+    <div class="reebelo-card"><div class="n" style="color:var(--info-blue)">${r.missingFromSheet.length}</div><div class="l">Missing Sheet</div></div>
+    <div class="reebelo-card"><div class="n" style="color:#C62828">${nr.length}</div><div class="l">Not Registered</div></div>
+    <div class="reebelo-card"><div class="n" style="color:#6A1B9A">${r.missingFromPBI.length}</div><div class="l">Missing PBI</div></div>
+  </div>`;
+
+  h += `<div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <a href="${REEBELO_API}/download" class="btn btn-primary" style="text-decoration:none">&#128229; Download Excel</a>
+    <button class="btn btn-outline" onclick="reebeloResetUI()">&#8617; New Comparison</button>
+  </div>`;
+
+  h += reebeloMakeSection('Route Mismatches', r.mismatches, ['imei','grade','disp','expected','type'], ['IMEI','PBI Grade','Sheet Disp.','Expected','Type']);
+  h += reebeloMakeSection('OBR Alerts', r.obrAlerts, ['imei','grade','disp'], ['IMEI','PBI Grade','Sheet Disp.']);
+  h += reebeloMakeSection('Not Registered on Spreadsheet', nr, ['imei','grade','type'], ['IMEI','PBI Grade','Issue']);
+  h += reebeloMakeSection('Missing from Sheet', r.missingFromSheet, ['imei','grade'], ['IMEI','PBI Grade']);
+  h += reebeloMakeSection('Missing from PBI', r.missingFromPBI, ['imei','disp'], ['IMEI','Sheet Disp.']);
+  h += reebeloMakeSection('Matched Records', r.matches, ['imei','grade','disp'], ['IMEI','PBI Grade','Sheet Disp.'], true);
+
+  el.innerHTML = h;
+}
+
+function reebeloMakeSection(title, data, keys, headers, collapsed) {
+  let s = `<div class="reebelo-sec"><div class="reebelo-sec-h${collapsed?' collapsed':''}" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hide')">${title} <span class="ct">${data.length}</span></div><div class="reebelo-sec-b${collapsed?' hide':''}">`;
+  if(!data.length) return s + '<div style="padding:28px;text-align:center;color:#aaa;font-size:13px;">None</div></div></div>';
+  s += '<table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>';
+  data.slice(0,100).forEach(row => {
+    s += '<tr>'+keys.map(k => '<td>'+(row[k]||'')+'</td>').join('')+'</tr>';
+  });
+  s += '</tbody></table></div></div>';
+  return s;
+}
+
+function reebeloResetUI() {
+  reebeloFiles = [null,null];
+  document.getElementById('reebelo-results-ui').style.display = 'none';
+  document.getElementById('reebelo-upload-ui').style.display = 'block';
+  document.getElementById('reebelo-btn-run').disabled = true;
+  ['reebelo-dz1','reebelo-dz2'].forEach((id,i) => {
+    const dz = document.getElementById(id);
+    dz.classList.remove('loaded');
+    dz.querySelector('.reebelo-dz-ico').textContent = '\uD83D\uDCC1';
+    document.getElementById('reebelo-fn'+(i+1)).style.display = 'none';
+    dz.querySelector('input').value = '';
+  });
+}
+
+// -- Trends --
+async function reebeloLoadTrends() {
+  try {
+    const data = await (await fetch(REEBELO_API + '/trends')).json();
+    const chart = document.getElementById('reebelo-trend-chart');
+    const tbl = document.getElementById('reebelo-trend-table');
+    if(!data.length) { chart.innerHTML = '<div style="padding:28px;text-align:center;color:#aaa;">No data yet. Run at least one reconciliation first.</div>'; tbl.innerHTML=''; return; }
+
+    // Group by date
+    const byDate = {};
+    data.forEach(d => { if(!byDate[d.date]) byDate[d.date] = []; byDate[d.date].push(d); });
+    const dates = Object.keys(byDate).sort();
+
+    let bars = '<div class="reebelo-bars">';
+    dates.forEach(dt => {
+      const runs = byDate[dt];
+      const latest = runs[runs.length-1];
+      const mr = parseFloat(latest.match_rate||0);
+      const color = mr>=95?'var(--success-green)':mr>=85?'var(--warn-orange)':'var(--alert-red)';
+      bars += `<div class="reebelo-bar-col"><div class="reebelo-bar-val" style="color:${color}">${mr}%</div><div class="reebelo-bar" style="height:${mr*1.5}px;background:${color}"></div><div class="reebelo-bar-label">${dt.slice(5)}</div></div>`;
+    });
+    bars += '</div>';
+    chart.innerHTML = bars;
+
+    // History table
+    let t = '<div class="reebelo-sec-h">History <span style="font-weight:400;font-size:11px;color:#888">(click a row for details)</span></div><div class="reebelo-sec-b"><table><thead><tr><th>Date</th><th>Time</th><th>PBI</th><th>Sheet</th><th>Match</th><th>Mismatch</th><th>OBR</th><th>Not Reg.</th><th>Rate</th><th></th></tr></thead><tbody>';
+    dates.reverse().forEach(dt => {
+      const runs = byDate[dt].slice().reverse();
+      runs.forEach((d, i) => {
+        const mr = parseFloat(d.match_rate||0);
+        const rc = mr>=95?'var(--success-green)':mr>=85?'var(--warn-orange)':'var(--alert-red)';
+        const runId = d.id || dt;
+        const timeStr = d.time || '';
+        t += `<tr style="cursor:pointer" onclick="reebeloToggleDetail(this,'${runId}','${d.date}')">`;
+        t += `<td>${i===0 ? d.date : ''}</td>`;
+        t += `<td style="color:#888;font-size:12px">${timeStr}</td>`;
+        t += `<td>${d.pbi||d.total_pbi}</td><td>${d.sheet||d.total_sheet}</td>`;
+        t += `<td style="color:var(--success-green);font-weight:600">${d.matched}</td>`;
+        t += `<td style="color:var(--alert-red);font-weight:600">${d.mismatches}</td>`;
+        t += `<td style="color:var(--warn-orange);font-weight:600">${d.obr}</td>`;
+        t += `<td style="color:#C62828;font-weight:600">${d.not_registered||0}</td>`;
+        t += `<td><span style="background:${rc};color:#fff;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:600">${d.match_rate}%</span></td>`;
+        t += `<td style="font-size:16px;color:#aaa">&#9654;</td></tr>`;
+        t += `<tr id="reebelo-detail-${runId}" style="display:none"><td colspan="10" style="padding:0;background:#F8F9FA"><div id="reebelo-dc-${runId}" style="padding:16px"><div style="text-align:center;color:#aaa;">Loading...</div></div></td></tr>`;
+      });
+    });
+    t += '</tbody></table></div>';
+    tbl.innerHTML = t;
+  } catch(e) { console.warn('Reebelo trends load failed:', e); }
+}
+
+async function reebeloToggleDetail(row, runId, dt) {
+  const detailRow = document.getElementById('reebelo-detail-'+runId);
+  const arrow = row.querySelector('td:last-child');
+  if(detailRow.style.display === 'none') {
+    detailRow.style.display = 'table-row';
+    arrow.innerHTML = '&#9660;';
+    const dc = document.getElementById('reebelo-dc-'+runId);
+    if(dc.querySelector('div[style*="center"]')) {
+      try {
+        let res = await fetch(REEBELO_API + '/detail/'+runId);
+        if(!res.ok) { dc.innerHTML = '<div style="text-align:center;color:#aaa;">No detailed data for this run.</div>'; return; }
+        const d = await res.json();
+        const detail = Array.isArray(d) ? d[0] : d;
+        dc.innerHTML = reebeloRenderDetail(detail);
+      } catch(e) { dc.innerHTML = '<div style="text-align:center;color:#aaa;">Error loading details</div>'; }
+    }
+  } else {
+    detailRow.style.display = 'none';
+    arrow.innerHTML = '&#9654;';
+  }
+}
+
+function reebeloRenderDetail(d) {
+  const nr = d.notRegistered||[];
+  let h = '';
+  if(d.timestamp) h += `<div style="font-size:11px;color:#888;margin-bottom:8px">Run: ${d.timestamp}</div>`;
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px">';
+  h += `<div class="reebelo-card" style="padding:10px 8px"><div class="n" style="font-size:20px">${d.totalPBI}</div><div class="l">PBI</div></div>`;
+  h += `<div class="reebelo-card" style="padding:10px 8px"><div class="n" style="font-size:20px">${d.totalSheet}</div><div class="l">Sheet</div></div>`;
+  h += `<div class="reebelo-card" style="padding:10px 8px"><div class="n" style="font-size:20px;color:var(--success-green)">${d.matchCount}</div><div class="l">Matched</div></div>`;
+  h += `<div class="reebelo-card" style="padding:10px 8px"><div class="n" style="font-size:20px;color:var(--alert-red)">${d.mismatches.length}</div><div class="l">Mismatches</div></div>`;
+  h += `<div class="reebelo-card" style="padding:10px 8px"><div class="n" style="font-size:20px;color:var(--warn-orange)">${d.obrAlerts.length}</div><div class="l">OBR</div></div>`;
+  h += `<div class="reebelo-card" style="padding:10px 8px"><div class="n" style="font-size:20px;color:#C62828">${nr.length}</div><div class="l">Not Reg.</div></div>`;
+  h += '</div>';
+  if(d.mismatches.length) {
+    h += '<div style="margin-bottom:10px"><strong style="font-size:12px;color:var(--alert-red)">Route Mismatches</strong>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px"><thead><tr><th style="background:#F8F9FA;padding:8px;text-align:left">IMEI</th><th style="background:#F8F9FA;padding:8px;text-align:left">PBI Grade</th><th style="background:#F8F9FA;padding:8px;text-align:left">Sheet Disp.</th><th style="background:#F8F9FA;padding:8px;text-align:left">Expected</th></tr></thead><tbody>';
+    d.mismatches.forEach(m => { h += `<tr><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.imei}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.grade}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.disp}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.expected||''}</td></tr>`; });
+    h += '</tbody></table></div>';
+  }
+  if(d.obrAlerts.length) {
+    h += '<div style="margin-bottom:10px"><strong style="font-size:12px;color:var(--warn-orange)">OBR Alerts</strong>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px"><thead><tr><th style="background:#F8F9FA;padding:8px;text-align:left">IMEI</th><th style="background:#F8F9FA;padding:8px;text-align:left">PBI Grade</th><th style="background:#F8F9FA;padding:8px;text-align:left">Sheet Disp.</th></tr></thead><tbody>';
+    d.obrAlerts.forEach(m => { h += `<tr><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.imei}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.grade}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.disp}</td></tr>`; });
+    h += '</tbody></table></div>';
+  }
+  if(nr.length) {
+    h += '<div style="margin-bottom:10px"><strong style="font-size:12px;color:#C62828">Not Registered on Spreadsheet</strong>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px"><thead><tr><th style="background:#F8F9FA;padding:8px;text-align:left">IMEI</th><th style="background:#F8F9FA;padding:8px;text-align:left">PBI Grade</th><th style="background:#F8F9FA;padding:8px;text-align:left">Issue</th></tr></thead><tbody>';
+    nr.forEach(m => { h += `<tr><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.imei}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.grade}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.type||'Not Registered'}</td></tr>`; });
+    h += '</tbody></table></div>';
+  }
+  if(d.missingFromSheet?.length) {
+    h += '<div style="margin-bottom:10px"><strong style="font-size:12px;color:var(--info-blue)">Missing from Sheet</strong>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px"><thead><tr><th style="background:#F8F9FA;padding:8px;text-align:left">IMEI</th><th style="background:#F8F9FA;padding:8px;text-align:left">PBI Grade</th></tr></thead><tbody>';
+    d.missingFromSheet.forEach(m => { h += `<tr><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.imei}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.grade}</td></tr>`; });
+    h += '</tbody></table></div>';
+  }
+  if(d.missingFromPBI?.length) {
+    h += '<div style="margin-bottom:10px"><strong style="font-size:12px;color:#6A1B9A">Missing from PBI</strong>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px"><thead><tr><th style="background:#F8F9FA;padding:8px;text-align:left">IMEI</th><th style="background:#F8F9FA;padding:8px;text-align:left">Sheet Disp.</th></tr></thead><tbody>';
+    d.missingFromPBI.forEach(m => { h += `<tr><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.imei}</td><td style="padding:7px 12px;border-bottom:1px solid #f0f0f0">${m.disp}</td></tr>`; });
+    h += '</tbody></table></div>';
+  }
+  if(!d.mismatches.length && !d.obrAlerts.length && !nr.length && !d.missingFromSheet?.length && !d.missingFromPBI?.length) {
+    h += '<div style="padding:20px;text-align:center;color:var(--success-green)">No issues found - perfect match!</div>';
+  }
+  return h;
+}
+
+// -- Settings --
+async function reebeloLoadSettings() {
+  try {
+    const cfg = await (await fetch(REEBELO_API + '/config')).json();
+    const sc = document.getElementById('reebelo-cfg-slack-channel');
+    if (sc) sc.value = cfg.slack_webhook_channel?.includes('PASTE') ? '' : (cfg.slack_webhook_channel||'');
+    const sd = document.getElementById('reebelo-cfg-slack-dm');
+    if (sd) sd.value = cfg.slack_webhook_dm?.includes('PASTE') ? '' : (cfg.slack_webhook_dm||'');
+    const ee = document.getElementById('reebelo-cfg-email-enabled');
+    if (ee) ee.checked = cfg.email_enabled==='True'||cfg.email_enabled===true;
+    const ef = document.getElementById('reebelo-cfg-email-from');
+    if (ef) ef.value = cfg.email_from||'';
+    const ep = document.getElementById('reebelo-cfg-email-pass');
+    if (ep) ep.value = cfg.email_app_password||'';
+    const et = document.getElementById('reebelo-cfg-email-to');
+    if (et) et.value = cfg.email_to||'';
+  } catch(e) { console.warn('Failed to load Reebelo settings:', e); }
+}
+
+async function reebeloSaveSettings() {
+  const data = {
+    slack_webhook_channel: document.getElementById('reebelo-cfg-slack-channel').value,
+    slack_webhook_dm: document.getElementById('reebelo-cfg-slack-dm').value,
+    email_enabled: document.getElementById('reebelo-cfg-email-enabled').checked ? 'True' : 'False',
+    email_from: document.getElementById('reebelo-cfg-email-from').value,
+    email_app_password: document.getElementById('reebelo-cfg-email-pass').value,
+    email_to: document.getElementById('reebelo-cfg-email-to').value,
+  };
+  try {
+    await fetch(REEBELO_API + '/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+    alert('Reebelo settings saved!');
+  } catch(e) { alert('Error saving settings: '+e.message); }
+}
 </script>
 </div><!-- /app-main -->
 </body>

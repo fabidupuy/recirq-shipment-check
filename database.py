@@ -249,6 +249,122 @@ def init_db():
         updated_at TEXT NOT NULL
     )''')
 
+    # ── Reebelo Reconciliation tables ──
+    c.execute(f'''CREATE TABLE IF NOT EXISTS reebelo_runs (
+        id {serial},
+        timestamp TEXT NOT NULL,
+        date TEXT NOT NULL,
+        run_by TEXT DEFAULT '',
+        total_pbi INTEGER DEFAULT 0,
+        total_sheet INTEGER DEFAULT 0,
+        total_common INTEGER DEFAULT 0,
+        matched INTEGER DEFAULT 0,
+        mismatches INTEGER DEFAULT 0,
+        obr INTEGER DEFAULT 0,
+        not_registered INTEGER DEFAULT 0,
+        missing_sheet INTEGER DEFAULT 0,
+        missing_pbi INTEGER DEFAULT 0,
+        match_rate REAL DEFAULT 0.0,
+        details_json TEXT DEFAULT '{{}}'
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS reebelo_config (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )''')
+
+    conn.commit()
+    conn.close()
+
+
+# ════════════════════════════════════
+# REEBELO RECONCILIATION
+# ════════════════════════════════════
+
+def save_reebelo_run(results, match_rate, run_by=""):
+    """Save a Reebelo reconciliation run. Returns the run ID."""
+    conn = get_db()
+    c = conn.cursor()
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    dt = ts[:10]
+    nr = results.get("notRegistered", [])
+
+    detail = {
+        "timestamp": ts, "date": dt,
+        "totalPBI": results["totalPBI"], "totalSheet": results["totalSheet"],
+        "totalCommon": results["totalCommon"], "matchRate": round(match_rate, 2),
+        "matchCount": len(results["matches"]),
+        "mismatches": results["mismatches"], "obrAlerts": results["obrAlerts"],
+        "notRegistered": nr, "missingFromSheet": results["missingFromSheet"],
+        "missingFromPBI": results["missingFromPBI"],
+    }
+
+    c.execute(f'''INSERT INTO reebelo_runs
+        (timestamp, date, run_by, total_pbi, total_sheet, total_common,
+         matched, mismatches, obr, not_registered, missing_sheet, missing_pbi,
+         match_rate, details_json)
+        VALUES ({_ph(14)})''',
+        (ts, dt, run_by, results["totalPBI"], results["totalSheet"], results["totalCommon"],
+         len(results["matches"]), len(results["mismatches"]),
+         len(results["obrAlerts"]), len(nr),
+         len(results["missingFromSheet"]), len(results["missingFromPBI"]),
+         round(match_rate, 2), json.dumps(detail, default=str)))
+    conn.commit()
+    run_id = c.lastrowid
+    conn.close()
+    return run_id
+
+
+def get_reebelo_trends(limit=100):
+    """Get Reebelo trend data for chart and table."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f'''SELECT id, timestamp, date, run_by, total_pbi, total_sheet,
+                   matched, mismatches, obr, not_registered,
+                   missing_sheet, missing_pbi, match_rate
+              FROM reebelo_runs ORDER BY timestamp DESC LIMIT {_PH}''', (limit,))
+    rows = _fetchall(c)
+    conn.close()
+    results = []
+    for row in reversed(rows):
+        row["time"] = row["timestamp"][11:] if len(row["timestamp"]) > 10 else ""
+        row["pbi"] = row["total_pbi"]
+        row["sheet"] = row["total_sheet"]
+        results.append(row)
+    return results
+
+
+def get_reebelo_run_detail(run_id):
+    """Get full detail JSON for a specific Reebelo run."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f'SELECT details_json FROM reebelo_runs WHERE id = {_PH}', (run_id,))
+    row = _fetchone(c)
+    conn.close()
+    if row:
+        return json.loads(row['details_json'])
+    return None
+
+
+def get_reebelo_config():
+    """Get all Reebelo config values as a dict."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT key, value FROM reebelo_config')
+    rows = _fetchall(c)
+    conn.close()
+    return {r['key']: r['value'] for r in rows}
+
+
+def set_reebelo_config(key, value):
+    """Set a Reebelo config value."""
+    conn = get_db()
+    c = conn.cursor()
+    if DATABASE_URL:
+        c.execute(f'INSERT INTO reebelo_config (key, value) VALUES ({_ph(2)}) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value',
+                  (key, value))
+    else:
+        c.execute(f'INSERT OR REPLACE INTO reebelo_config (key, value) VALUES ({_ph(2)})', (key, value))
     conn.commit()
     conn.close()
 

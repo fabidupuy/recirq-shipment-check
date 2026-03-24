@@ -2,12 +2,15 @@
 RecirQ Global — Shipment Check Server
 Flask web server that serves the Shipment Check app and persists data to SQLite.
 """
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, send_file, Response
 import database as db
 import os
+import io
+import math
 import json
 import hashlib
 import uuid
+from datetime import datetime, date
 
 # S3 setup (optional — only if AWS credentials are configured)
 s3_client = None
@@ -904,6 +907,397 @@ def save_settings():
     for key, value in data.items():
         db.set_setting(key, value)
     return jsonify({'status': 'saved'})
+
+
+# ════════════════════════════════════
+# REEBELO RECONCILIATION
+# ════════════════════════════════════
+
+def _reebelo_normalize(val):
+    """Normalize a grade/disposition value for comparison."""
+    if not val or val == "nan" or val == "None" or val == "N/A" or str(val).strip() == "":
+        return ""
+    return str(val).strip().upper().replace("_", "-")
+
+_REEBELO_DISP_TO_GRADE = {
+    "SHIP": "RTV-REEB",
+    "DISPUTE": "DISPUTE",
+    "ESCALATE": "EXCEPTION",
+    "RTV-REEB": "RTV-REEB",
+    "EXCEPTION": "EXCEPTION",
+}
+
+def _reebelo_parse_upload(file_bytes, filename):
+    import pandas as pd
+    from pathlib import Path
+    ext = Path(filename).suffix.lower()
+    if ext == ".csv":
+        df = pd.read_csv(io.BytesIO(file_bytes), dtype=str)
+    else:
+        df = pd.read_excel(io.BytesIO(file_bytes), dtype=str)
+    df.columns = df.columns.str.strip()
+    return df
+
+def _reebelo_detect_type(df):
+    cols = [c.lower() for c in df.columns]
+    if any("internal grade" in c or "internalgrade" in c for c in cols):
+        return "pbi"
+    if any("disposition" in c for c in cols):
+        return "sheet"
+    return None
+
+def _reebelo_find_col(df, candidates):
+    for c in candidates:
+        for col in df.columns:
+            if col.lower().strip() == c.lower():
+                return col
+    for c in candidates:
+        for col in df.columns:
+            if c.lower() in col.lower():
+                return col
+    return None
+
+def _reebelo_reconcile(pbi_df, sheet_df):
+    pi = _reebelo_find_col(pbi_df, ["IMEI", "imei"])
+    pg = _reebelo_find_col(pbi_df, ["Internal Grade", "InternalGrade"])
+    si = _reebelo_find_col(sheet_df, ["IMEI", "imei"])
+    sd = _reebelo_find_col(sheet_df, ["Disposition", "disposition"])
+
+    if not all([pi, pg, si, sd]):
+        missing = []
+        if not pi: missing.append("IMEI in PowerBI")
+        if not pg: missing.append("Internal Grade in PowerBI")
+        if not si: missing.append("IMEI in Spreadsheet")
+        if not sd: missing.append("Disposition in Spreadsheet")
+        return {"error": f"Missing columns: {', '.join(missing)}"}
+
+    pbi_df["_imei"] = pbi_df[pi].fillna("").astype(str).str.strip()
+    sheet_df["_imei"] = sheet_df[si].fillna("").astype(str).str.strip()
+    pbi_df = pbi_df[pbi_df["_imei"].notna() & (pbi_df["_imei"] != "") & (pbi_df["_imei"] != "nan")]
+    sheet_df = sheet_df[sheet_df["_imei"].notna() & (sheet_df["_imei"] != "") & (sheet_df["_imei"] != "nan")]
+    pbi_df["_g"] = pbi_df[pg].fillna("").astype(str).str.strip()
+    sheet_df["_d"] = sheet_df[sd].fillna("").astype(str).str.strip()
+
+    pbi_set = set(pbi_df["_imei"])
+    sheet_set = set(sheet_df["_imei"])
+    common = pbi_set & sheet_set
+
+    pbi_lk = pbi_df.set_index("_imei")["_g"].to_dict()
+    sheet_lk = sheet_df.set_index("_imei")["_d"].to_dict()
+
+    matches, mismatches, obr, not_registered = [], [], [], []
+    for imei in sorted(common):
+        g_raw, d_raw = pbi_lk.get(imei, ""), sheet_lk.get(imei, "")
+        g_norm = _reebelo_normalize(g_raw)
+        d_norm = _reebelo_normalize(d_raw)
+
+        if g_norm == "OBR":
+            obr.append({"imei": imei, "grade": g_raw, "disp": d_raw})
+            continue
+
+        if d_norm == "":
+            not_registered.append({"imei": imei, "grade": g_raw, "disp": "(empty)", "type": "Not Registered on Spreadsheet"})
+            continue
+
+        exp = _REEBELO_DISP_TO_GRADE.get(d_norm)
+        if exp is None:
+            mismatches.append({"imei": imei, "grade": g_raw, "disp": d_raw, "expected": f"UNKNOWN: '{d_raw}'", "type": "Unknown Disposition"})
+        elif g_norm != exp:
+            mismatches.append({"imei": imei, "grade": g_raw, "disp": d_raw, "expected": exp.replace("-", "_") if "_" in g_raw else exp, "type": "Route Mismatch"})
+        else:
+            matches.append({"imei": imei, "grade": g_raw, "disp": d_raw})
+
+    ms = [{"imei": i, "grade": pbi_lk.get(i, "")} for i in sorted(pbi_set - sheet_set)]
+    mp = [{"imei": i, "disp": sheet_lk.get(i, "")} for i in sorted(sheet_set - pbi_set)]
+
+    return {
+        "totalPBI": len(pbi_set), "totalSheet": len(sheet_set), "totalCommon": len(common),
+        "matches": matches, "mismatches": mismatches, "obrAlerts": obr,
+        "notRegistered": not_registered, "missingFromSheet": ms, "missingFromPBI": mp,
+    }
+
+def _reebelo_sanitize(obj):
+    """Replace NaN/None/numpy values with JSON-safe equivalents."""
+    if isinstance(obj, dict):
+        return {k: _reebelo_sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_reebelo_sanitize(v) for v in obj]
+    if obj is None:
+        return ""
+    try:
+        if isinstance(obj, (int, float)):
+            if math.isnan(obj) or math.isinf(obj):
+                return ""
+    except (TypeError, ValueError):
+        pass
+    try:
+        if hasattr(obj, 'item'):
+            val = obj.item()
+            if val is None:
+                return ""
+            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                return ""
+            return val
+    except (TypeError, ValueError, OverflowError):
+        pass
+    if isinstance(obj, str) and obj.lower() in ("nan", "none", "nat"):
+        return ""
+    return obj
+
+def _reebelo_build_slack_msg(r, dt):
+    nr = r.get("notRegistered", [])
+    tc = r["totalCommon"] - len(r["obrAlerts"]) - len(nr)
+    mr = (len(r["matches"]) / tc * 100) if tc > 0 else 0
+    ti = len(r["mismatches"]) + len(r["missingFromSheet"]) + len(r["missingFromPBI"]) + len(nr)
+    st = "PASS" if mr >= 95 else "WARNING" if mr >= 85 else "FAIL"
+    em = ":white_check_mark:" if st == "PASS" else ":warning:" if st == "WARNING" else ":red_circle:"
+    msg = f"""{em} *Reebelo Routing Reconciliation — {dt}*\n\n*Status: {st}* | Match Rate: *{mr:.1f}%*\n\n• PBI: {r['totalPBI']} | Sheet: {r['totalSheet']} | Matched: {len(r['matches'])} | Mismatches: {len(r['mismatches'])}\n• OBR: {len(r['obrAlerts'])} | Not Registered: {len(nr)}\n• Missing Sheet: {len(r['missingFromSheet'])} | Missing PBI: {len(r['missingFromPBI'])}\n• *Total Issues: {ti}*"""
+    if r["mismatches"]:
+        msg += "\n\n*Top Mismatches:*"
+        for m in r["mismatches"][:5]:
+            msg += f"\n  `{m['imei']}` — PBI: {m['grade']} vs Sheet: {m['disp']}"
+    if nr:
+        msg += "\n\n*:rotating_light: Not Registered on Spreadsheet:*"
+        for n in nr[:5]:
+            msg += f"\n  `{n['imei']}` — PBI Grade: {n['grade']}"
+    return msg
+
+def _reebelo_send_slack(url, msg):
+    import requests as req_lib
+    if not url or "PASTE" in url:
+        return False
+    try:
+        return req_lib.post(url, json={"text": msg}, timeout=10).status_code == 200
+    except Exception:
+        return False
+
+def _reebelo_send_email(r, dt, cfg):
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    if not cfg.get("email_enabled") or cfg.get("email_enabled") == "False":
+        return False
+    if not cfg.get("email_from") or not cfg.get("email_app_password"):
+        return False
+    nr = r.get("notRegistered", [])
+    tc = r["totalCommon"] - len(r["obrAlerts"]) - len(nr)
+    mr = (len(r["matches"]) / tc * 100) if tc > 0 else 0
+    ti = len(r["mismatches"]) + len(r["missingFromSheet"]) + len(r["missingFromPBI"]) + len(nr)
+    st = "PASS" if mr >= 95 else "WARNING" if mr >= 85 else "FAIL"
+    sc = {"PASS": "#27AE60", "WARNING": "#F39C12", "FAIL": "#E74C3C"}[st]
+    emoji = {"PASS": "\u2705", "WARNING": "\u26a0\ufe0f", "FAIL": "\U0001f534"}[st]
+
+    mm = "".join(
+        f"<tr><td style='padding:6px 10px;border-bottom:1px solid #eee'>{m['imei']}</td>"
+        f"<td style='padding:6px 10px;border-bottom:1px solid #eee'>{m['grade']}</td>"
+        f"<td style='padding:6px 10px;border-bottom:1px solid #eee'>{m['disp']}</td></tr>"
+        for m in r["mismatches"][:10]
+    )
+    body = f"""<div style="font-family:Segoe UI,Arial,sans-serif;max-width:600px;margin:0 auto">
+    <div style="background:linear-gradient(135deg,#1B2A4A,#2C3E6B);color:#fff;padding:20px 28px;border-radius:10px 10px 0 0">
+    <h2 style="margin:0;font-size:18px">Reebelo Routing Reconciliation</h2>
+    <p style="margin:4px 0 0;opacity:.8;font-size:13px">{dt}</p></div>
+    <div style="background:#fff;padding:24px 28px;border:1px solid #e0e0e0;border-top:none;border-radius:0 0 10px 10px">
+    <div style="display:inline-block;padding:6px 16px;border-radius:16px;background:{sc};color:#fff;font-weight:700;font-size:14px">{st} — {mr:.1f}%</div>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+    <tr><td style="padding:6px 0;color:#555">PBI</td><td style="font-weight:600">{r['totalPBI']}</td>
+    <td style="color:#555">Sheet</td><td style="font-weight:600">{r['totalSheet']}</td></tr>
+    <tr><td style="padding:6px 0;color:#555">Matched</td><td style="font-weight:600;color:#27AE60">{len(r['matches'])}</td>
+    <td style="color:#555">Mismatches</td><td style="font-weight:600;color:#E74C3C">{len(r['mismatches'])}</td></tr>
+    <tr><td style="color:#555">OBR</td><td style="font-weight:600;color:#F39C12">{len(r['obrAlerts'])}</td>
+    <td style="color:#555">Issues</td><td style="font-weight:600;color:#E74C3C">{ti}</td></tr></table>
+    {"<h3 style='font-size:14px;margin:16px 0 8px'>Top Mismatches</h3><table style='width:100%;border-collapse:collapse;font-size:13px'><tr style='background:#f8f9fa'><th style='padding:8px;text-align:left'>IMEI</th><th style='padding:8px;text-align:left'>PBI</th><th style='padding:8px;text-align:left'>Sheet</th></tr>" + mm + "</table>" if r['mismatches'] else ""}
+    </div></div>"""
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"{emoji} Reebelo Reconciliation — {dt} — {st} — {mr:.1f}%"
+        msg["From"] = cfg["email_from"]
+        msg["To"] = cfg.get("email_to", "")
+        msg.attach(MIMEText(body, "html"))
+        port = int(cfg.get("email_smtp_port", 587))
+        with smtplib.SMTP(cfg.get("email_smtp_server", "smtp.gmail.com"), port) as s:
+            s.starttls()
+            s.login(cfg["email_from"], cfg["email_app_password"])
+            s.send_message(msg)
+        return True
+    except Exception:
+        return False
+
+def _reebelo_generate_excel(r, dt):
+    import pandas as pd
+    output = io.BytesIO()
+    nr = r.get("notRegistered", [])
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        tc = r["totalCommon"] - len(r["obrAlerts"]) - len(nr)
+        mr = (len(r["matches"]) / tc * 100) if tc > 0 else 0
+        ti = len(r["mismatches"]) + len(r["missingFromSheet"]) + len(r["missingFromPBI"]) + len(nr)
+        summary = pd.DataFrame([
+            {"Metric": "Report Date", "Value": dt},
+            {"Metric": "PBI Records", "Value": r["totalPBI"]},
+            {"Metric": "Sheet Records", "Value": r["totalSheet"]},
+            {"Metric": "Matched", "Value": len(r["matches"])},
+            {"Metric": "Mismatches", "Value": len(r["mismatches"])},
+            {"Metric": "OBR Alerts", "Value": len(r["obrAlerts"])},
+            {"Metric": "Not Registered", "Value": len(nr)},
+            {"Metric": "Missing from Sheet", "Value": len(r["missingFromSheet"])},
+            {"Metric": "Missing from PBI", "Value": len(r["missingFromPBI"])},
+            {"Metric": "Total Issues", "Value": ti},
+            {"Metric": "Match Rate", "Value": f"{mr:.1f}%"},
+        ])
+        summary.to_excel(writer, sheet_name="Summary", index=False)
+        if r["mismatches"]:
+            pd.DataFrame(r["mismatches"]).to_excel(writer, sheet_name="Route Mismatches", index=False)
+        if r["obrAlerts"]:
+            pd.DataFrame(r["obrAlerts"]).to_excel(writer, sheet_name="OBR Alerts", index=False)
+        if nr:
+            pd.DataFrame(nr).to_excel(writer, sheet_name="Not Registered", index=False)
+        if r["missingFromSheet"]:
+            pd.DataFrame(r["missingFromSheet"]).to_excel(writer, sheet_name="Missing from Sheet", index=False)
+        if r["missingFromPBI"]:
+            pd.DataFrame(r["missingFromPBI"]).to_excel(writer, sheet_name="Missing from PBI", index=False)
+        if r["matches"]:
+            pd.DataFrame(r["matches"]).to_excel(writer, sheet_name="Matched", index=False)
+    return output.getvalue()
+
+# In-memory store for last Reebelo Excel download
+_reebelo_last_excel = b""
+
+@app.route('/api/reebelo/reconcile', methods=['POST'])
+def reebelo_reconcile():
+    """Run Reebelo reconciliation on two uploaded files."""
+    global _reebelo_last_excel
+    try:
+        if "file1" not in request.files or "file2" not in request.files:
+            return jsonify({"error": "Need 2 files"}), 400
+
+        f1 = request.files["file1"]
+        f2 = request.files["file2"]
+
+        pbi_df, sheet_df = None, None
+        pbi_name, sheet_name = "", ""
+
+        for fname, fobj in [(f1.filename, f1), (f2.filename, f2)]:
+            data = fobj.read()
+            df = _reebelo_parse_upload(data, fname)
+            ft = _reebelo_detect_type(df)
+            if ft == "pbi" and pbi_df is None:
+                pbi_df, pbi_name = df, fname
+            elif ft == "sheet" and sheet_df is None:
+                sheet_df, sheet_name = df, fname
+
+        if pbi_df is None or sheet_df is None:
+            detected = []
+            if pbi_df is not None: detected.append("PowerBI")
+            if sheet_df is not None: detected.append("Sheet")
+            return jsonify({"error": f"Could not detect file types. Detected: {', '.join(detected) or 'neither'}. Make sure one file has 'Internal Grade' column and the other has 'Disposition'."}), 400
+
+        results = _reebelo_reconcile(pbi_df, sheet_df)
+        if "error" in results:
+            return jsonify(results), 400
+
+        dt = date.today().isoformat()
+        nr = results.get("notRegistered", [])
+        tc = results["totalCommon"] - len(results["obrAlerts"]) - len(nr)
+        mr = (len(results["matches"]) / tc * 100) if tc > 0 else 0
+
+        # Save to database
+        run_id = db.save_reebelo_run(results, mr)
+
+        # Generate Excel
+        try:
+            _reebelo_last_excel = _reebelo_generate_excel(results, dt)
+        except Exception as ex:
+            print(f"[WARN] Reebelo Excel generation failed: {ex}")
+            _reebelo_last_excel = b""
+
+        # Send alerts
+        cfg = db.get_reebelo_config()
+        alerts = {"slack_channel": False, "slack_dm": False, "email": False}
+        slack_msg = _reebelo_build_slack_msg(results, dt)
+
+        try:
+            if cfg.get("slack_webhook_channel") and "PASTE" not in cfg.get("slack_webhook_channel", ""):
+                alerts["slack_channel"] = _reebelo_send_slack(cfg["slack_webhook_channel"], slack_msg)
+            if cfg.get("slack_webhook_dm") and "PASTE" not in cfg.get("slack_webhook_dm", ""):
+                alerts["slack_dm"] = _reebelo_send_slack(cfg["slack_webhook_dm"], slack_msg)
+            if cfg.get("email_enabled") == "True":
+                alerts["email"] = _reebelo_send_email(results, dt, cfg)
+        except Exception as ex:
+            print(f"[WARN] Reebelo alert sending failed: {ex}")
+
+        results["alerts"] = alerts
+        results["files"] = {"pbi": pbi_name, "sheet": sheet_name}
+        results["date"] = dt
+        results["run_id"] = run_id
+
+        return jsonify(_reebelo_sanitize(results))
+
+    except Exception as ex:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Server error: {str(ex)}"}), 500
+
+
+@app.route('/api/reebelo/download')
+def reebelo_download():
+    """Download the last Reebelo reconciliation as Excel."""
+    global _reebelo_last_excel
+    if _reebelo_last_excel:
+        return send_file(
+            io.BytesIO(_reebelo_last_excel),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=f"Reebelo_Reconciliation_{date.today().isoformat()}.xlsx"
+        )
+    return jsonify({"error": "No report generated yet"}), 404
+
+
+@app.route('/api/reebelo/trends')
+def reebelo_trends():
+    """Get Reebelo trend data."""
+    return jsonify(_reebelo_sanitize(db.get_reebelo_trends()))
+
+
+@app.route('/api/reebelo/detail/<path:query>')
+def reebelo_detail(query):
+    """Get Reebelo run detail by ID or date."""
+    try:
+        run_id = int(query)
+        detail = db.get_reebelo_run_detail(run_id)
+        if detail:
+            return jsonify(_reebelo_sanitize(detail))
+    except ValueError:
+        pass
+    # Try as date — not implemented for simplicity; return 404
+    return jsonify({"error": "No detail data found"}), 404
+
+
+@app.route('/api/reebelo/config', methods=['GET'])
+def reebelo_get_config():
+    """Get Reebelo alert config (passwords masked)."""
+    cfg = db.get_reebelo_config()
+    safe = {}
+    for k, v in cfg.items():
+        if "password" in k and v:
+            safe[k] = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+        else:
+            safe[k] = v
+    safe["slack_configured"] = bool(cfg.get("slack_webhook_channel")) and "PASTE" not in cfg.get("slack_webhook_channel", "")
+    safe["email_configured"] = bool(cfg.get("email_enabled") == "True" and cfg.get("email_from") and cfg.get("email_app_password"))
+    return jsonify(_reebelo_sanitize(safe))
+
+
+@app.route('/api/reebelo/config', methods=['POST'])
+def reebelo_save_config():
+    """Save Reebelo alert config."""
+    data = request.get_json()
+    cfg = db.get_reebelo_config()
+    for k, v in data.items():
+        if "password" in k and v == "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022":
+            continue
+        db.set_reebelo_config(k, str(v))
+    return jsonify({"status": "saved"})
 
 
 # ════════════════════════════════════
