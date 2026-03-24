@@ -6271,10 +6271,11 @@ function renderPPPackingSection() {
         const statusBadge = isFallout ? '<span class="badge badge-fail">FALLOUT</span>' : (u.packed ? '<span class="badge badge-pass">PACKED</span>' : '<span class="badge badge-pending">PENDING</span>');
         const cardBg = isFallout ? 'background:var(--critical-bg);opacity:0.8;' : '';
         const unitChecked2 = ppSelectedUnits.has(u.imei);
-        const imeiPhotoCount = ppGetPhotoCount(u.imei);
-        const photoIndicator = imeiPhotoCount > 0
+        const isBrightpoint = ppActivePackingVendor === 'BRIGHTPOINT';
+        const imeiPhotoCount = isBrightpoint ? ppGetPhotoCount(u.imei) : 0;
+        const photoIndicator = isBrightpoint ? (imeiPhotoCount > 0
           ? `<span style="cursor:pointer;font-size:11px;color:var(--success-green);font-weight:600;" onclick="event.stopPropagation();ppOpenIMEIPhotos('${u.imei}')" title="View ${imeiPhotoCount} photo(s)">&#128247; ${imeiPhotoCount}</span>`
-          : (u.packed && !isFallout ? '<span style="font-size:11px;color:var(--alert-red);" title="No photos">&#128247; 0</span>' : '');
+          : (u.packed && !isFallout ? '<span style="font-size:11px;color:var(--alert-red);" title="No photos">&#128247; 0</span>' : '')) : '';
         html += `
           <div class="pp-unit-card" style="padding:12px 16px;border-bottom:1px solid #f0f0f0;${cardBg}${unitChecked2 ? 'background:#fff3e0;' : ''}">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
@@ -6785,12 +6786,14 @@ async function ppCompleteDateGroup(vendor, subDate) {
     }
   }
 
-  // Photo gate: check that all active (non-fallout) packed IMEIs have photos
-  for (const u of activeUnits) {
-    const hasIMEIPhoto = await ppCheckPhotosExist(u.imei);
-    if (!hasIMEIPhoto) {
-      alert(`IMEI ${u.imei} is missing photos. All units must have photos before completing the group.`);
-      return;
+  // Photo gate: check that all active (non-fallout) packed IMEIs have photos (Brightpoint only)
+  if (vendor === 'BRIGHTPOINT') {
+    for (const u of activeUnits) {
+      const hasIMEIPhoto = await ppCheckPhotosExist(u.imei);
+      if (!hasIMEIPhoto) {
+        alert(`IMEI ${u.imei} is missing photos. All units must have photos before completing the group.`);
+        return;
+      }
     }
   }
 
@@ -7098,9 +7101,9 @@ async function ppScanIMEI() {
   const job = ppJobs[vendor];
   if (!job) return;
 
-  // For non-VZ: check if previous scanned IMEI has photos before allowing next scan
-  const isVZ = vendor === 'VERIZON';
-  if (!isVZ && ppLastScanned && ppLastScanned.vendor === vendor) {
+  // For Brightpoint: check if previous scanned IMEI has photos before allowing next scan
+  const isBrightpoint = vendor === 'BRIGHTPOINT';
+  if (isBrightpoint && ppLastScanned && ppLastScanned.vendor === vendor) {
     const prevUnit = job.units[ppLastScanned.unitIdx];
     if (prevUnit && prevUnit.packed && prevUnit.imei !== imei) {
       const hasPhotos = await ppCheckPhotosExist(prevUnit.imei);
@@ -7348,7 +7351,7 @@ function ppBuildFeedbackHTML() {
             ${ppQCChip(unitIdx, vendor, 'datawipe', u.qc.datawipe, 'Datawipe')}
           </div>
         </div>
-        ${vendor !== 'VERIZON' ? `<div style="text-align:center;">
+        ${vendor === 'BRIGHTPOINT' ? `<div style="text-align:center;">
           <button onclick="event.stopPropagation();ppOpenPhotoQR('${u.imei}','${vendor}','unit','${u.rmaNumber || ''}')" style="cursor:pointer;background:#f0f7f0;border:2px solid #1a3a2a;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:700;color:#1a3a2a;">
             Take Pictures
           </button>
