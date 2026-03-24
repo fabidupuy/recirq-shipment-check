@@ -6169,9 +6169,10 @@ function renderPPHistorySection() {
   const nonVZGroups = {};
   nonVZEntries.forEach((entry) => {
     const key = entry.tracking || 'NO_TRACKING';
-    if (!nonVZGroups[key]) nonVZGroups[key] = { tracking: key, vendor: entry.vendor, entries: [], allUnits: [], completedAt: entry.completedAt, completedBy: entry.completedBy };
+    if (!nonVZGroups[key]) nonVZGroups[key] = { tracking: key, vendor: entry.vendor, entries: [], allUnits: [], completedAt: entry.completedAt, completedBy: entry.completedBy, boxNumbers: [] };
     nonVZGroups[key].entries.push(entry);
     nonVZGroups[key].allUnits.push(...(entry.units || []));
+    if (entry.boxNumbers) entry.boxNumbers.forEach(n => { if (!nonVZGroups[key].boxNumbers.includes(n)) nonVZGroups[key].boxNumbers.push(n); });
   });
 
   // Daily summary section
@@ -6236,7 +6237,7 @@ function renderPPHistorySection() {
       <td>${group.completedBy || '—'}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-outline" onclick="ppToggleHistoryDetail('${gIdx}')" style="font-size:10px;padding:2px 8px;margin-right:4px;">Details</button>
-        <button class="btn btn-sm btn-outline" onclick="ppOpenRMAPhotos('${group.tracking}',${JSON.stringify(group.allUnits.map(u=>u.imei)).replace(/"/g,'&quot;')},'${group.vendor}')" style="font-size:10px;padding:2px 8px;border-color:#1976d2;color:#1976d2;">&#128247; Photos</button>
+        <button class="btn btn-sm btn-outline" onclick="ppOpenRMAPhotos('${group.tracking}',${JSON.stringify(group.allUnits.map(u=>u.imei)).replace(/"/g,'&quot;')},'${group.vendor}',${JSON.stringify(group.boxNumbers).replace(/"/g,'&quot;')})" style="font-size:10px;padding:2px 8px;border-color:#1976d2;color:#1976d2;">&#128247; Photos</button>
       </td>
     </tr>
     <tr id="pp-hist-detail-${gIdx}" style="display:none;">
@@ -6260,7 +6261,7 @@ function ppToggleHistoryDetail(idx) {
 }
 
 // ── RMA PHOTO GALLERY (Packed RMAs) ──
-async function ppOpenRMAPhotos(groupLabel, imeis, vendor) {
+async function ppOpenRMAPhotos(groupLabel, imeis, vendor, boxNumbers) {
   // Fetch latest photos from server
   let allPhotos = ppAllPhotos;
   try {
@@ -6273,15 +6274,19 @@ async function ppOpenRMAPhotos(groupLabel, imeis, vendor) {
   let html = `<div style="max-height:70vh;overflow-y:auto;padding:8px;">`;
 
   // Box-level photos
-  // For VZ: check 'box-{rma}'. For non-VZ: scan all 'box-{N}' keys in allPhotos.
   const isVZ = vendor === 'VERIZON';
   let allBoxPhotos = [];
   if (isVZ) {
     const boxKey = 'box-' + groupLabel;
     allBoxPhotos = (allPhotos[boxKey] || []).map(p => ({ ...p, _boxLabel: groupLabel }));
+  } else if (boxNumbers && boxNumbers.length > 0) {
+    // Use specific box numbers stored when the group was completed
+    boxNumbers.forEach(num => {
+      const key = 'box-' + num;
+      (allPhotos[key] || []).forEach(p => allBoxPhotos.push({ ...p, _boxLabel: 'Box #' + num }));
+    });
   } else {
-    // Collect non-VZ box keys (box-1, box-2, etc. — small numbers only)
-    // VZ uses RMA numbers (9+ digits) like box-326451457, so exclude those
+    // Legacy fallback: no boxNumbers stored, show all small-numbered box keys
     Object.keys(allPhotos).forEach(key => {
       const m = key.match(/^box-(\d+)$/);
       if (m && m[1].length <= 3) {
@@ -6592,6 +6597,9 @@ async function ppCompleteDateGroup(vendor, subDate) {
   confirmMsg += `\n\nThis will move these units to Packed history.`;
   if (!confirm(confirmMsg)) return;
 
+  // Capture closed box numbers for this group so gallery can show correct photos
+  const groupBoxNums = closedBoxes.map(b => b.boxNum);
+
   // Store each RMA as a separate completed entry
   rmas.forEach(rma => {
     const rmaUnits = grp.filter(u => u.rmaNumber === rma);
@@ -6603,6 +6611,7 @@ async function ppCompleteDateGroup(vendor, subDate) {
       completedAt: new Date().toISOString(),
       completedBy: currentUser ? (currentUser.displayName || currentUser.username) : '',
       submissionDate: subDate,
+      boxNumbers: groupBoxNums,
     });
   });
 
@@ -6616,6 +6625,7 @@ async function ppCompleteDateGroup(vendor, subDate) {
       completedAt: new Date().toISOString(),
       completedBy: currentUser ? (currentUser.displayName || currentUser.username) : '',
       submissionDate: subDate,
+      boxNumbers: groupBoxNums,
     });
   }
 
