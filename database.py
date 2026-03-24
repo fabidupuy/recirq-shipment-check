@@ -97,7 +97,8 @@ def init_db():
         qty_mismatch_count INTEGER DEFAULT 0,
         imei_mismatch_count INTEGER DEFAULT 0,
         hard_stop_count INTEGER DEFAULT 0,
-        unpacked_count INTEGER DEFAULT 0
+        unpacked_count INTEGER DEFAULT 0,
+        submitted_imei_details_json TEXT
     )''')
 
     c.execute(f'''CREATE TABLE IF NOT EXISTS units (
@@ -220,6 +221,20 @@ def init_db():
             print(f"BIGINT migration error: {e}")
             c.execute("ROLLBACK TO SAVEPOINT sp_bigint_migration")
         c.execute("RELEASE SAVEPOINT sp_bigint_migration")
+
+    # Ensure submitted_imei_details_json column exists for existing databases
+    if DATABASE_URL:
+        c.execute("SAVEPOINT sp_imei_details_migration")
+        try:
+            c.execute("ALTER TABLE batches ADD COLUMN submitted_imei_details_json TEXT")
+        except Exception:
+            c.execute("ROLLBACK TO SAVEPOINT sp_imei_details_migration")
+        c.execute("RELEASE SAVEPOINT sp_imei_details_migration")
+    else:
+        try:
+            c.execute("ALTER TABLE batches ADD COLUMN submitted_imei_details_json TEXT")
+        except Exception:
+            pass  # Column already exists
 
     # Ensure at least one admin exists — promote the first active user if none
     c.execute("SELECT COUNT(*) as cnt FROM users WHERE role='admin' AND is_active=1")
@@ -436,8 +451,9 @@ def save_batch(batch_data):
              submitted_imeis_json, submitted_files_json, submitted_file_info_json,
              packing_slips_json, delivery_by_rma_json, packing_slip_files_json,
              route_fail_count, aging_fail_count, qty_mismatch_count,
-             imei_mismatch_count, hard_stop_count, unpacked_count)
-            VALUES ({_ph(24)})
+             imei_mismatch_count, hard_stop_count, unpacked_count,
+             submitted_imei_details_json)
+            VALUES ({_ph(25)})
             ON CONFLICT (id) DO UPDATE SET
              vendor=EXCLUDED.vendor, ship_date=EXCLUDED.ship_date,
              created_at=EXCLUDED.created_at, status=EXCLUDED.status,
@@ -458,7 +474,8 @@ def save_batch(batch_data):
              qty_mismatch_count=EXCLUDED.qty_mismatch_count,
              imei_mismatch_count=EXCLUDED.imei_mismatch_count,
              hard_stop_count=EXCLUDED.hard_stop_count,
-             unpacked_count=EXCLUDED.unpacked_count''',
+             unpacked_count=EXCLUDED.unpacked_count,
+             submitted_imei_details_json=EXCLUDED.submitted_imei_details_json''',
             _batch_values(bid, batch_data))
     else:
         # SQLite: INSERT OR REPLACE
@@ -469,8 +486,9 @@ def save_batch(batch_data):
              submitted_imeis_json, submitted_files_json, submitted_file_info_json,
              packing_slips_json, delivery_by_rma_json, packing_slip_files_json,
              route_fail_count, aging_fail_count, qty_mismatch_count,
-             imei_mismatch_count, hard_stop_count, unpacked_count)
-            VALUES ({_ph(24)})''',
+             imei_mismatch_count, hard_stop_count, unpacked_count,
+             submitted_imei_details_json)
+            VALUES ({_ph(25)})''',
             _batch_values(bid, batch_data))
 
     # Delete existing units for this batch and re-insert
@@ -560,6 +578,7 @@ def _batch_values(bid, batch_data):
         batch_data.get('imeiMismatchCount', 0),
         batch_data.get('hardStopCount', 0),
         batch_data.get('unpackedCount', 0),
+        json.dumps(batch_data.get('submittedIMEIDetails', {})),
     )
 
 
@@ -752,6 +771,7 @@ def _row_to_batch(row):
         'imeiMismatchCount': row['imei_mismatch_count'],
         'hardStopCount': row['hard_stop_count'],
         'unpackedCount': row['unpacked_count'],
+        'submittedIMEIDetails': json.loads(row['submitted_imei_details_json'] or '{}'),
         '_viewing': False,
     }
 
