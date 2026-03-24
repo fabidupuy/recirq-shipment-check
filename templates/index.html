@@ -6280,10 +6280,12 @@ async function ppOpenRMAPhotos(groupLabel, imeis, vendor) {
     const boxKey = 'box-' + groupLabel;
     allBoxPhotos = (allPhotos[boxKey] || []).map(p => ({ ...p, _boxLabel: groupLabel }));
   } else {
-    // Collect all box-N keys (box-1, box-2, etc.) and also legacy box-0
+    // Collect non-VZ box keys (box-1, box-2, etc. — small numbers only)
+    // VZ uses RMA numbers (9+ digits) like box-326451457, so exclude those
     Object.keys(allPhotos).forEach(key => {
-      if (key.match(/^box-\d+$/)) {
-        allPhotos[key].forEach(p => allBoxPhotos.push({ ...p, _boxLabel: key.replace('box-', 'Box #') }));
+      const m = key.match(/^box-(\d+)$/);
+      if (m && m[1].length <= 3) {
+        allPhotos[key].forEach(p => allBoxPhotos.push({ ...p, _boxLabel: 'Box #' + m[1] }));
       }
     });
   }
