@@ -7102,6 +7102,7 @@ async function ppScanIMEI() {
   if (!job) return;
 
   // For Brightpoint: check if previous scanned IMEI has photos before allowing next scan
+  const isVZ = vendor === 'VERIZON';
   const isBrightpoint = vendor === 'BRIGHTPOINT';
   if (isBrightpoint && ppLastScanned && ppLastScanned.vendor === vendor) {
     const prevUnit = job.units[ppLastScanned.unitIdx];
