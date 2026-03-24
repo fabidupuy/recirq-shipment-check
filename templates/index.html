@@ -6272,16 +6272,29 @@ async function ppOpenRMAPhotos(groupLabel, imeis, vendor) {
   let totalPhotos = 0;
   let html = `<div style="max-height:70vh;overflow-y:auto;padding:8px;">`;
 
-  // Box-level photos (check for box-RMA keys)
-  const boxKey = 'box-' + groupLabel;
-  const boxPhotos = allPhotos[boxKey] || [];
-  if (boxPhotos.length > 0) {
-    totalPhotos += boxPhotos.length;
+  // Box-level photos
+  // For VZ: check 'box-{rma}'. For non-VZ: scan all 'box-{N}' keys in allPhotos.
+  const isVZ = vendor === 'VERIZON';
+  let allBoxPhotos = [];
+  if (isVZ) {
+    const boxKey = 'box-' + groupLabel;
+    allBoxPhotos = (allPhotos[boxKey] || []).map(p => ({ ...p, _boxLabel: groupLabel }));
+  } else {
+    // Collect all box-N keys (box-1, box-2, etc.) and also legacy box-0
+    Object.keys(allPhotos).forEach(key => {
+      if (key.match(/^box-\d+$/)) {
+        allPhotos[key].forEach(p => allBoxPhotos.push({ ...p, _boxLabel: key.replace('box-', 'Box #') }));
+      }
+    });
+  }
+  if (allBoxPhotos.length > 0) {
+    totalPhotos += allBoxPhotos.length;
     html += `<div style="margin-bottom:16px;">
-      <div style="font-weight:600;font-size:13px;color:var(--dark-green);margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid var(--dark-green);">&#128230; Box Photos (${boxPhotos.length})</div>
+      <div style="font-weight:600;font-size:13px;color:var(--dark-green);margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid var(--dark-green);">&#128230; Box Photos (${allBoxPhotos.length})</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-        ${boxPhotos.map(p => `<div style="border-radius:6px;overflow:hidden;border:1px solid #e0e0e0;aspect-ratio:1;background:#f5f5f5;">
+        ${allBoxPhotos.map(p => `<div style="position:relative;border-radius:6px;overflow:hidden;border:1px solid #e0e0e0;aspect-ratio:1;background:#f5f5f5;">
           <img src="${p.viewUrl}" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="window.open('${p.viewUrl}','_blank')" title="Click to view full size">
+          ${!isVZ ? '<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);color:white;font-size:10px;padding:2px 6px;text-align:center;">' + p._boxLabel + '</div>' : ''}
         </div>`).join('')}
       </div>
     </div>`;
