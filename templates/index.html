@@ -6974,9 +6974,11 @@ async function ppCompleteDateGroup(vendor, subDate) {
   const groupId = 'date-' + subDate.replace(/[\/\-]/g, '_');
   ppExpandedRMAs.delete(groupId);
 
-  // Reset tracking for non-VZ vendors after completing a group
+  // Reset tracking and boxes for non-VZ vendors after completing a group
   job.tracking = '';
   job.trackingConfirmed = false;
+  job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
+  job.currentBoxIdx = 0;
 
   ppSaveState();
   renderPPPackingSection();
