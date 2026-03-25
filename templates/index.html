@@ -138,6 +138,28 @@
   .hist-dropdown-item.email-item { color: #e67e22; }
   .hist-dropdown-item.delete-item { color: var(--alert-red); border-top: 1px solid #eee; }
 
+  /* ── HISTORY FULLWIDTH LAYOUT ── */
+  .section-fullwidth .container, .section-fullwidth.active { max-width: none; }
+  .section-fullwidth > .card-fullheight { max-width: none; min-height: calc(100vh - 100px); display: flex; flex-direction: column; }
+  .section-fullwidth > .card-fullheight #history-list { flex: 1; }
+  .section-fullwidth > .card-fullheight .tbl-wrap { max-height: calc(100vh - 200px); overflow-y: auto; }
+  .section-fullwidth > .card-fullheight table { font-size: 14px; }
+  .section-fullwidth > .card-fullheight th { padding: 14px 16px; font-size: 13px; letter-spacing: .3px; }
+  .section-fullwidth > .card-fullheight td { padding: 14px 16px; }
+
+  /* ── RESTYLED MORE-ACTIONS DROPDOWN ── */
+  .hist-dropdown { display: none; position: absolute; top: 40px; right: 0; background: white; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08); min-width: 200px; z-index: 200; overflow: hidden; border: 1.5px solid var(--medium-green); animation: hist-dd-in .15s ease-out; }
+  @keyframes hist-dd-in { from { opacity: 0; transform: translateY(-6px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .hist-dropdown-item { display: flex; align-items: center; gap: 12px; padding: 12px 18px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; background: none; width: 100%; text-align: left; color: #333; transition: background .12s, padding-left .12s; }
+  .hist-dropdown-item:hover { background: var(--light-green); padding-left: 22px; }
+  .hist-dropdown-item .dd-icon { font-size: 18px; width: 24px; text-align: center; }
+  .hist-dropdown-item.slack-item { color: #4A154B; }
+  .hist-dropdown-item.slack-item:hover { background: #f3e5f5; }
+  .hist-dropdown-item.email-item { color: #e67e22; }
+  .hist-dropdown-item.email-item:hover { background: #fff3e0; }
+  .hist-dropdown-item.delete-item { color: var(--alert-red); border-top: 1.5px solid #eee; }
+  .hist-dropdown-item.delete-item:hover { background: #fce4ec; }
+
   /* ── FORM ── */
   .form-group { margin-bottom: 16px; }
   .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--dark-gray); margin-bottom: 6px; }
@@ -457,6 +479,20 @@
   </div>
 </div>
 
+<!-- ═══ LABEL GALLERY MODAL ═══ -->
+<div class="modal-overlay" id="label-gallery-modal">
+  <div class="modal" style="max-width:700px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 id="label-gallery-title">Shipping Labels</h3>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm btn-primary" id="label-gallery-upload-btn">+ Add Label</button>
+        <button class="btn btn-sm btn-outline" onclick="closeLabelGallery()">Close</button>
+      </div>
+    </div>
+    <div id="label-gallery-content" style="min-height:100px;"></div>
+  </div>
+</div>
+
 <!-- ═══ PHOTO QR MODAL ═══ -->
 <div class="modal-overlay" id="photo-qr-modal">
   <div class="modal" style="max-width:360px;text-align:center;">
@@ -671,8 +707,8 @@
 </div>
 
 <!-- ═══════════ HISTORY ═══════════ -->
-<div id="sec-history" class="section">
-  <div class="card">
+<div id="sec-history" class="section section-fullwidth">
+  <div class="card card-fullheight">
     <h2>Check History</h2>
     <div id="history-list">
       <div class="empty-state">
@@ -4611,16 +4647,16 @@ function refreshHistory() {
           <button class="hist-icon-btn" onclick="event.stopPropagation();downloadAllReports('${b.id}')" title="Download CSV">&#11015;</button>
           <button class="hist-icon-btn" onclick="event.stopPropagation();openShipmentPhotos('${b.id}')" title="Photos">${b.shipmentPhotos && b.shipmentPhotos.length > 0 ? '<span class="badge-count">' + b.shipmentPhotos.length + '</span>' : ''}&#128247;</button>
           <input type="file" id="shipment-photo-input-${b.id}" accept="image/*" multiple style="display:none" onchange="uploadShipmentPhotos('${b.id}',this)">
-          <button class="hist-icon-btn blue" id="label-btn-${b.id}" onclick="event.stopPropagation();document.getElementById('label-input-${b.id}').click()" title="Upload label">${b.shippingLabels && b.shippingLabels.length > 0 ? '<span class="badge-count">' + b.shippingLabels.length + '</span>' : ''}&#128206;</button>
+          <button class="hist-icon-btn blue" id="label-btn-${b.id}" onclick="event.stopPropagation();openShippingLabels('${b.id}','${b.vendor}')" title="${b.shippingLabels && b.shippingLabels.length > 0 ? 'View labels' : 'Upload label'}">${b.shippingLabels && b.shippingLabels.length > 0 ? '<span class="badge-count">' + b.shippingLabels.length + '</span>' : ''}&#128206;</button>
           <input type="file" id="label-input-${b.id}" accept=".pdf,image/*" style="display:none" onchange="uploadShippingLabel('${b.id}','${b.vendor}',this)">
-          <div class="hist-more-wrap">
+          ${currentUser && currentUser.role === 'admin' ? `<div class="hist-more-wrap">
             <button class="hist-more-btn" onclick="event.stopPropagation();toggleHistDropdown('${b.id}')" title="More actions">&middot;&middot;&middot;</button>
             <div class="hist-dropdown" id="hist-dd-${b.id}">
               ${b.status === 'CLEARED' ? `<button class="hist-dropdown-item slack-item" id="slack-hist-btn-${b.id}" onclick="event.stopPropagation();closeAllHistDropdowns();sendHistoryToSlack('${b.id}')"><span class="dd-icon">&#128268;</span> Send to Slack</button>` : ''}
               ${b.status === 'CLEARED' ? `<button class="hist-dropdown-item email-item" id="email-hist-btn-${b.id}" onclick="event.stopPropagation();closeAllHistDropdowns();sendVictraEmail('${b.id}')"><span class="dd-icon">&#9993;</span> Email Victra</button>` : ''}
               <button class="hist-dropdown-item delete-item" onclick="event.stopPropagation();closeAllHistDropdowns();deleteBatch('${b.id}','${b.vendor}')"><span class="dd-icon">&#128465;</span> Delete</button>
             </div>
-          </div>
+          </div>` : ''}
         </div>
       </td>
     </tr>`;
@@ -4835,6 +4871,10 @@ async function uploadShippingLabel(batchId, vendor, input) {
       });
       saveBatchToServer(batch);
       refreshHistory();
+      // Refresh label gallery if it's open for this batch
+      if (labelGalleryBatchId === batchId && document.getElementById('label-gallery-modal').classList.contains('show')) {
+        renderLabelGallery(batch);
+      }
     } else {
       alert('Label upload failed: ' + (data.error || 'Unknown error'));
     }
@@ -4846,6 +4886,79 @@ async function uploadShippingLabel(batchId, vendor, input) {
   input.value = '';
   btn.disabled = false;
   btn.innerHTML = origText;
+}
+
+// ═══════════ LABEL GALLERY (VIEW / UPLOAD) ═══════════
+let labelGalleryBatchId = null;
+let labelGalleryVendor = null;
+
+async function openShippingLabels(batchId, vendor) {
+  const batch = findBatch(batchId);
+  if (!batch) return;
+
+  // If no labels yet, go straight to file picker
+  if (!batch.shippingLabels || batch.shippingLabels.length === 0) {
+    document.getElementById('label-input-' + batchId).click();
+    return;
+  }
+
+  // Otherwise open the label gallery modal
+  labelGalleryBatchId = batchId;
+  labelGalleryVendor = vendor;
+
+  const vendorLabel = batch.vendor === 'VERIZON' ? 'VZ' : getVendorLabel(batch).substring(0, 3).toUpperCase();
+  document.getElementById('label-gallery-title').textContent = 'Shipping Labels — ' + vendorLabel + ' ' + fmtDate(batch.shipDate);
+
+  const uploadBtn = document.getElementById('label-gallery-upload-btn');
+  uploadBtn.onclick = function() { document.getElementById('label-input-' + batchId).click(); };
+
+  // Refresh presigned URLs from server before displaying
+  try {
+    const resp = await fetch(`${API}/labels/${batchId}`);
+    if (resp.ok) {
+      const freshLabels = await resp.json();
+      if (freshLabels && freshLabels.length > 0) batch.shippingLabels = freshLabels;
+    }
+  } catch (e) { console.warn('Label URL refresh failed:', e); }
+
+  renderLabelGallery(batch);
+  document.getElementById('label-gallery-modal').classList.add('show');
+}
+
+function renderLabelGallery(batch) {
+  const content = document.getElementById('label-gallery-content');
+  const labels = batch.shippingLabels || [];
+
+  if (labels.length === 0) {
+    content.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#888;"><div style="font-size:36px;margin-bottom:8px;">&#128206;</div><p>No labels yet. Click "+ Add Label" to upload shipping labels.</p></div>';
+    return;
+  }
+
+  let html = '<div style="display:flex;flex-direction:column;gap:10px;">';
+  labels.forEach((l, i) => {
+    const isPdf = (l.contentType && l.contentType.includes('pdf')) || (l.filename && l.filename.toLowerCase().endsWith('.pdf'));
+    const icon = isPdf ? '&#128196;' : '&#128206;';
+    const fname = l.filename || ('Label ' + (i + 1));
+    const date = l.uploadedAt ? new Date(l.uploadedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+
+    html += `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid #e0e0e0;border-radius:10px;background:#fafafa;transition:background .12s;cursor:pointer;" onmouseover="this.style.background='#e8f0fe'" onmouseout="this.style.background='#fafafa'" onclick="window.open('${l.viewUrl}','_blank')">
+      <span style="font-size:28px;">${icon}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:600;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fname}</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;">${date}</div>
+      </div>
+      <span style="font-size:12px;color:#1976d2;font-weight:600;white-space:nowrap;">View &#8599;</span>
+    </div>`;
+  });
+  html += '</div>';
+  html += `<div style="margin-top:12px;font-size:12px;color:#888;text-align:center;">${labels.length} label(s) uploaded</div>`;
+  content.innerHTML = html;
+}
+
+function closeLabelGallery() {
+  document.getElementById('label-gallery-modal').classList.remove('show');
+  labelGalleryBatchId = null;
+  labelGalleryVendor = null;
 }
 
 // ═══════════ SEND HISTORY TO SLACK (label + photos in thread) ═══════════
@@ -6305,7 +6418,7 @@ function renderPPPackingSection() {
   // (no action can be taken on them). They remain visible on the Upload Job screen.
 
   el.innerHTML = html;
-  setTimeout(() => { const inp = document.getElementById('pp-scan-input'); if (inp) inp.focus(); }, 100);
+  setTimeout(() => { const inp = document.getElementById('pp-scan-input'); if (inp) inp.focus({ preventScroll: true }); }, 100);
 }
 
 // ── PACKED HISTORY SECTION ──
@@ -7239,8 +7352,9 @@ async function ppScanIMEI() {
   renderPPPackingSection();
 
   // Auto-scroll to the completed group so the packer can take action immediately
+  // Use 150ms delay to run AFTER the scan input focus (100ms) which would otherwise steal scroll position
   if (groupComplete) {
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       let scrollId;
       if (!isVZ) {
         const dateStr = (unit.rmaSubmissionDate || 'Unknown').replace(/[\/\-]/g, '_');
@@ -7256,7 +7370,7 @@ async function ppScanIMEI() {
         el.style.boxShadow = '0 0 0 3px var(--success-green)';
         setTimeout(() => { el.style.boxShadow = ''; }, 2000);
       }
-    });
+    }, 150);
   }
 }
 
