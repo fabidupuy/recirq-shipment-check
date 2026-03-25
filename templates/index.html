@@ -6624,15 +6624,8 @@ async function ppOpenRMAPhotos(groupLabel, imeis, vendor, boxNumbers) {
       const key = 'box-' + num;
       (allPhotos[key] || []).forEach(p => allBoxPhotos.push({ ...p, _boxLabel: 'Box #' + num }));
     });
-  } else {
-    // Legacy fallback: no boxNumbers stored, show all small-numbered box keys
-    Object.keys(allPhotos).forEach(key => {
-      const m = key.match(/^box-(\d+)$/);
-      if (m && m[1].length <= 3) {
-        allPhotos[key].forEach(p => allBoxPhotos.push({ ...p, _boxLabel: 'Box #' + m[1] }));
-      }
-    });
   }
+  // No legacy fallback — if boxNumbers weren't stored, we can't guess which boxes belong to this group
   if (allBoxPhotos.length > 0) {
     totalPhotos += allBoxPhotos.length;
     html += `<div style="margin-bottom:16px;">
