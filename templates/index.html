@@ -6143,9 +6143,15 @@ function renderPPPackingSection() {
   // ── Clean up stale boxes whose IMEIs are no longer in the job ──
   if (job.boxes && job.boxes.length > 0) {
     const jobIMEIs = new Set(job.units.map(u => u.imei));
-    const staleClosed = job.boxes.filter(b => b.closedAt && b.imeis.length > 0 && b.imeis.every(imei => !jobIMEIs.has(imei)));
-    if (staleClosed.length > 0) {
-      job.boxes = job.boxes.filter(b => !staleClosed.includes(b));
+    const staleBoxes = job.boxes.filter(b => {
+      // Closed boxes whose IMEIs have all been completed/removed
+      if (b.closedAt && b.imeis.length > 0 && b.imeis.every(imei => !jobIMEIs.has(imei))) return true;
+      // Empty boxes with a stale locked date and boxNum > 1 (leftover from old sessions)
+      if (b.imeis.length === 0 && !b.closedAt && b.boxNum > 1) return true;
+      return false;
+    });
+    if (staleBoxes.length > 0) {
+      job.boxes = job.boxes.filter(b => !staleBoxes.includes(b));
       // Ensure there's always at least one box (the current open box)
       if (job.boxes.length === 0) {
         job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
@@ -7054,7 +7060,7 @@ function ppPrintBoxLabel(vendor, data) {
   doc.write('@media print{html,body{margin:0;padding:0}.no-print{display:none!important}}');
   doc.write('*{box-sizing:border-box;margin:0;padding:0}');
   doc.write('body{font-family:Arial,Helvetica,sans-serif;background:#fff}');
-  doc.write('.label-page{width:6in;height:4in;padding:0.25in 0.4in;display:flex;flex-direction:column;justify-content:center;page-break-after:always}');
+  doc.write('.label-page{width:6in;height:4in;padding:0.25in 0.4in;display:flex;flex-direction:column;justify-content:center;page-break-after:always;position:relative}');
   doc.write('.label-page:last-child{page-break-after:auto}');
   doc.write('.trk-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#555;text-align:center;margin-bottom:2px}');
   doc.write('.trk-value{font-size:42px;font-weight:900;color:#000;text-align:center;margin-bottom:4px}');
@@ -7066,11 +7072,15 @@ function ppPrintBoxLabel(vendor, data) {
   doc.write('.info-value{font-size:22px;font-weight:800;color:#000}');
   doc.write('.footer{display:flex;justify-content:space-between;margin-top:8px}');
   doc.write('.footer span{font-size:7px;color:#aaa;letter-spacing:0.5px}');
+  doc.write('.box-num{position:absolute;top:0.25in;right:0.4in;font-size:28px;font-weight:900;color:#1B4D3E}');
   doc.write('</style></head><body>');
 
   // Print 2 copies (2 label pages)
   for (let copy = 0; copy < 2; copy++) {
     doc.write('<div class="label-page">');
+    if (!isVZ && data.boxNum) {
+      doc.write('<div class="box-num">Box #' + data.boxNum + '</div>');
+    }
     doc.write('<div>');
     doc.write('<div class="trk-label">TRACKING #</div>');
     doc.write('<div class="trk-value">' + tracking + '</div>');
@@ -7139,6 +7149,7 @@ function ppReprintBoxLabel(vendor, boxNum) {
       packedDate: box.closedAt ? new Date(box.closedAt).toLocaleDateString() : new Date().toLocaleDateString(),
       rmas: Array.from(rmasInBox).join(', ') || 'N/A',
       unitCount: box.imeis.length,
+      boxNum: box.boxNum,
     });
   }
 }
@@ -7166,6 +7177,7 @@ function ppPrintCurrentBoxLabel(vendor) {
     packedDate: new Date().toLocaleDateString(),
     rmas: Array.from(rmasInBox).join(', ') || 'N/A',
     unitCount: currentBox.imeis.length,
+    boxNum: currentBox.boxNum,
   };
   currentBox.labelData = labelData;
   ppPrintBoxLabel(vendor, labelData);
@@ -7212,7 +7224,8 @@ async function ppCloseBox(vendor) {
     tracking: job.tracking,
     packedDate: new Date().toLocaleDateString(),
     rmas: rmaList || 'N/A',
-    unitCount: currentBox.imeis.length
+    unitCount: currentBox.imeis.length,
+    boxNum: currentBox.boxNum
   };
   currentBox.labelData = labelData;
 
