@@ -6699,19 +6699,22 @@ function renderPPHistorySection() {
   let html = `<div class="card" style="margin-bottom:16px;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
       <div>
-        <h3 style="color:var(--dark-green);margin:0;">Daily Packed Summary</h3>
-        <p style="font-size:12px;color:#888;margin:4px 0 0;">Download a CSV of all packed units for a specific date.</p>
+        <h3 style="color:var(--dark-green);margin:0;">Packed Summary</h3>
+        <p style="font-size:12px;color:#888;margin:4px 0 0;">Filter and download packed units by date range.</p>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input type="date" id="pp-daily-date" value="${today}" style="padding:6px 10px;border:2px solid var(--medium-gray);border-radius:6px;font-size:13px;" onchange="ppFilterHistoryByDate()">
-        <button class="btn btn-sm btn-outline" onclick="ppClearHistoryDateFilter()" style="font-size:11px;padding:4px 10px;" title="Show all">All</button>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <label style="font-size:11px;color:#888;font-weight:600;">From</label>
+        <input type="date" id="pp-daily-date-from" value="${today}" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;" onchange="ppFilterHistoryByDate()">
+        <label style="font-size:11px;color:#888;font-weight:600;">To</label>
+        <input type="date" id="pp-daily-date-to" value="${today}" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;" onchange="ppFilterHistoryByDate()">
+        <button class="btn btn-sm btn-outline" onclick="ppClearHistoryDateFilter()" style="font-size:11px;padding:4px 10px;" title="Show all dates">All</button>
         <button class="btn btn-primary btn-sm" onclick="ppDownloadDailySummary()">Download CSV</button>
       </div>
     </div>
   </div>`;
 
   html += '<div class="card"><h2>Completed RMAs</h2><p style="font-size:13px;color:#888;margin-bottom:8px;">RMAs that have been fully packed and removed from the packing queue.</p>';
-  html += '<div style="margin-bottom:12px;"><input type="text" id="pp-hist-search" placeholder="Search by RMA# or Tracking#..." oninput="ppSearchHistory()" style="width:100%;max-width:400px;padding:8px 12px;border:2px solid var(--medium-gray);border-radius:8px;font-size:13px;"></div>';
+  html += '<div style="margin-bottom:12px;"><input type="text" id="pp-hist-search" placeholder="Search by RMA#, Tracking#, or IMEI..." oninput="ppSearchHistory()" style="width:100%;max-width:400px;padding:8px 12px;border:2px solid var(--medium-gray);border-radius:8px;font-size:13px;"></div>';
   html += '<div class="tbl-wrap"><table><tr><th>Group</th><th>Vendor</th><th>Units</th><th>RMAs</th><th>Tracking</th><th>Completed</th><th>By</th><th></th></tr>';
 
   // VZ entries — one row per RMA
@@ -6719,7 +6722,8 @@ function renderPPHistorySection() {
     const idx = ppCompletedRMAs.indexOf(entry);
     const activeUnits = entry.units.filter(u => !u.fallout);
     const completedDate = entry.completedAt ? entry.completedAt.split('T')[0] : '';
-    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}" data-rma="${entry.rma}" data-tracking="${entry.tracking || ''}">
+    const vzImeis = activeUnits.map(u => u.imei).join(',');
+    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}" data-rma="${entry.rma}" data-tracking="${entry.tracking || ''}" data-imeis="${vzImeis}">
       <td><b>RMA# ${entry.rma}</b></td>
       <td><span class="badge badge-verizon">VERIZON</span></td>
       <td>${activeUnits.length}</td>
@@ -6750,7 +6754,8 @@ function renderPPHistorySection() {
     const badgeClass = 'badge-3pl';
     const subDate = group.entries.find(e => e.submissionDate)?.submissionDate || '';
     const groupCompletedDate = group.completedAt ? group.completedAt.split('T')[0] : '';
-    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}" data-rma="${[...rmaSet].join(',')}" data-tracking="${group.tracking || ''}">
+    const grpImeis = group.allUnits.map(u => u.imei).join(',');
+    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}" data-rma="${[...rmaSet].join(',')}" data-tracking="${group.tracking || ''}" data-imeis="${grpImeis}">
       <td><b>${subDate || group.tracking}</b>${falloutUnits.length > 0 ? ' <span style="font-size:11px;color:var(--alert-red);">(' + falloutUnits.length + ' fallout)</span>' : ''}</td>
       <td><span class="badge ${badgeClass}">${group.vendor}</span></td>
       <td>${activeUnits.length}</td>
@@ -6783,38 +6788,41 @@ function ppToggleHistoryDetail(idx) {
   if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
 }
 
+let ppDateFilterAll = false;
 function ppFilterHistoryByDate() {
-  const dateInput = document.getElementById('pp-daily-date');
-  if (!dateInput || !dateInput.value) return;
-  const selectedDate = dateInput.value; // YYYY-MM-DD
+  ppDateFilterAll = false;
+  const fromInput = document.getElementById('pp-daily-date-from');
+  const toInput = document.getElementById('pp-daily-date-to');
+  if (!fromInput || !toInput || !fromInput.value || !toInput.value) return;
+  const fromDate = fromInput.value;
+  const toDate = toInput.value;
   const rows = document.querySelectorAll('.pp-hist-row');
   const detailRows = document.querySelectorAll('.pp-hist-detail-row');
   let visibleCount = 0;
   rows.forEach(row => {
     const rowDate = row.getAttribute('data-completed-date');
-    if (rowDate === selectedDate) {
+    if (rowDate >= fromDate && rowDate <= toDate) {
       row.style.display = '';
       visibleCount++;
     } else {
       row.style.display = 'none';
     }
   });
-  // Hide all detail rows when filtering (they can be re-expanded)
   detailRows.forEach(row => {
     const rowDate = row.getAttribute('data-completed-date');
-    if (rowDate !== selectedDate) {
+    if (rowDate < fromDate || rowDate > toDate) {
       row.style.display = 'none';
     }
   });
-  // Show a message if no rows match
   let noMatchRow = document.getElementById('pp-hist-no-match');
+  const label = fromDate === toDate ? fromDate : fromDate + ' to ' + toDate;
   if (visibleCount === 0) {
     if (!noMatchRow) {
       const table = document.querySelector('#pp-history-content table');
       if (table) {
         const tr = document.createElement('tr');
         tr.id = 'pp-hist-no-match';
-        tr.innerHTML = '<td colspan="8" style="text-align:center;padding:20px;color:#888;font-size:13px;">No completed RMAs found for ' + selectedDate + '</td>';
+        tr.innerHTML = '<td colspan="8" style="text-align:center;padding:20px;color:#888;font-size:13px;">No completed RMAs found for ' + label + '</td>';
         table.querySelector('tbody') ? table.querySelector('tbody').appendChild(tr) : table.appendChild(tr);
       }
     }
@@ -6824,12 +6832,14 @@ function ppFilterHistoryByDate() {
 }
 
 function ppClearHistoryDateFilter() {
-  const dateInput = document.getElementById('pp-daily-date');
-  if (dateInput) {
-    dateInput.value = new Date().toISOString().split('T')[0];
-  }
+  ppDateFilterAll = true;
+  const fromInput = document.getElementById('pp-daily-date-from');
+  const toInput = document.getElementById('pp-daily-date-to');
+  if (fromInput) fromInput.value = '';
+  if (toInput) toInput.value = '';
   // Show all rows
   document.querySelectorAll('.pp-hist-row').forEach(row => { row.style.display = ''; });
+  document.querySelectorAll('.pp-hist-detail-row').forEach(row => { row.style.display = 'none'; });
   const noMatchRow = document.getElementById('pp-hist-no-match');
   if (noMatchRow) noMatchRow.remove();
 }
@@ -6846,7 +6856,8 @@ function ppSearchHistory() {
     if (!query) { row.style.display = ''; visibleCount++; return; }
     const rma = (row.getAttribute('data-rma') || '').toLowerCase();
     const tracking = (row.getAttribute('data-tracking') || '').toLowerCase();
-    if (rma.includes(query) || tracking.includes(query)) {
+    const imeis = (row.getAttribute('data-imeis') || '').toLowerCase();
+    if (rma.includes(query) || tracking.includes(query) || imeis.includes(query)) {
       row.style.display = '';
       visibleCount++;
     } else {
@@ -6953,24 +6964,35 @@ async function ppOpenRMAPhotos(groupLabel, imeis, vendor, boxNumbers) {
 
 // ── DAILY PACKED SUMMARY CSV ──
 function ppDownloadDailySummary() {
-  const dateInput = document.getElementById('pp-daily-date');
-  if (!dateInput || !dateInput.value) { alert('Please select a date.'); return; }
-  const selectedDate = dateInput.value; // YYYY-MM-DD
+  const fromInput = document.getElementById('pp-daily-date-from');
+  const toInput = document.getElementById('pp-daily-date-to');
+  const fromDate = fromInput ? fromInput.value : '';
+  const toDate = toInput ? toInput.value : '';
+  const isAll = ppDateFilterAll || (!fromDate && !toDate);
 
-  // Collect all packed units from ppCompletedRMAs where packedAt matches the selected date
+  function dateInRange(packedDate) {
+    if (isAll) return true;
+    if (fromDate && toDate) return packedDate >= fromDate && packedDate <= toDate;
+    if (fromDate) return packedDate >= fromDate;
+    if (toDate) return packedDate <= toDate;
+    return true;
+  }
+
+  // Collect all packed units from ppCompletedRMAs where packedAt falls in range
   const rows = [];
   ppCompletedRMAs.forEach(entry => {
     if (!entry.units) return;
     entry.units.forEach(u => {
-      if (u.fallout) return; // Skip fallout units
+      if (u.fallout) return;
       if (!u.packedAt) return;
-      const packedDate = u.packedAt.split('T')[0]; // YYYY-MM-DD
-      if (packedDate === selectedDate) {
+      const packedDate = u.packedAt.split('T')[0];
+      if (dateInRange(packedDate)) {
         rows.push({
           imei: u.imei || '',
           disposition: u.disposition || u.qc?.cosmetic || '',
           tracking: u.trackingNumber || entry.tracking || '',
           rma: u.rmaNumber || '',
+          vendor: entry.vendor || '',
           date: new Date(u.packedAt).toLocaleDateString(),
         });
       }
@@ -6982,24 +7004,26 @@ function ppDownloadDailySummary() {
     job.units.forEach(u => {
       if (!u.packed || u.fallout || !u.packedAt) return;
       const packedDate = u.packedAt.split('T')[0];
-      if (packedDate === selectedDate) {
+      if (dateInRange(packedDate)) {
         rows.push({
           imei: u.imei || '',
           disposition: u.disposition || u.qc?.cosmetic || '',
           tracking: u.trackingNumber || job.tracking || '',
           rma: u.rmaNumber || '',
+          vendor: job.vendor || '',
           date: new Date(u.packedAt).toLocaleDateString(),
         });
       }
     });
   });
 
+  const label = isAll ? 'All' : (fromDate === toDate ? fromDate : fromDate + ' to ' + toDate);
   if (rows.length === 0) {
-    alert('No packed units found for ' + selectedDate);
+    alert('No packed units found for ' + label);
     return;
   }
 
-  // Deduplicate by IMEI (in case unit appears in both active and completed)
+  // Deduplicate by IMEI
   const seen = new Set();
   const uniqueRows = rows.filter(r => {
     if (seen.has(r.imei)) return false;
@@ -7008,9 +7032,9 @@ function ppDownloadDailySummary() {
   });
 
   // Build CSV
-  let csv = 'IMEI,Disposition,Tracking #,RMA#,Date\n';
+  let csv = 'IMEI,Disposition,Tracking #,RMA#,Vendor,Date\n';
   uniqueRows.forEach(r => {
-    csv += `${r.imei},${r.disposition},${r.tracking},${r.rma},${r.date}\n`;
+    csv += `${r.imei},${r.disposition},${r.tracking},${r.rma},${r.vendor},${r.date}\n`;
   });
 
   // Download
@@ -7018,7 +7042,8 @@ function ppDownloadDailySummary() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Daily_Packed_${selectedDate}.csv`;
+  const fileLabel = isAll ? 'All' : (fromDate === toDate ? fromDate : fromDate + '_to_' + toDate);
+  a.download = `Packed_Summary_${fileLabel}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
