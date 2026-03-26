@@ -4838,6 +4838,7 @@ function refreshHistory() {
             <div class="hist-dropdown" id="hist-dd-${b.id}">
               ${b.status === 'CLEARED' ? `<button class="hist-dropdown-item slack-item" id="slack-hist-btn-${b.id}" onclick="event.stopPropagation();closeAllHistDropdowns();sendHistoryToSlack('${b.id}')"><span class="dd-icon">&#128268;</span> Send to Slack</button>` : ''}
               ${b.status === 'CLEARED' ? `<button class="hist-dropdown-item email-item" id="email-hist-btn-${b.id}" onclick="event.stopPropagation();closeAllHistDropdowns();sendVictraEmail('${b.id}')"><span class="dd-icon">&#9993;</span> Email Victra</button>` : ''}
+              ${b.status === 'CLEARED' ? `<button class="hist-dropdown-item email-item" id="emailme-hist-btn-${b.id}" onclick="event.stopPropagation();closeAllHistDropdowns();sendEmailMe('${b.id}')"><span class="dd-icon">&#9993;</span> Email To...</button>` : ''}
               <button class="hist-dropdown-item delete-item" onclick="event.stopPropagation();closeAllHistDropdowns();deleteBatch('${b.id}','${b.vendor}')"><span class="dd-icon">&#128465;</span> Delete</button>
             </div>
           </div>` : ''}
@@ -5500,9 +5501,15 @@ async function sendVictraEmail(batchId) {
   // Build CSV data — use actual ship advice (same as download reports)
   let csvContent = '';
   const isVZ = batch.vendor === 'VERIZON';
-  const headers = isVZ ? batch._vzHeaders : batch._bpHeaders;
-  if (headers && headers.length > 0) {
-    const colMap = mapRMAColumns(headers);
+  const allHeaders = isVZ ? batch._vzHeaders : batch._bpHeaders;
+  if (allHeaders && allHeaders.length > 0) {
+    const colMap = mapRMAColumns(allHeaders);
+    // Truncate at Ship date for non-VZ to remove internal columns
+    let headers = allHeaders;
+    if (!isVZ && colMap.shipDate) {
+      const sdIdx = allHeaders.indexOf(colMap.shipDate);
+      if (sdIdx >= 0) headers = allHeaders.slice(0, sdIdx + 1);
+    }
     const outboundTk = (!isVZ && batch.shippingMethod === 'carrier' && batch.outboundTracking) ? batch.outboundTracking : '';
     const rows = [headers.map(escapeCSV).join(',')];
     activeUnits.forEach(u => {
@@ -5534,6 +5541,108 @@ async function sendVictraEmail(batchId) {
         appPassword: s.emailAppPassword,
         to: s.emailVictraRecipients,
         cc: s.emailCC,
+        vendor: vendorFull,
+        shipDate: fmtDate(batch.shipDate),
+        trackings: trackings,
+        unitCount: activeUnits.length,
+        removedCount: removed.length,
+        photos: photoUrls,
+        csvContent: csvContent,
+        batchId: batchId,
+      }),
+    });
+    const result = await resp.json();
+    btn.disabled = false;
+    if (result.ok) {
+      btn.innerHTML = '&#9989; Sent!';
+      setTimeout(() => { btn.innerHTML = origText; }, 3000);
+    } else {
+      btn.innerHTML = '&#9888; Failed';
+      alert('Email failed: ' + (result.error || 'Unknown error'));
+      setTimeout(() => { btn.innerHTML = origText; }, 3000);
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '&#9888; Error';
+    alert('Email error: ' + e.message);
+    setTimeout(() => { btn.innerHTML = origText; }, 3000);
+  }
+}
+
+async function sendEmailMe(batchId) {
+  const batch = findBatch(batchId);
+  if (!batch) return;
+
+  const s = loadEmailSettings();
+  if (!s.emailSender || !s.emailAppPassword) {
+    alert('Email not configured. Go to Settings → Email Settings and enter sender and app password.');
+    return;
+  }
+
+  const recipient = prompt('Enter email address to send ship advice to:');
+  if (!recipient || !recipient.trim()) return;
+  const toAddr = recipient.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toAddr)) {
+    alert('Invalid email address.');
+    return;
+  }
+
+  const btn = document.getElementById('emailme-hist-btn-' + batchId);
+  if (!btn) return;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '&#8987; Sending...';
+  btn.disabled = true;
+
+  const vendorFull = getVendorLabel(batch);
+  const trackings = [...new Set(batch.units.map(u => u.trackingOut).filter(Boolean))];
+  const activeUnits = batch.units.filter(u => !isRemoved(u));
+  const removed = batch.units.filter(u => isRemoved(u));
+
+  const photos = batch.shipmentPhotos || ppAllPhotos['shipment-' + batchId] || [];
+  const photoUrls = photos.map(p => ({ viewUrl: p.viewUrl, key: p.key }));
+
+  // Build CSV data — same as sendVictraEmail, with Ship date column truncation
+  let csvContent = '';
+  const isVZ = batch.vendor === 'VERIZON';
+  const allHeaders = isVZ ? batch._vzHeaders : batch._bpHeaders;
+  if (allHeaders && allHeaders.length > 0) {
+    const colMap = mapRMAColumns(allHeaders);
+    // Truncate at Ship date for non-VZ to remove internal columns
+    let headers = allHeaders;
+    if (!isVZ && colMap.shipDate) {
+      const idx = allHeaders.indexOf(colMap.shipDate);
+      if (idx >= 0) headers = allHeaders.slice(0, idx + 1);
+    }
+    const outboundTk = (!isVZ && batch.shippingMethod === 'carrier' && batch.outboundTracking) ? batch.outboundTracking : '';
+    const rows = [headers.map(escapeCSV).join(',')];
+    activeUnits.forEach(u => {
+      if (u._raw) {
+        rows.push(headers.map(h => {
+          if (outboundTk && h === colMap.trackingOut) return escapeCSV(outboundTk);
+          if (colMap.shipDate && h === colMap.shipDate) return escapeCSV(fmtDate(batch.shipDate));
+          if (isVZ && colMap.deliveryNumber && batch.deliveryByRMA && batch.deliveryByRMA[u.rmaNumber] && h === colMap.deliveryNumber) return escapeCSV(batch.deliveryByRMA[u.rmaNumber]);
+          return escapeCSV(u._raw[h] || '');
+        }).join(','));
+      }
+    });
+    csvContent = rows.join('\n');
+  } else {
+    const rows = [['IMEI', 'RMA #', 'Tracking', 'Route'].map(escapeCSV).join(',')];
+    activeUnits.forEach(u => {
+      rows.push([u.imei, u.rmaNumber || '', u.trackingOut || '', u.route || ''].map(escapeCSV).join(','));
+    });
+    csvContent = rows.join('\n');
+  }
+
+  try {
+    const resp = await fetch(`${API}/email/send-victra`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: s.emailSender,
+        appPassword: s.emailAppPassword,
+        to: toAddr,
+        cc: '',
         vendor: vendorFull,
         shipDate: fmtDate(batch.shipDate),
         trackings: trackings,
