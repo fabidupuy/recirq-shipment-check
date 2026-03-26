@@ -2994,39 +2994,92 @@ function renderPackedSummary(batch) {
   const isBP = batch.vendor !== 'VERIZON';
   let rows = '';
   let headerLabel = 'RMA#';
+  const isCleared = batch.status === 'CLEARED';
 
+  // Initialize scan verification state on batch if not present
+  if (!batch.scanVerified) batch.scanVerified = {};
+  if (!batch.scanUnrecognized) batch.scanUnrecognized = [];
+
+  // Build expected items map
+  const expectedItems = {};
   if (isBP) {
-    // Brightpoint: group by Tracking # Out
     headerLabel = 'Tracking # Out';
-    const tkGroups = {};
     batch.units.forEach(u => {
       if (isRemoved(u)) return;
       const tk = u.trackingOut || 'NO TRACKING';
-      if (!tkGroups[tk]) tkGroups[tk] = 0;
-      tkGroups[tk]++;
+      if (!expectedItems[tk]) expectedItems[tk] = 0;
+      expectedItems[tk]++;
     });
-    for (const [tk, qty] of Object.entries(tkGroups)) {
-      rows += `<tr><td>${tk}</td><td style="text-align:center">${qty}</td></tr>`;
-    }
   } else {
-    // Verizon: group by RMA#
-    const rmaGroups = {};
     batch.units.forEach(u => {
       if (isRemoved(u)) return;
-      if (!rmaGroups[u.rmaNumber]) rmaGroups[u.rmaNumber] = 0;
-      rmaGroups[u.rmaNumber]++;
+      if (!expectedItems[u.rmaNumber]) expectedItems[u.rmaNumber] = 0;
+      expectedItems[u.rmaNumber]++;
     });
-    for (const [rma, qty] of Object.entries(rmaGroups)) {
-      rows += `<tr><td>${rma}</td><td style="text-align:center">${qty}</td></tr>`;
-    }
+  }
+
+  const totalExpected = Object.keys(expectedItems).length;
+  const verifiedCount = Object.keys(batch.scanVerified).filter(k => expectedItems[k]).length;
+  const allVerified = verifiedCount === totalExpected && totalExpected > 0;
+
+  // For non-VZ: add a Scans column to show box scan count
+  const scansHeader = isBP ? '<th style="text-align:center">Scans</th>' : '';
+
+  for (const [key, qty] of Object.entries(expectedItems)) {
+    const verified = batch.scanVerified[key];
+    const scanCount = verified ? (verified.count || 1) : 0;
+    const rowBg = verified ? 'background:#E8F5E9;' : '';
+    const checkMark = verified ? '<span style="color:var(--success-green);font-weight:700;margin-right:6px;">&#10004;</span>' : '';
+    const scansCol = isBP ? `<td style="text-align:center;font-weight:600;color:${scanCount > 0 ? 'var(--success-green)' : '#999'};">${scanCount > 0 ? scanCount : '—'}</td>` : '';
+    rows += `<tr data-scan-key="${key}" style="${rowBg}"><td>${checkMark}${key}</td><td style="text-align:center">${qty}</td>${scansCol}</tr>`;
+  }
+
+  // Unrecognized scans rows
+  let unrecognizedHTML = '';
+  if (batch.scanUnrecognized.length > 0) {
+    unrecognizedHTML = `<div style="margin-top:12px;padding:10px 14px;background:#FFF3E0;border-left:4px solid #FF9800;border-radius:4px;">
+      <div style="font-weight:700;font-size:13px;color:#E65100;margin-bottom:6px;">&#9888; Unrecognized Scans</div>
+      ${batch.scanUnrecognized.map((s, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px;">
+        <span style="font-family:monospace;color:#BF360C;">${s}</span>
+        <button class="btn btn-sm" onclick="packedScanRemoveUnrecognized('${batch.id}',${i})" style="font-size:10px;padding:1px 6px;border-color:#FF9800;color:#FF9800;">Dismiss</button>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // Scan input section (only show when not cleared)
+  let scanSection = '';
+  if (!isCleared) {
+    const progressPct = totalExpected > 0 ? Math.round((verifiedCount / totalExpected) * 100) : 0;
+    const progressColor = allVerified ? 'var(--success-green)' : 'var(--dark-green)';
+    const scanLabel = isBP ? 'Tracking #' : 'RMA#';
+    const scanHint = isBP ? 'Scan each box label — count increments per tracking#' : 'Scan each RMA# barcode once';
+    scanSection = `<div style="margin-top:12px;padding:12px;background:#FAFAFA;border:1px solid #E0E0E0;border-radius:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-weight:700;font-size:13px;">Scan Verification</span>
+        <span style="font-size:12px;font-weight:600;color:${progressColor};">${verifiedCount}/${totalExpected} verified (${progressPct}%)</span>
+      </div>
+      <div style="font-size:11px;color:#888;margin-bottom:8px;">${scanHint}</div>
+      <div style="height:6px;background:#E0E0E0;border-radius:3px;margin-bottom:10px;overflow:hidden;">
+        <div style="height:100%;width:${progressPct}%;background:${progressColor};border-radius:3px;transition:width 0.3s;"></div>
+      </div>
+      ${allVerified
+        ? '<div style="text-align:center;padding:8px;color:var(--success-green);font-weight:700;font-size:14px;">&#10004; All items verified — ready to clear</div>'
+        : `<div style="display:flex;gap:8px;">
+            <input type="text" id="packed-scan-input-${batch.id}" placeholder="Scan ${scanLabel} barcode..."
+              onkeydown="if(event.key==='Enter')packedScanVerify('${batch.id}')"
+              style="flex:1;padding:8px 12px;border:2px solid var(--medium-gray);border-radius:6px;font-size:14px;font-family:monospace;">
+            <button class="btn btn-sm" onclick="packedScanVerify('${batch.id}')" style="background:var(--dark-green);color:#fff;border:none;padding:8px 16px;">Verify</button>
+          </div>`
+      }
+      ${verifiedCount > 0 ? `<div style="margin-top:8px;text-align:right;"><button class="btn btn-sm btn-outline" onclick="packedScanReset('${batch.id}')" style="font-size:10px;padding:2px 8px;color:#888;border-color:#ccc;">Reset Scans</button></div>` : ''}
+      ${unrecognizedHTML}
+    </div>`;
   }
 
   let buttons = '';
   if (isBP) {
-    // Brightpoint: only Share to Slack
     buttons = `<button class="btn btn-sm" id="packed-slack-btn-${batch.id}" onclick="shareToSlack('${batch.id}')" style="background:var(--info-blue);color:#fff;border:none;">&#128268; Share to Slack</button>`;
   } else {
-    // Verizon: full set
     buttons = `<button class="btn btn-outline btn-sm" onclick="copyPackedTable('${batch.id}')">Copy as Text</button>
       <button class="btn btn-primary btn-sm" onclick="downloadPackedPDF('${batch.id}')">&#128196; Download PDF</button>
       <button class="btn btn-sm" id="packed-slack-btn-${batch.id}" onclick="shareToSlack('${batch.id}')" style="background:var(--info-blue);color:#fff;border:none;">&#128268; Share to Slack</button>`;
@@ -3036,14 +3089,115 @@ function renderPackedSummary(batch) {
     <h3>PACKED Summary (send to packing team)</h3>
     <div class="packed-summary">
       <div class="tbl-wrap"><table>
-        <tr><th>${headerLabel}</th><th style="text-align:center">QTY</th></tr>
+        <tr><th>${headerLabel}</th><th style="text-align:center">QTY</th>${scansHeader}</tr>
         ${rows}
       </table></div>
+      ${scanSection}
     </div>
     <div style="display:flex;gap:8px;margin-top:12px;">
       ${buttons}
     </div>
   </div>`;
+}
+
+function packedScanVerify(batchId) {
+  const batch = findBatch(batchId);
+  if (!batch) return;
+  const input = document.getElementById('packed-scan-input-' + batchId);
+  if (!input) return;
+  const scanned = input.value.trim();
+  if (!scanned) return;
+  input.value = '';
+
+  if (!batch.scanVerified) batch.scanVerified = {};
+  if (!batch.scanUnrecognized) batch.scanUnrecognized = [];
+
+  const isVZ = batch.vendor === 'VERIZON';
+  const isBP = !isVZ;
+
+  // Build expected items
+  const expectedItems = {};
+  batch.units.forEach(u => {
+    if (isRemoved(u)) return;
+    const key = isBP ? (u.trackingOut || 'NO TRACKING') : u.rmaNumber;
+    expectedItems[key] = true;
+  });
+
+  // Check if it matches any expected item
+  if (expectedItems[scanned]) {
+    if (isVZ) {
+      // VZ: one scan per RMA — flag duplicates
+      if (batch.scanVerified[scanned]) {
+        if (!confirm(`RMA# ${scanned} was already scanned. Accidental duplicate?`)) {
+          input.focus();
+          return;
+        }
+        input.focus();
+        return;
+      }
+      batch.scanVerified[scanned] = { at: new Date().toISOString(), count: 1 };
+    } else {
+      // Non-VZ: count-based — each scan = one box, no duplicate warning
+      if (batch.scanVerified[scanned]) {
+        batch.scanVerified[scanned].count = (batch.scanVerified[scanned].count || 1) + 1;
+        batch.scanVerified[scanned].at = new Date().toISOString();
+      } else {
+        batch.scanVerified[scanned] = { at: new Date().toISOString(), count: 1 };
+      }
+    }
+    saveBatchToServer(batch);
+    if (isVZ) renderVZPanel(); else renderBPPanel();
+    setTimeout(() => {
+      const newInput = document.getElementById('packed-scan-input-' + batchId);
+      if (newInput) newInput.focus();
+    }, 50);
+  } else {
+    // Not on the list
+    if (batch.scanUnrecognized.includes(scanned)) {
+      alert(`"${scanned}" was already flagged as unrecognized.`);
+    } else {
+      batch.scanUnrecognized.push(scanned);
+      saveBatchToServer(batch);
+    }
+    if (isVZ) renderVZPanel(); else renderBPPanel();
+    setTimeout(() => {
+      const newInput = document.getElementById('packed-scan-input-' + batchId);
+      if (newInput) newInput.focus();
+    }, 50);
+  }
+}
+
+function packedScanReset(batchId) {
+  const batch = findBatch(batchId);
+  if (!batch) return;
+  if (!confirm('Reset all scan verifications? You will need to re-scan everything.')) return;
+  batch.scanVerified = {};
+  batch.scanUnrecognized = [];
+  saveBatchToServer(batch);
+  if (batch.vendor === 'VERIZON') renderVZPanel(); else renderBPPanel();
+}
+
+function packedScanRemoveUnrecognized(batchId, index) {
+  const batch = findBatch(batchId);
+  if (!batch || !batch.scanUnrecognized) return;
+  batch.scanUnrecognized.splice(index, 1);
+  saveBatchToServer(batch);
+  if (batch.vendor === 'VERIZON') renderVZPanel(); else renderBPPanel();
+}
+
+function isPackedScanComplete(batch) {
+  if (!batch.scanVerified) return false;
+  const isBP = batch.vendor !== 'VERIZON';
+  const expectedItems = {};
+  batch.units.forEach(u => {
+    if (isRemoved(u)) return;
+    const key = isBP ? (u.trackingOut || 'NO TRACKING') : u.rmaNumber;
+    expectedItems[key] = true;
+  });
+  const totalExpected = Object.keys(expectedItems).length;
+  if (totalExpected === 0) return false;
+  const verifiedCount = Object.keys(batch.scanVerified).filter(k => expectedItems[k]).length;
+  return verifiedCount === totalExpected;
 }
 
 function renderVerizonDetail(batch) {
@@ -3484,6 +3638,13 @@ function recalcBatchStatus(batch) {
 function clearVZBatch(batchId) {
   const batch = findBatch(batchId);
   if (!batch) return;
+
+  // Require scan verification to be complete
+  if (!isPackedScanComplete(batch)) {
+    alert('Cannot clear: Packed Summary scan verification is not complete. Please scan all RMAs before clearing.');
+    return;
+  }
+
   let unresolved = 0, details = [];
   const hsUnresolved = batch.units.filter(u => u.hardStop && !u.falloutReason);
   unresolved += hsUnresolved.length;
@@ -3524,6 +3685,13 @@ function updateOutboundTracking(batchId, tracking) {
 function clearBPBatch(batchId) {
   const batch = findBatch(batchId);
   if (!batch) return;
+
+  // Require scan verification to be complete
+  if (!isPackedScanComplete(batch)) {
+    alert('Cannot clear: Packed Summary scan verification is not complete. Please scan all items before clearing.');
+    return;
+  }
+
   let unresolved = 0, details = [];
   const hsUnresolved = batch.units.filter(u => u.hardStop && !u.falloutReason);
   unresolved += hsUnresolved.length;

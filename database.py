@@ -98,7 +98,9 @@ def init_db():
         imei_mismatch_count INTEGER DEFAULT 0,
         hard_stop_count INTEGER DEFAULT 0,
         unpacked_count INTEGER DEFAULT 0,
-        submitted_imei_details_json TEXT
+        submitted_imei_details_json TEXT,
+        scan_verified_json TEXT,
+        scan_unrecognized_json TEXT
     )''')
 
     c.execute(f'''CREATE TABLE IF NOT EXISTS units (
@@ -235,6 +237,21 @@ def init_db():
             c.execute("ALTER TABLE batches ADD COLUMN submitted_imei_details_json TEXT")
         except Exception:
             pass  # Column already exists
+
+    # Ensure scan_verified_json and scan_unrecognized_json columns exist
+    for col in ['scan_verified_json', 'scan_unrecognized_json']:
+        if DATABASE_URL:
+            c.execute(f"SAVEPOINT sp_{col}_migration")
+            try:
+                c.execute(f"ALTER TABLE batches ADD COLUMN {col} TEXT")
+            except Exception:
+                c.execute(f"ROLLBACK TO SAVEPOINT sp_{col}_migration")
+            c.execute(f"RELEASE SAVEPOINT sp_{col}_migration")
+        else:
+            try:
+                c.execute(f"ALTER TABLE batches ADD COLUMN {col} TEXT")
+            except Exception:
+                pass
 
     # Ensure at least one admin exists — promote the first active user if none
     c.execute("SELECT COUNT(*) as cnt FROM users WHERE role='admin' AND is_active=1")
@@ -452,8 +469,8 @@ def save_batch(batch_data):
              packing_slips_json, delivery_by_rma_json, packing_slip_files_json,
              route_fail_count, aging_fail_count, qty_mismatch_count,
              imei_mismatch_count, hard_stop_count, unpacked_count,
-             submitted_imei_details_json)
-            VALUES ({_ph(25)})
+             submitted_imei_details_json, scan_verified_json, scan_unrecognized_json)
+            VALUES ({_ph(27)})
             ON CONFLICT (id) DO UPDATE SET
              vendor=EXCLUDED.vendor, ship_date=EXCLUDED.ship_date,
              created_at=EXCLUDED.created_at, status=EXCLUDED.status,
@@ -475,7 +492,9 @@ def save_batch(batch_data):
              imei_mismatch_count=EXCLUDED.imei_mismatch_count,
              hard_stop_count=EXCLUDED.hard_stop_count,
              unpacked_count=EXCLUDED.unpacked_count,
-             submitted_imei_details_json=EXCLUDED.submitted_imei_details_json''',
+             submitted_imei_details_json=EXCLUDED.submitted_imei_details_json,
+             scan_verified_json=EXCLUDED.scan_verified_json,
+             scan_unrecognized_json=EXCLUDED.scan_unrecognized_json''',
             _batch_values(bid, batch_data))
     else:
         # SQLite: INSERT OR REPLACE
@@ -487,8 +506,8 @@ def save_batch(batch_data):
              packing_slips_json, delivery_by_rma_json, packing_slip_files_json,
              route_fail_count, aging_fail_count, qty_mismatch_count,
              imei_mismatch_count, hard_stop_count, unpacked_count,
-             submitted_imei_details_json)
-            VALUES ({_ph(25)})''',
+             submitted_imei_details_json, scan_verified_json, scan_unrecognized_json)
+            VALUES ({_ph(27)})''',
             _batch_values(bid, batch_data))
 
     # Delete existing units for this batch and re-insert (batch insert for performance)
@@ -582,6 +601,8 @@ def _batch_values(bid, batch_data):
         batch_data.get('hardStopCount', 0),
         batch_data.get('unpackedCount', 0),
         json.dumps(batch_data.get('submittedIMEIDetails', {})),
+        json.dumps(batch_data.get('scanVerified', {})),
+        json.dumps(batch_data.get('scanUnrecognized', [])),
     )
 
 
@@ -784,6 +805,8 @@ def _row_to_batch(row):
         'hardStopCount': row['hard_stop_count'],
         'unpackedCount': row['unpacked_count'],
         'submittedIMEIDetails': _safe_json(row, 'submitted_imei_details_json', {}),
+        'scanVerified': _safe_json(row, 'scan_verified_json', {}),
+        'scanUnrecognized': _safe_json(row, 'scan_unrecognized_json', []),
         '_viewing': False,
     }
 
