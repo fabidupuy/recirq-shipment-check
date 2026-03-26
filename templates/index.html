@@ -4515,9 +4515,16 @@ function downloadVerizonQtyMatch(batchId) {
 function downloadBrightpointUnits(batchId) {
   const batch = findBatch(batchId);
   if (!batch) return;
-  const headers = batch._bpHeaders;
-  const colMap = mapRMAColumns(headers);
+  const allHeaders = batch._bpHeaders;
+  const colMap = mapRMAColumns(allHeaders);
   const outboundTk = (batch.shippingMethod === 'carrier' && batch.outboundTracking) ? batch.outboundTracking : '';
+
+  // Truncate headers at Ship date so no extra trailing columns leak through
+  let headers = allHeaders;
+  if (colMap.shipDate) {
+    const idx = allHeaders.indexOf(colMap.shipDate);
+    if (idx >= 0) headers = allHeaders.slice(0, idx + 1);
+  }
 
   // Helper: map a raw row to CSV, replacing Tracking # Out and filling Ship date
   function rowToCSV(raw) {
@@ -6345,8 +6352,8 @@ function renderPPPackingSection() {
     const staleBoxes = job.boxes.filter(b => {
       // Closed boxes whose IMEIs have all been completed/removed
       if (b.closedAt && b.imeis.length > 0 && b.imeis.every(imei => !jobIMEIs.has(imei))) return true;
-      // Empty boxes with a stale locked date and boxNum > 1 (leftover from old sessions)
-      if (b.imeis.length === 0 && !b.closedAt && b.boxNum > 1) return true;
+      // Empty boxes with boxNum > 1 that are NOT the current active box (leftover from old sessions)
+      if (b.imeis.length === 0 && !b.closedAt && b.boxNum > 1 && job.boxes.indexOf(b) !== job.currentBoxIdx) return true;
       return false;
     });
     if (staleBoxes.length > 0) {
