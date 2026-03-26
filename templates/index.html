@@ -5976,19 +5976,49 @@ let ppJobs = {};
 let ppCompletedRMAs = [];
 // Save/load PP state to/from server
 let ppSaveTimer = null;
+let ppSaveFailed = false;
 function ppSaveState() {
   // Debounce saves to avoid hammering server on rapid scans
   clearTimeout(ppSaveTimer);
-  ppSaveTimer = setTimeout(() => {
-    // Strip rmaGroups before saving (rebuilt on load from units)
-    const jobsToSave = {};
-    Object.keys(ppJobs).forEach(v => {
-      const j = ppJobs[v];
-      jobsToSave[v] = { ...j, rmaGroups: undefined };
+  ppSaveTimer = setTimeout(() => { ppDoSave(); }, 500);
+}
+async function ppDoSave() {
+  // Strip rmaGroups and bulky non-essential unit fields before saving
+  const jobsToSave = {};
+  Object.keys(ppJobs).forEach(v => {
+    const j = ppJobs[v];
+    const slimUnits = j.units.map(u => {
+      const slim = { ...u };
+      // Remove QC detail and raw data — can be re-uploaded if needed
+      delete slim.qc;
+      delete slim._raw;
+      return slim;
     });
-    fetch(API + '/pp/state/ppJobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: jobsToSave }) }).catch(e => console.warn('PP save jobs failed:', e));
-    fetch(API + '/pp/state/ppCompletedRMAs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: ppCompletedRMAs }) }).catch(e => console.warn('PP save completed failed:', e));
-  }, 500);
+    jobsToSave[v] = { ...j, rmaGroups: undefined, units: slimUnits };
+  });
+  try {
+    const resp = await fetch(API + '/pp/state/ppJobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: jobsToSave }) });
+    if (!resp.ok) {
+      console.error('PP save jobs failed:', resp.status);
+      if (!ppSaveFailed) {
+        ppSaveFailed = true;
+        alert('WARNING: Failed to save packing job data to server.\n\nDO NOT close or refresh this tab — your data exists only in this browser.\n\nTry again or contact support.');
+      }
+      return;
+    }
+    ppSaveFailed = false;
+  } catch(e) {
+    console.error('PP save jobs network error:', e);
+    if (!ppSaveFailed) {
+      ppSaveFailed = true;
+      alert('WARNING: Failed to save packing job data to server (network error).\n\nDO NOT close or refresh this tab — your data exists only in this browser.');
+    }
+    return;
+  }
+  try {
+    const resp2 = await fetch(API + '/pp/state/ppCompletedRMAs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: ppCompletedRMAs }) });
+    if (!resp2.ok) console.warn('PP save completed RMAs failed:', resp2.status);
+  } catch(e) { console.warn('PP save completed failed:', e); }
 }
 async function ppLoadState() {
   try {
@@ -7930,7 +7960,7 @@ function ppShowUploadBtn() {
   }
 }
 
-function ppTryMerge() {
+async function ppTryMerge() {
   if (!ppVendorData || !ppRMAData) return;
   const vendor = document.getElementById('pp-vendor').value;
   if (!vendor) { alert('Please select a vendor first.'); return; }
@@ -8007,7 +8037,9 @@ function ppTryMerge() {
   // Merge
   job.units = [...job.units, ...newUnits];
   ppRebuildGroups(job);
-  ppSaveState();
+  // Save immediately (don't rely on debounce for large uploads)
+  clearTimeout(ppSaveTimer);
+  await ppDoSave();
 
   const rmaCount = Object.keys(job.rmaGroups).filter(k => k !== 'UNMATCHED').length;
   const summaryEl = document.getElementById('pp-match-summary');

@@ -309,10 +309,15 @@ def get_pp_state():
 @app.route('/api/pp/state/<key>', methods=['POST'])
 def save_pp_state(key):
     """Save a Pick & Pack state value."""
-    data = request.get_json()
-    value_json = json.dumps(data.get('value', {}))
-    db.save_pp_state(key, value_json)
-    return jsonify({'status': 'saved', 'key': key})
+    try:
+        data = request.get_json()
+        value_json = json.dumps(data.get('value', {}))
+        db.save_pp_state(key, value_json)
+        return jsonify({'status': 'saved', 'key': key, 'size': len(value_json)})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/pp/jobs/<vendor>', methods=['DELETE'])
