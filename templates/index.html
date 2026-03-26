@@ -1356,8 +1356,17 @@ async function saveBatchToServer(batch) {
       body: JSON.stringify(batch),
     });
     const data = await resp.json();
+    if (!resp.ok) {
+      console.error('Save batch failed:', resp.status, data);
+      alert(`Failed to save ${batch.vendor} check (${batch.units.length} units) to server.\n\nError: ${data.error || resp.statusText}\n\nDO NOT close this tab. Your data exists only in this browser. Try again or contact support.`);
+      return null;
+    }
     return data;
-  } catch (e) { console.warn('Save failed:', e); }
+  } catch (e) {
+    console.error('Save batch network error:', e);
+    alert(`Failed to save ${batch.vendor} check (${batch.units.length} units) to server.\n\nNetwork error: ${e.message}\n\nDO NOT close this tab. Your data exists only in this browser.`);
+    return null;
+  }
 }
 
 async function deleteBatchFromServer(batchId) {

@@ -81,8 +81,12 @@ def create_batch():
     data = request.get_json()
     if not data:
         return jsonify({'error': 'No data provided'}), 400
-    batch_id = db.save_batch(data)
-    return jsonify({'id': batch_id, 'status': 'saved'})
+    try:
+        batch_id = db.save_batch(data)
+        return jsonify({'id': batch_id, 'status': 'saved'})
+    except Exception as e:
+        print(f"[ERROR] save_batch failed: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/batches/<int:batch_id>', methods=['PUT'])

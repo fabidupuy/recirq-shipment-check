@@ -491,18 +491,11 @@ def save_batch(batch_data):
             VALUES ({_ph(25)})''',
             _batch_values(bid, batch_data))
 
-    # Delete existing units for this batch and re-insert
+    # Delete existing units for this batch and re-insert (batch insert for performance)
     c.execute(f'DELETE FROM units WHERE batch_id={ph}', (bid,))
+    unit_rows = []
     for u in batch_data.get('units', []):
-        c.execute(f'''INSERT INTO units
-            (batch_id, unit_index, route, sku, imei, rma_number,
-             submission_date, tracking_out, route_status, aging_status,
-             days_since_submission, hard_stop, hard_stop_reason,
-             fallout_reason, fallout_notes, imei_mismatch, imei_mismatch_reason,
-             imei_match, imei_resolved, route_corrected, original_route,
-             route_correction_notes, aging_cleared, aging_cleared_notes,
-             removed_from_shipment, raw_json)
-            VALUES ({_ph(26)})''',
+        unit_rows.append(
             (bid, u.get('index', 0), u.get('route'), u.get('sku'),
              u.get('imei'), u.get('rmaNumber'), u.get('submissionDate'),
              u.get('trackingOut'), u.get('routeStatus'), u.get('agingStatus'),
@@ -515,6 +508,16 @@ def save_batch(batch_data):
              1 if u.get('agingCleared') else 0, u.get('agingClearedNotes'),
              1 if u.get('removedFromShipment') else 0,
              json.dumps(u.get('_raw', {}))))
+    if unit_rows:
+        c.executemany(f'''INSERT INTO units
+            (batch_id, unit_index, route, sku, imei, rma_number,
+             submission_date, tracking_out, route_status, aging_status,
+             days_since_submission, hard_stop, hard_stop_reason,
+             fallout_reason, fallout_notes, imei_mismatch, imei_mismatch_reason,
+             imei_match, imei_resolved, route_corrected, original_route,
+             route_correction_notes, aging_cleared, aging_cleared_notes,
+             removed_from_shipment, raw_json)
+            VALUES ({_ph(26)})''', unit_rows)
 
     # Save IMEI resolutions
     c.execute(f'DELETE FROM imei_resolutions WHERE batch_id={ph}', (bid,))
