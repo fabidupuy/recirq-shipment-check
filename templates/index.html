@@ -5990,7 +5990,6 @@ async function ppDoSave() {
     const slimUnits = j.units.map(u => {
       const slim = { ...u };
       // Remove QC detail and raw data — can be re-uploaded if needed
-      delete slim.qc;
       delete slim._raw;
       return slim;
     });
