@@ -6139,6 +6139,27 @@ function renderPPPackingSection() {
   }
 
   const job = ppJobs[ppActivePackingVendor];
+
+  // ── Clean up stale boxes whose IMEIs are no longer in the job ──
+  if (job.boxes && job.boxes.length > 0) {
+    const jobIMEIs = new Set(job.units.map(u => u.imei));
+    const staleClosed = job.boxes.filter(b => b.closedAt && b.imeis.length > 0 && b.imeis.every(imei => !jobIMEIs.has(imei)));
+    if (staleClosed.length > 0) {
+      job.boxes = job.boxes.filter(b => !staleClosed.includes(b));
+      // Ensure there's always at least one box (the current open box)
+      if (job.boxes.length === 0) {
+        job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
+        job.currentBoxIdx = 0;
+      } else {
+        // If current box index is out of range, reset to last box
+        if (job.currentBoxIdx >= job.boxes.length) {
+          job.currentBoxIdx = job.boxes.length - 1;
+        }
+      }
+      ppSaveState();
+    }
+  }
+
   const actionableUnits = job.units.filter(u => u.rmaNumber !== 'UNMATCHED');
   const totalUnits = actionableUnits.length;
   const packedUnits = actionableUnits.filter(u => u.packed).length;
