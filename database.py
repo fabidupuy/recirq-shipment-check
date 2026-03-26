@@ -740,6 +740,15 @@ def get_all_settings():
 # HELPERS
 # ════════════════════════════════════
 
+def _safe_json(row, key, default=None):
+    """Safely read a JSON column that may not exist yet (migration pending)."""
+    try:
+        val = row[key]
+        return json.loads(val or 'null') if val is not None else (default if default is not None else {})
+    except (KeyError, IndexError):
+        return default if default is not None else {}
+
+
 def _row_to_batch(row):
     """Convert a database row to a batch dict matching the JS batch object shape."""
     vendor = row['vendor']
@@ -771,7 +780,7 @@ def _row_to_batch(row):
         'imeiMismatchCount': row['imei_mismatch_count'],
         'hardStopCount': row['hard_stop_count'],
         'unpackedCount': row['unpacked_count'],
-        'submittedIMEIDetails': json.loads(row['submitted_imei_details_json'] or '{}'),
+        'submittedIMEIDetails': _safe_json(row, 'submitted_imei_details_json', {}),
         '_viewing': False,
     }
 
