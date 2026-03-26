@@ -6512,7 +6512,8 @@ function renderPPHistorySection() {
     </div>
   </div>`;
 
-  html += '<div class="card"><h2>Completed RMAs</h2><p style="font-size:13px;color:#888;margin-bottom:16px;">RMAs that have been fully packed and removed from the packing queue.</p>';
+  html += '<div class="card"><h2>Completed RMAs</h2><p style="font-size:13px;color:#888;margin-bottom:8px;">RMAs that have been fully packed and removed from the packing queue.</p>';
+  html += '<div style="margin-bottom:12px;"><input type="text" id="pp-hist-search" placeholder="Search by RMA# or Tracking#..." oninput="ppSearchHistory()" style="width:100%;max-width:400px;padding:8px 12px;border:2px solid var(--medium-gray);border-radius:8px;font-size:13px;"></div>';
   html += '<div class="tbl-wrap"><table><tr><th>Group</th><th>Vendor</th><th>Units</th><th>RMAs</th><th>Tracking</th><th>Completed</th><th>By</th><th></th></tr>';
 
   // VZ entries — one row per RMA
@@ -6520,7 +6521,7 @@ function renderPPHistorySection() {
     const idx = ppCompletedRMAs.indexOf(entry);
     const activeUnits = entry.units.filter(u => !u.fallout);
     const completedDate = entry.completedAt ? entry.completedAt.split('T')[0] : '';
-    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}">
+    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}" data-rma="${entry.rma}" data-tracking="${entry.tracking || ''}">
       <td><b>RMA# ${entry.rma}</b></td>
       <td><span class="badge badge-verizon">VERIZON</span></td>
       <td>${activeUnits.length}</td>
@@ -6551,7 +6552,7 @@ function renderPPHistorySection() {
     const badgeClass = 'badge-3pl';
     const subDate = group.entries.find(e => e.submissionDate)?.submissionDate || '';
     const groupCompletedDate = group.completedAt ? group.completedAt.split('T')[0] : '';
-    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}">
+    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}" data-rma="${[...rmaSet].join(',')}" data-tracking="${group.tracking || ''}">
       <td><b>${subDate || group.tracking}</b>${falloutUnits.length > 0 ? ' <span style="font-size:11px;color:var(--alert-red);">(' + falloutUnits.length + ' fallout)</span>' : ''}</td>
       <td><span class="badge ${badgeClass}">${group.vendor}</span></td>
       <td>${activeUnits.length}</td>
@@ -6633,6 +6634,52 @@ function ppClearHistoryDateFilter() {
   document.querySelectorAll('.pp-hist-row').forEach(row => { row.style.display = ''; });
   const noMatchRow = document.getElementById('pp-hist-no-match');
   if (noMatchRow) noMatchRow.remove();
+}
+
+function ppSearchHistory() {
+  const input = document.getElementById('pp-hist-search');
+  if (!input) return;
+  const query = input.value.trim().toLowerCase();
+  const rows = document.querySelectorAll('.pp-hist-row');
+  const detailRows = document.querySelectorAll('.pp-hist-detail-row');
+  let visibleCount = 0;
+
+  rows.forEach(row => {
+    if (!query) { row.style.display = ''; visibleCount++; return; }
+    const rma = (row.getAttribute('data-rma') || '').toLowerCase();
+    const tracking = (row.getAttribute('data-tracking') || '').toLowerCase();
+    if (rma.includes(query) || tracking.includes(query)) {
+      row.style.display = '';
+      visibleCount++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+
+  // Hide detail rows that don't match
+  detailRows.forEach(row => {
+    const id = row.id || '';
+    const parentIdx = id.replace('pp-hist-detail-', '');
+    const parentRow = document.querySelector(`.pp-hist-row[data-completed-date]`);
+    // Just hide all detail rows when searching; user can re-expand
+    if (query) row.style.display = 'none';
+  });
+
+  // No-match message
+  let noMatchRow = document.getElementById('pp-hist-no-match');
+  if (visibleCount === 0 && query) {
+    if (!noMatchRow) {
+      const table = document.querySelector('#pp-history-content table');
+      if (table) {
+        const tr = document.createElement('tr');
+        tr.id = 'pp-hist-no-match';
+        tr.innerHTML = '<td colspan="8" style="text-align:center;padding:20px;color:#888;font-size:13px;">No results found for "' + input.value.trim() + '"</td>';
+        table.querySelector('tbody') ? table.querySelector('tbody').appendChild(tr) : table.appendChild(tr);
+      }
+    }
+  } else if (noMatchRow) {
+    noMatchRow.remove();
+  }
 }
 
 // ── RMA PHOTO GALLERY (Packed RMAs) ──
