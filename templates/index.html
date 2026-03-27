@@ -6689,14 +6689,23 @@ function renderPPPackingSection() {
       closedHTML += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Closed Boxes</div>';
       closedBoxes.forEach(b => {
         const boxTracking = b.tracking || (b.labelData && b.labelData.tracking) || '';
-        closedHTML += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;margin-bottom:4px;">
-          <div>
-            <span style="font-size:12px;font-weight:600;">Box #${b.boxNum}</span>
-            <span style="font-size:11px;color:#888;margin-left:8px;">${b.imeis.length} units</span>
-            ${boxTracking ? '<span style="font-size:11px;color:var(--dark-green);margin-left:8px;font-family:monospace;">' + boxTracking + '</span>' : ''}
-            ${b.lockedDate ? '<span style="font-size:11px;color:#888;margin-left:8px;">' + b.lockedDate + '</span>' : ''}
+        const boxId = `closed-box-${ppActivePackingVendor}-${b.boxNum}`;
+        closedHTML += `<div style="background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;">
+            <div>
+              <span style="font-size:12px;font-weight:600;">Box #${b.boxNum}</span>
+              <span style="font-size:11px;color:#888;margin-left:8px;">${b.imeis.length} units</span>
+              ${boxTracking ? '<span style="font-size:11px;color:var(--dark-green);margin-left:8px;font-family:monospace;">' + boxTracking + '</span>' : ''}
+              ${b.lockedDate ? '<span style="font-size:11px;color:#888;margin-left:8px;">' + b.lockedDate + '</span>' : ''}
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button class="btn btn-sm btn-outline" onclick="ppToggleBoxContents('${boxId}')" style="font-size:10px;padding:2px 8px;">View Contents</button>
+              <button class="btn btn-sm btn-outline" onclick="ppReprintBoxLabel('${ppActivePackingVendor}',${b.boxNum})" style="font-size:10px;padding:2px 8px;">Reprint Label</button>
+            </div>
           </div>
-          <button class="btn btn-sm btn-outline" onclick="ppReprintBoxLabel('${ppActivePackingVendor}',${b.boxNum})" style="font-size:10px;padding:2px 8px;">Reprint Label</button>
+          <div id="${boxId}" style="display:none;padding:4px 12px 8px;border-top:1px solid #e8e8e8;">
+            ${ppRenderBoxContents(b, ppActivePackingVendor)}
+          </div>
         </div>`;
       });
       closedHTML += '</div>';
@@ -7522,6 +7531,28 @@ function ppPrintVZLabel(rma) {
   ppPrintBoxLabel(vendor, { tracking: job.tracking, rma: rma, deliveryNumber: deliveryNumber, unitCount: packedCount });
 }
 
+function ppToggleBoxContents(boxId) {
+  const el = document.getElementById(boxId);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function ppRenderBoxContents(box, vendor) {
+  const job = ppJobs[vendor];
+  if (!job || !box.imeis || box.imeis.length === 0) return '<div style="font-size:11px;color:#888;padding:4px 0;">No units in this box.</div>';
+  let rows = '<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+  rows += '<tr style="text-align:left;color:#888;border-bottom:1px solid #ddd;"><th style="padding:3px 6px;">#</th><th style="padding:3px 6px;">IMEI</th><th style="padding:3px 6px;">RMA#</th><th style="padding:3px 6px;">Description</th></tr>';
+  box.imeis.forEach((imei, idx) => {
+    const unit = job.units.find(u => u.imei === imei);
+    const rma = unit ? (unit.rmaNumber || '—') : '—';
+    const desc = unit ? (unit.description || unit.sku || '—') : '—';
+    const bg = idx % 2 === 0 ? '#fff' : '#f5f5f5';
+    rows += `<tr style="background:${bg};"><td style="padding:3px 6px;">${idx + 1}</td><td style="padding:3px 6px;font-family:monospace;">${imei}</td><td style="padding:3px 6px;">${rma}</td><td style="padding:3px 6px;">${desc}</td></tr>`;
+  });
+  rows += '</table>';
+  return rows;
+}
+
 function ppReprintBoxLabel(vendor, boxNum) {
   const job = ppJobs[vendor];
   if (!job) return;
@@ -7955,13 +7986,22 @@ function ppSetQC(unitIdx, vendor, field, value) {
     unit.packed = false;
     unit.packedAt = null;
 
-    // For non-VZ, remove from current box if it was there
+    // For non-VZ, remove from the box that contains this IMEI — but NOT if the box is already closed
     const isVZ = vendor === 'VERIZON';
     if (!isVZ) {
       const job = ppJobs[vendor];
-      const currentBox = job.boxes[job.currentBoxIdx];
-      if (currentBox) {
-        currentBox.imeis = currentBox.imeis.filter(i => i !== unit.imei);
+      const ownerBox = job.boxes.find(b => b.imeis.includes(unit.imei));
+      if (ownerBox && ownerBox.closedAt) {
+        alert(`⚠️ IMEI ${unit.imei} is in closed Box #${ownerBox.boxNum} (label already printed).\n\nReopen the box first before marking fallout.`);
+        // Revert the fallout flags we just set
+        unit.fallout = false;
+        unit.falloutReason = '';
+        unit.packed = true;
+        delete unit.qc[field];
+        return;
+      }
+      if (ownerBox) {
+        ownerBox.imeis = ownerBox.imeis.filter(i => i !== unit.imei);
       }
     }
   } else {
