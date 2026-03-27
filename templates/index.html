@@ -4790,9 +4790,18 @@ function refreshDashboard() {
   </table></div>`;
 }
 
-function viewBatchFromDash(batchId, vendor) {
-  const batch = findBatch(batchId);
-  if (!batch) return;
+async function viewBatchFromDash(batchId, vendor) {
+  let batch = findBatch(batchId);
+  if (!batch) {
+    // Batch may have been cleared from local cache — try reloading from server
+    await loadBatchesFromServer();
+    batch = findBatch(batchId);
+    if (!batch) {
+      alert('This check is no longer available. It may have been removed during a server restart.');
+      refreshDashboard();
+      return;
+    }
+  }
   // Clear other viewing flags for same vendor
   if (vendor === 'VERIZON') {
     vzBatches.forEach(b => b._viewing = false);
@@ -8316,6 +8325,11 @@ function ppResolveAllConflicts(action, vendor) {
     // Restore shipment photos and shipping labels onto batch objects
     hydrateShipmentPhotos();
     hydrateShippingLabels();
+    // Auto-refresh batches every 60 seconds so stale history doesn't linger
+    setInterval(async () => {
+      try { await loadBatchesFromServer(); } catch (e) { /* silent */ }
+    }, 60000);
+
     // Auto-refresh PP state every 30 seconds
     setInterval(async () => {
       try {

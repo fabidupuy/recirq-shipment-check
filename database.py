@@ -31,10 +31,20 @@ if DATABASE_URL:
 else:
     import sqlite3
 
+    # Resolve data directory ONCE at import time — prefer /data (Render persistent disk),
+    # then fall back to a local 'data/' folder for dev, and only use the app dir as last resort.
+    if os.path.isdir('/data'):
+        _data_dir = '/data'
+    else:
+        # Local dev: use a dedicated data/ folder next to app.py so the DB isn't mixed with code
+        _local_data = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+        os.makedirs(_local_data, exist_ok=True)
+        _data_dir = _local_data
+
+    _DB_PATH = os.path.join(_data_dir, 'shipment_check.db')
+
     def get_db():
-        _data_dir = '/data' if os.path.isdir('/data') else os.path.dirname(os.path.abspath(__file__))
-        db_path = os.path.join(_data_dir, 'shipment_check.db')
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(_DB_PATH)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
@@ -945,3 +955,14 @@ def get_activity_log(batch_id=None, limit=100):
 
 # Initialize on import
 init_db()
+
+# ── Startup diagnostics ──
+if DATABASE_URL:
+    print(f"  Database: PostgreSQL (remote)")
+else:
+    print(f"  Database: SQLite → {_DB_PATH}")
+    if _data_dir == '/data':
+        print(f"  Storage:  Render persistent disk (/data)")
+    else:
+        print(f"  WARNING:  Using local fallback directory ({_data_dir})")
+        print(f"            Data will NOT survive redeployment on Render!")
