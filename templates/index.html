@@ -1945,6 +1945,25 @@ function ppGetAvailableForShipmentCheck(vendorFilter) {
     grouped[tk].entries.push(entry);
   });
 
+  // Build set of tracking numbers already cleared in Shipment Check
+  const clearedTrackings = new Set();
+  [...vzBatches, ...bpBatches].forEach(b => {
+    if (b.status === 'CLEARED') {
+      b.units.forEach(u => {
+        if (u.trackingOut) clearedTrackings.add(u.trackingOut);
+      });
+    }
+  });
+
+  // Filter out groups whose tracking # was already cleared to ship
+  Object.keys(grouped).forEach(tk => {
+    if (tk !== 'NO_TRACKING' && clearedTrackings.has(tk)) {
+      // Also mark entries as loaded so they stay hidden after refresh
+      grouped[tk].entries.forEach(entry => { entry.loadedToShipmentCheck = true; });
+      delete grouped[tk];
+    }
+  });
+
   // Compute stats for each group
   Object.values(grouped).forEach(group => {
     const allUnits = group.entries.flatMap(e => e.units || []);
@@ -6159,6 +6178,7 @@ async function ppLoadState() {
         // Ensure box tracking exists
         if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
         if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
+        if (job.boxLimit === undefined) job.boxLimit = 30;
       });
     }
     if (state.ppCompletedRMAs) {
@@ -6195,7 +6215,8 @@ function ppGetJob(vendor) {
     trackingConfirmed: false,
     // Box tracking for non-VZ vendors
     boxes: [{ boxNum: 1, imeis: [], closedAt: null }],
-    currentBoxIdx: 0
+    currentBoxIdx: 0,
+    boxLimit: 30 // default box unit limit for non-VZ
   };
   return ppJobs[vendor];
 }
@@ -6714,20 +6735,33 @@ function renderPPPackingSection() {
 
     // Show current box info
     const currentBox = job.boxes[job.currentBoxIdx];
+    const currentBoxId = `current-box-${ppActivePackingVendor}-${currentBox.boxNum}`;
+    const boxLimit = job.boxLimit || 0;
+    const boxCount = currentBox.imeis.length;
+    const atLimit = boxLimit > 0 && boxCount >= boxLimit;
+    const nearLimit = boxLimit > 0 && boxCount >= boxLimit - 3 && boxCount < boxLimit;
+    const limitColor = atLimit ? 'var(--alert-red)' : nearLimit ? 'var(--warn-orange)' : '#666';
+    const limitDisplay = boxLimit > 0 ? `${boxCount}/${boxLimit}` : `${boxCount}`;
     const currentBoxInfo = `
-      <div class="card" style="margin-bottom:16px;background:var(--info-bg);border-color:var(--info-blue);">
+      <div class="card" style="margin-bottom:16px;background:var(--info-bg);border-color:${atLimit ? 'var(--alert-red)' : 'var(--info-blue)'};">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div>
             <span style="font-size:13px;font-weight:600;color:var(--info-blue);">Current Box #${currentBox.boxNum}</span>
-            <span style="font-size:12px;color:#666;margin-left:12px;">${currentBox.imeis.length} units scanned</span>
+            <span style="font-size:12px;color:${limitColor};margin-left:12px;font-weight:${atLimit || nearLimit ? '700' : '400'};">${limitDisplay} units${atLimit ? ' — BOX FULL' : nearLimit ? ' — almost full' : ''}</span>
             ${currentBox.lockedDate ? '<span style="font-size:11px;color:var(--info-blue);margin-left:12px;font-weight:600;">Locked to: ' + currentBox.lockedDate + '</span>' : ''}
           </div>
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;align-items:center;">
+            <label style="font-size:10px;color:#888;font-weight:600;">Limit:</label>
+            <select onchange="ppSetBoxLimit('${ppActivePackingVendor}',this.value)" style="padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:11px;background:white;">
+              ${[15,30,50,100,0].map(v => '<option value="' + v + '"' + (boxLimit === v ? ' selected' : '') + '>' + (v === 0 ? 'No limit' : v) + '</option>').join('')}
+            </select>
+            ${currentBox.imeis.length > 0 ? '<button class="btn btn-sm btn-outline" onclick="ppToggleBoxContents(\'' + currentBoxId + '\')" style="font-size:11px;padding:4px 10px;">View Contents</button>' : ''}
             <button class="btn btn-sm btn-outline" onclick="ppOpenBoxPhotoQR('${ppActivePackingVendor}',${currentBox.boxNum})" style="font-size:11px;padding:4px 10px;">Box Photo</button>
             <button class="btn btn-sm btn-outline" onclick="ppPrintCurrentBoxLabel('${ppActivePackingVendor}')" style="font-size:11px;padding:4px 10px;">Print Label</button>
             <button class="btn btn-sm" onclick="ppCloseBox('${ppActivePackingVendor}')" style="font-size:11px;padding:4px 10px;background:var(--dark-green);color:white;border:none;">Close Box</button>
           </div>
         </div>
+        ${currentBox.imeis.length > 0 ? '<div id="' + currentBoxId + '" style="display:none;padding:8px 12px;border-top:1px solid var(--info-blue);margin-top:8px;">' + ppRenderBoxContents(currentBox, ppActivePackingVendor) + '</div>' : ''}
       </div>
     `;
     html += currentBoxInfo;
@@ -6838,6 +6872,15 @@ function renderPPHistorySection() {
         <p style="font-size:12px;color:#888;margin:4px 0 0;">Filter and download packed units by date range.</p>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <label style="font-size:11px;color:#888;font-weight:600;">Vendor</label>
+        <select id="pp-daily-vendor-filter" onchange="ppFilterHistoryByDate()" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;">
+          <option value="">All Vendors</option>
+          <option value="VERIZON">Verizon</option>
+          <option value="BRIGHTPOINT">Brightpoint</option>
+          <option value="CRTC">CRTC</option>
+          <option value="SAMSUNG">Samsung</option>
+          <option value="CPO">CPO</option>
+        </select>
         <label style="font-size:11px;color:#888;font-weight:600;">From</label>
         <input type="date" id="pp-daily-date-from" value="${today}" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;" onchange="ppFilterHistoryByDate()">
         <label style="font-size:11px;color:#888;font-weight:600;">To</label>
@@ -6858,7 +6901,7 @@ function renderPPHistorySection() {
     const activeUnits = entry.units.filter(u => !u.fallout);
     const completedDate = entry.completedAt ? entry.completedAt.split('T')[0] : '';
     const vzImeis = activeUnits.map(u => u.imei).join(',');
-    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}" data-rma="${entry.rma}" data-tracking="${entry.tracking || ''}" data-imeis="${vzImeis}">
+    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}" data-vendor="VERIZON" data-rma="${entry.rma}" data-tracking="${entry.tracking || ''}" data-imeis="${vzImeis}">
       <td><b>RMA# ${entry.rma}</b></td>
       <td><span class="badge badge-verizon">VERIZON</span></td>
       <td>${activeUnits.length}</td>
@@ -6871,7 +6914,7 @@ function renderPPHistorySection() {
         <button class="btn btn-sm btn-outline" onclick="ppOpenRMAPhotos('${entry.rma}',${JSON.stringify(entry.units.map(u=>u.imei)).replace(/"/g,'&quot;')},'${entry.vendor}')" style="font-size:10px;padding:2px 8px;border-color:#1976d2;color:#1976d2;">&#128247; Photos</button>
       </td>
     </tr>
-    <tr id="pp-hist-detail-${idx}" class="pp-hist-detail-row" data-completed-date="${completedDate}" style="display:none;">
+    <tr id="pp-hist-detail-${idx}" class="pp-hist-detail-row" data-completed-date="${completedDate}" data-vendor="VERIZON" style="display:none;">
       <td colspan="8" style="padding:12px;background:var(--light-gray);">
         <div style="font-size:12px;max-height:200px;overflow-y:auto;">
           ${entry.units.map(u => `<div style="padding:2px 0;"><span style="font-family:monospace;">${u.imei}</span> — ${u.description || '—'} ${u.fallout ? '<span class="badge badge-fail" style="font-size:9px;">FALLOUT</span>' : ''} — Packed: ${u.packedAt ? new Date(u.packedAt).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</div>`).join('')}
@@ -6890,7 +6933,7 @@ function renderPPHistorySection() {
     const subDate = group.entries.find(e => e.submissionDate)?.submissionDate || '';
     const groupCompletedDate = group.completedAt ? group.completedAt.split('T')[0] : '';
     const grpImeis = group.allUnits.map(u => u.imei).join(',');
-    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}" data-rma="${[...rmaSet].join(',')}" data-tracking="${group.tracking || ''}" data-imeis="${grpImeis}">
+    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}" data-vendor="${group.vendor}" data-rma="${[...rmaSet].join(',')}" data-tracking="${group.tracking || ''}" data-imeis="${grpImeis}">
       <td><b>${subDate || group.tracking}</b>${falloutUnits.length > 0 ? ' <span style="font-size:11px;color:var(--alert-red);">(' + falloutUnits.length + ' fallout)</span>' : ''}</td>
       <td><span class="badge ${badgeClass}">${group.vendor}</span></td>
       <td>${activeUnits.length}</td>
@@ -6903,7 +6946,7 @@ function renderPPHistorySection() {
         <button class="btn btn-sm btn-outline" onclick="ppOpenRMAPhotos('${group.tracking}',${JSON.stringify(group.allUnits.map(u=>u.imei)).replace(/"/g,'&quot;')},'${group.vendor}',${JSON.stringify(group.boxNumbers).replace(/"/g,'&quot;')})" style="font-size:10px;padding:2px 8px;border-color:#1976d2;color:#1976d2;">&#128247; Photos</button>
       </td>
     </tr>
-    <tr id="pp-hist-detail-${gIdx}" class="pp-hist-detail-row" data-completed-date="${groupCompletedDate}" style="display:none;">
+    <tr id="pp-hist-detail-${gIdx}" class="pp-hist-detail-row" data-completed-date="${groupCompletedDate}" data-vendor="${group.vendor}" style="display:none;">
       <td colspan="8" style="padding:12px;background:var(--light-gray);">
         <div style="font-size:12px;max-height:250px;overflow-y:auto;">
           <div style="margin-bottom:8px;font-weight:600;">RMAs: ${[...rmaSet].join(', ')}</div>
@@ -6928,15 +6971,20 @@ function ppFilterHistoryByDate() {
   ppDateFilterAll = false;
   const fromInput = document.getElementById('pp-daily-date-from');
   const toInput = document.getElementById('pp-daily-date-to');
-  if (!fromInput || !toInput || !fromInput.value || !toInput.value) return;
-  const fromDate = fromInput.value;
-  const toDate = toInput.value;
+  const vendorSelect = document.getElementById('pp-daily-vendor-filter');
+  const vendorFilter = vendorSelect ? vendorSelect.value : '';
+  const fromDate = fromInput ? fromInput.value : '';
+  const toDate = toInput ? toInput.value : '';
+  const hasDateFilter = fromDate && toDate;
   const rows = document.querySelectorAll('.pp-hist-row');
   const detailRows = document.querySelectorAll('.pp-hist-detail-row');
   let visibleCount = 0;
   rows.forEach(row => {
     const rowDate = row.getAttribute('data-completed-date');
-    if (rowDate >= fromDate && rowDate <= toDate) {
+    const rowVendor = row.getAttribute('data-vendor') || '';
+    const dateOk = !hasDateFilter || (rowDate >= fromDate && rowDate <= toDate);
+    const vendorOk = !vendorFilter || rowVendor === vendorFilter;
+    if (dateOk && vendorOk) {
       row.style.display = '';
       visibleCount++;
     } else {
@@ -6945,12 +6993,17 @@ function ppFilterHistoryByDate() {
   });
   detailRows.forEach(row => {
     const rowDate = row.getAttribute('data-completed-date');
-    if (rowDate < fromDate || rowDate > toDate) {
+    const rowVendor = row.getAttribute('data-vendor') || '';
+    const dateOk = !hasDateFilter || (rowDate >= fromDate && rowDate <= toDate);
+    const vendorOk = !vendorFilter || rowVendor === vendorFilter;
+    if (!dateOk || !vendorOk) {
       row.style.display = 'none';
     }
   });
   let noMatchRow = document.getElementById('pp-hist-no-match');
-  const label = fromDate === toDate ? fromDate : fromDate + ' to ' + toDate;
+  const datePart = hasDateFilter ? (fromDate === toDate ? fromDate : fromDate + ' to ' + toDate) : 'all dates';
+  const vendorPart = vendorFilter || 'all vendors';
+  const label = vendorPart + ' / ' + datePart;
   if (visibleCount === 0) {
     if (!noMatchRow) {
       const table = document.querySelector('#pp-history-content table');
@@ -6970,8 +7023,10 @@ function ppClearHistoryDateFilter() {
   ppDateFilterAll = true;
   const fromInput = document.getElementById('pp-daily-date-from');
   const toInput = document.getElementById('pp-daily-date-to');
+  const vendorSelect = document.getElementById('pp-daily-vendor-filter');
   if (fromInput) fromInput.value = '';
   if (toInput) toInput.value = '';
+  if (vendorSelect) vendorSelect.value = '';
   // Show all rows
   document.querySelectorAll('.pp-hist-row').forEach(row => { row.style.display = ''; });
   document.querySelectorAll('.pp-hist-detail-row').forEach(row => { row.style.display = 'none'; });
@@ -7101,6 +7156,8 @@ async function ppOpenRMAPhotos(groupLabel, imeis, vendor, boxNumbers) {
 function ppDownloadDailySummary() {
   const fromInput = document.getElementById('pp-daily-date-from');
   const toInput = document.getElementById('pp-daily-date-to');
+  const vendorSelect = document.getElementById('pp-daily-vendor-filter');
+  const vendorFilter = vendorSelect ? vendorSelect.value : '';
   const fromDate = fromInput ? fromInput.value : '';
   const toDate = toInput ? toInput.value : '';
   const isAll = ppDateFilterAll || (!fromDate && !toDate);
@@ -7113,10 +7170,16 @@ function ppDownloadDailySummary() {
     return true;
   }
 
+  function vendorMatch(v) {
+    if (!vendorFilter) return true;
+    return (v || '').toUpperCase() === vendorFilter.toUpperCase();
+  }
+
   // Collect all packed units from ppCompletedRMAs where packedAt falls in range
   const rows = [];
   ppCompletedRMAs.forEach(entry => {
     if (!entry.units) return;
+    if (!vendorMatch(entry.vendor)) return;
     entry.units.forEach(u => {
       if (u.fallout) return;
       if (!u.packedAt) return;
@@ -7136,6 +7199,7 @@ function ppDownloadDailySummary() {
 
   // Also check active packing jobs for packed-but-not-completed units
   Object.values(ppJobs).forEach(job => {
+    if (!vendorMatch(job.vendor)) return;
     job.units.forEach(u => {
       if (!u.packed || u.fallout || !u.packedAt) return;
       const packedDate = u.packedAt.split('T')[0];
@@ -7152,7 +7216,8 @@ function ppDownloadDailySummary() {
     });
   });
 
-  const label = isAll ? 'All' : (fromDate === toDate ? fromDate : fromDate + ' to ' + toDate);
+  const datePart = isAll ? 'All' : (fromDate === toDate ? fromDate : fromDate + ' to ' + toDate);
+  const label = (vendorFilter || 'All Vendors') + ' / ' + datePart;
   if (rows.length === 0) {
     alert('No packed units found for ' + label);
     return;
@@ -7611,6 +7676,22 @@ function ppPrintCurrentBoxLabel(vendor) {
 }
 
 // ── CLOSE BOX (for non-VZ) ──
+function ppSetBoxLimit(vendor, val) {
+  const job = ppJobs[vendor];
+  if (!job) return;
+  const newLimit = parseInt(val) || 0;
+  const currentBox = job.boxes[job.currentBoxIdx];
+  if (newLimit > 0 && currentBox && currentBox.imeis.length > newLimit) {
+    if (!confirm(`Current box already has ${currentBox.imeis.length} units, which exceeds the new limit of ${newLimit}.\n\nSet the limit anyway? The limit will apply from the next scan.`)) {
+      renderPPPackingSection();
+      return;
+    }
+  }
+  job.boxLimit = newLimit;
+  ppSaveState();
+  renderPPPackingSection();
+}
+
 async function ppCloseBox(vendor) {
   const job = ppJobs[vendor];
   if (!job) return;
@@ -7756,7 +7837,7 @@ async function ppScanIMEI() {
     return;
   }
 
-  // For non-VZ vendors, enforce same submission date per box
+  // For non-VZ vendors, enforce same submission date per box and box limit
   if (!isVZ) {
     const currentBox = job.boxes[job.currentBoxIdx];
     const unitDate = unit.rmaSubmissionDate || 'Unknown';
@@ -7772,6 +7853,22 @@ async function ppScanIMEI() {
       renderPPPackingSection();
       return;
     }
+    // Enforce box unit limit
+    const boxLimit = job.boxLimit || 0;
+    if (boxLimit > 0 && currentBox && currentBox.imeis.length >= boxLimit) {
+      ppLastScanned = null;
+      ppLastFeedback = `
+        <div style="background:var(--critical-bg);border:2px solid var(--alert-red);border-radius:10px;padding:14px 18px;margin:0;">
+          <div style="font-size:11px;color:var(--alert-red);font-weight:600;text-transform:uppercase;">&#9888; Box Full — ${currentBox.imeis.length}/${boxLimit} units</div>
+          <div style="font-size:14px;margin-top:4px;">Box #${currentBox.boxNum} has reached its limit of <b>${boxLimit} units</b>.</div>
+          <div style="font-size:12px;color:#888;margin-top:8px;">Close the current box before scanning more units.</div>
+          <div style="margin-top:10px;">
+            <button class="btn btn-sm" onclick="ppCloseBox('${vendor}')" style="background:var(--dark-green);color:white;border:none;font-size:12px;padding:6px 16px;">Close Box Now</button>
+          </div>
+        </div>`;
+      renderPPPackingSection();
+      return;
+    }
   }
 
   unit.packed = true;
@@ -7780,6 +7877,7 @@ async function ppScanIMEI() {
   unit.trackingNumber = job.tracking || '';
   ppLastScanned = { unitIdx, vendor };
 
+  let boxFullWarning = '';
   if (!isVZ) {
     const currentBox = job.boxes[job.currentBoxIdx];
     const unitDate = unit.rmaSubmissionDate || 'Unknown';
@@ -7789,6 +7887,18 @@ async function ppScanIMEI() {
       }
       if (!currentBox.imeis.includes(imei)) {
         currentBox.imeis.push(imei);
+      }
+      // Check box limit
+      const boxLimit = job.boxLimit || 0;
+      if (boxLimit > 0 && currentBox.imeis.length >= boxLimit) {
+        boxFullWarning = `
+          <div style="background:var(--critical-bg);border:2px solid var(--alert-red);border-radius:10px;padding:14px 18px;margin-top:10px;">
+            <div style="font-size:11px;color:var(--alert-red);font-weight:600;text-transform:uppercase;">&#9888; Box Full — ${currentBox.imeis.length}/${boxLimit} units</div>
+            <div style="font-size:14px;margin-top:4px;">Box #${currentBox.boxNum} has reached its limit. Close this box before scanning more units.</div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-sm" onclick="ppCloseBox('${vendor}')" style="background:var(--dark-green);color:white;border:none;font-size:12px;padding:6px 16px;">Close Box Now</button>
+            </div>
+          </div>`;
       }
     }
     // Expand the date group this unit belongs to
@@ -7827,7 +7937,7 @@ async function ppScanIMEI() {
           <div style="font-size:11px;color:#888;">${completeLabel}</div>
         </div>
       </div>
-    </div>`;
+    </div>${boxFullWarning}`;
 
   ppSaveState();
   renderPPPackingSection();
