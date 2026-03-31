@@ -6174,12 +6174,21 @@ let ppCompletedRMAs = [];
 // Save/load PP state to/from server
 let ppSaveTimer = null;
 let ppSaveFailed = false;
+let ppSavePending = false; // true when a debounced save is waiting to fire
+let ppSaveInFlight = false; // true when a save request is in progress
 function ppSaveState() {
   // Debounce saves to avoid hammering server on rapid scans
+  ppSavePending = true;
   clearTimeout(ppSaveTimer);
-  ppSaveTimer = setTimeout(() => { ppDoSave(); }, 500);
+  ppSaveTimer = setTimeout(() => { ppSavePending = false; ppDoSave(); }, 500);
 }
 async function ppDoSave() {
+  if (ppSaveInFlight) {
+    // Another save is already in progress — re-queue so we don't lose this one
+    ppSaveState();
+    return;
+  }
+  ppSaveInFlight = true;
   // Strip rmaGroups and bulky non-essential unit fields before saving
   const jobsToSave = {};
   Object.keys(ppJobs).forEach(v => {
@@ -6200,6 +6209,7 @@ async function ppDoSave() {
         ppSaveFailed = true;
         alert('WARNING: Failed to save packing job data to server.\n\nDO NOT close or refresh this tab — your data exists only in this browser.\n\nTry again or contact support.');
       }
+      ppSaveInFlight = false;
       return;
     }
     ppSaveFailed = false;
@@ -6209,12 +6219,14 @@ async function ppDoSave() {
       ppSaveFailed = true;
       alert('WARNING: Failed to save packing job data to server (network error).\n\nDO NOT close or refresh this tab — your data exists only in this browser.');
     }
+    ppSaveInFlight = false;
     return;
   }
   try {
     const resp2 = await fetch(API + '/pp/state/ppCompletedRMAs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: ppCompletedRMAs }) });
     if (!resp2.ok) console.warn('PP save completed RMAs failed:', resp2.status);
   } catch(e) { console.warn('PP save completed failed:', e); }
+  ppSaveInFlight = false;
 }
 async function ppLoadState() {
   try {
@@ -6715,16 +6727,22 @@ function renderPPPackingSection() {
               ${urgencyLabel}
               ${earliestSub ? '<span style="font-size:11px;color:#888;">Submitted: ' + fmtDate(earliestSub) + '</span>' : ''}
             </div>
-            <span style="font-size:12px;color:#888;">${grpPacked}/${grpActive.length} packed${grpFallout.length > 0 ? ' | <span style="color:var(--alert-red);">' + grpFallout.length + ' fallout</span>' : ''}${racks ? ' | Rack: ' + racks : ''}</span>
+            <span style="font-size:12px;color:#888;">${grpFallout.length > 0 ? '<span style="color:var(--alert-red);">' + grpFallout.length + ' fallout</span>' : ''}${grpFallout.length > 0 && racks ? ' | ' : ''}${racks ? 'Rack: ' + racks : ''}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             ${completeBtn}
             ${printBtn}
             ${boxPhotoBtn}
             <button class="btn btn-sm btn-outline" style="font-size:11px;padding:3px 8px;" onclick="event.stopPropagation();ppCopyIMEIs('${rma}','${ppActivePackingVendor}')" title="Copy all IMEIs">Copy IMEIs</button>
-            <div class="pp-progress-bar" style="width:100px;"><div class="pp-progress-fill" style="width:${grpPct}%;"></div></div>
             <span class="activity-log-toggle ${ppExpandedRMAs.has(rma) ? 'expanded' : ''}">&#9654;</span>
           </div>
+        </div>
+        <div style="padding:0 16px 10px 16px;">
+          <div class="flex-between" style="margin-bottom:3px;">
+            <span style="font-size:11px;color:#888;">${grpPacked}/${grpActive.length} packed</span>
+            <span style="font-size:11px;font-weight:600;color:var(--dark-green);">${grpPct}%</span>
+          </div>
+          <div class="pp-progress-bar"><div class="pp-progress-fill" style="width:${grpPct}%;"></div></div>
         </div>
         <div class="pp-rma-body ${ppExpandedRMAs.has(rma) ? 'expanded' : ''}" id="pp-rma-body-${rma}">`;
 
@@ -6855,14 +6873,20 @@ function renderPPPackingSection() {
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <h4>${fmtDate(subDate)} — ${grpActive.length} units${grpFallout.length > 0 ? ' <span style="font-size:12px;color:var(--alert-red);font-weight:400;">(' + grpFallout.length + ' fallout)</span>' : ''}</h4>
             </div>
-            <span style="font-size:12px;color:#888;">${grpPacked}/${grpActive.length} packed${grpFallout.length > 0 ? ' | <span style="color:var(--alert-red);">' + grpFallout.length + ' fallout</span>' : ''}</span>
+            <span style="font-size:12px;color:#888;">${grpFallout.length > 0 ? '<span style="color:var(--alert-red);">' + grpFallout.length + ' fallout</span>' : ''}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             ${grpActive.length > 0 && grpPacked === grpActive.length ? '<button class="btn btn-sm btn-success" onclick="event.stopPropagation();ppCompleteDateGroup(\'' + ppActivePackingVendor + '\',\'' + subDate.replace(/'/g, "\\'") + '\')">Complete Group</button>' : ''}
             <button class="btn btn-sm btn-outline" style="font-size:11px;padding:3px 8px;" onclick="event.stopPropagation();ppCopyIMEIsByDate('${subDate}','${ppActivePackingVendor}')" title="Copy all IMEIs">Copy IMEIs</button>
-            <div class="pp-progress-bar" style="width:100px;"><div class="pp-progress-fill" style="width:${grpPct}%;"></div></div>
             <span class="activity-log-toggle ${ppExpandedRMAs.has(groupId) ? 'expanded' : ''}">&#9654;</span>
           </div>
+        </div>
+        <div style="padding:0 16px 10px 16px;">
+          <div class="flex-between" style="margin-bottom:3px;">
+            <span style="font-size:11px;color:#888;">${grpPacked}/${grpActive.length} packed</span>
+            <span style="font-size:11px;font-weight:600;color:var(--dark-green);">${grpPct}%</span>
+          </div>
+          <div class="pp-progress-bar"><div class="pp-progress-fill" style="width:${grpPct}%;"></div></div>
         </div>
         <div class="pp-rma-body ${ppExpandedRMAs.has(groupId) ? 'expanded' : ''}" id="pp-rma-body-${groupId}">`;
 
@@ -8547,6 +8571,8 @@ function ppResolveAllConflicts(action, vendor) {
 
     // Auto-refresh PP state every 30 seconds
     setInterval(async () => {
+      // Skip refresh if a save is pending or in-flight to prevent overwriting unsaved local state
+      if (ppSavePending || ppSaveInFlight) return;
       try {
         const resp = await fetch(API + '/pp/state');
         const state = await resp.json();
