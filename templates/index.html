@@ -426,6 +426,9 @@
         <div class="sidebar-item" id="sidebar-reebelo-settings" data-section="reebelo-settings" onclick="sidebarNav('reebelo-settings')" style="display:none;">
           <span class="icon">&#128269;</span> Reconciliation Alerts
         </div>
+        <div class="sidebar-item" data-section="vendor-config" onclick="sidebarNav('vendor-config')">
+          <span class="icon">&#127970;</span> Vendor Config
+        </div>
         <div class="sidebar-item" id="sidebar-user-mgmt" onclick="openUserManagementModal()" style="display:none;">
           <span class="icon">&#128101;</span> User Management
         </div>
@@ -686,6 +689,27 @@
 <!-- ═══════════ PICK & PACK: PACKED HISTORY ═══════════ -->
 <div id="sec-pp-history" class="section">
   <div id="pp-history-content"></div>
+</div>
+
+<!-- ═══════════ VENDOR CONFIG ═══════════ -->
+<div id="sec-vendor-config" class="section">
+  <div class="container">
+    <h2 style="font-size:18px;color:var(--dark-green);margin-bottom:16px;">Vendor Configuration</h2>
+    <div class="card" style="margin-bottom:16px;">
+      <h3 style="margin:0 0 8px;font-size:14px;">Active 3PL Vendors</h3>
+      <p style="font-size:12px;color:#888;margin:0 0 12px;">These vendors appear in all dropdowns across Pick &amp; Pack and Shipment Check. Verizon is always included and cannot be removed.</p>
+      <div id="vendor-config-list"></div>
+      <div style="margin-top:16px;display:flex;gap:8px;align-items:center;">
+        <input type="text" id="vendor-config-new" placeholder="New vendor name..." style="padding:8px 12px;border:2px solid var(--medium-gray);border-radius:8px;font-size:13px;width:220px;" onkeypress="if(event.key==='Enter')vendorConfigAdd()">
+        <button class="btn btn-primary btn-sm" onclick="vendorConfigAdd()">Add Vendor</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px;font-size:14px;">Vendor CSV Configurations</h3>
+      <p style="font-size:12px;color:#888;margin:0 0 12px;">Each vendor needs a column mapping for Submitted RMA CSVs. New vendors default to the standard mapping (IMEI, Disposition, RMA#, Submission Date).</p>
+      <div id="vendor-config-csv-info"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════ VENDOR HUB — Two Independent Sections ═══════════ -->
@@ -964,7 +988,17 @@ let falloutTarget = null;
 
 // Currently selected 3PL vendor (dropdown)
 let selected3PLVendor = 'Brightpoint';
-const VENDORS_3PL = ['Brightpoint', 'Victra', 'Samsung', 'CPO', 'CRTC'];
+// Default vendors — will be overridden by ppVendors from server on load
+let VENDORS_3PL = ['Brightpoint', 'Victra', 'Samsung', 'CPO', 'CRTC', 'Telamon'];
+
+// Packing-specific vendor list (uppercase keys used in Pick & Pack)
+// Each entry: { key: 'BRIGHTPOINT', label: 'Brightpoint' }
+function getPPVendors() {
+  return VENDORS_3PL.map(v => ({ key: v.toUpperCase(), label: v }));
+}
+function getAllVendorsWithVZ() {
+  return [{ key: 'VERIZON', label: 'Verizon' }, ...getPPVendors()];
+}
 
 // Derive a friendly vendor label from the stored uppercase vendor name
 function getVendorLabel(batch) {
@@ -1015,6 +1049,15 @@ const VENDOR_STEP2_CONFIG = {
   },
   'CRTC': {
     templateKey: 'bp-step2-crtc',
+    headers: ['RecirQ ESN', 'Final Disposition', 'RMA#', 'RMA Submission Date'],
+    imeiAliases: ['RecirQ ESN', 'ESN', 'IMEI', 'Serial#', 'Serial', 'DeviceID'],
+    rmaAliases: ['RMA#', 'RMA', 'RMAs', 'RMANumber'],
+    extraCols: { disposition: ['Final Disposition', 'Disposition'], submDate: ['RMA Submission Date', 'Submission Date'] },
+    falloutHeaders: ['RecirQ ESN', 'Final Disposition', 'RMA#', 'RMA Submission Date'],
+    falloutRow: (item) => [item.imei, item.disposition, item.rma, item.submDate],
+  },
+  'Telamon': {
+    templateKey: 'bp-step2-telamon',
     headers: ['RecirQ ESN', 'Final Disposition', 'RMA#', 'RMA Submission Date'],
     imeiAliases: ['RecirQ ESN', 'ESN', 'IMEI', 'Serial#', 'Serial', 'DeviceID'],
     rmaAliases: ['RMA#', 'RMA', 'RMAs', 'RMANumber'],
@@ -1476,6 +1519,7 @@ function showSection(id) {
   if (id === 'pp-history') renderPPHistorySection();
   if (id === 'reebelo-trends') reebeloLoadTrends();
   if (id === 'reebelo-settings') reebeloLoadSettings();
+  if (id === 'vendor-config') renderVendorConfig();
 }
 
 function sidebarNav(sectionId) {
@@ -4056,7 +4100,16 @@ function openRouteCorrection(batchId, unitIndex, vendorKey) {
   const unit = batch.units[unitIndex];
   document.getElementById('route-imei-display').textContent = `IMEI: ${unit.imei} | RMA: ${unit.rmaNumber}`;
   document.getElementById('route-original').value = unit.route;
-  document.getElementById('route-corrected-select').value = '';
+  // Dynamically populate route options from vendor list
+  const sel = document.getElementById('route-corrected-select');
+  sel.innerHTML = '<option value="">Select correct route...</option>';
+  ['Verizon', 'Verizon South', 'Pre-RMA Verizon'].forEach(r => {
+    sel.innerHTML += '<option value="' + r + '">' + r + '</option>';
+  });
+  VENDORS_3PL.forEach(v => {
+    sel.innerHTML += '<option value="' + v + '">' + v + '</option>';
+  });
+  sel.value = '';
   document.getElementById('route-correction-notes').value = '';
   document.getElementById('route-modal').classList.add('show');
 }
@@ -6184,6 +6237,26 @@ async function ppLoadState() {
     if (state.ppCompletedRMAs) {
       ppCompletedRMAs = JSON.parse(state.ppCompletedRMAs);
     }
+    if (state.ppVendors) {
+      const saved = JSON.parse(state.ppVendors);
+      if (Array.isArray(saved) && saved.length > 0) {
+        VENDORS_3PL = saved;
+        // Ensure new vendors have a default CSV config
+        VENDORS_3PL.forEach(v => {
+          if (!VENDOR_STEP2_CONFIG[v]) {
+            VENDOR_STEP2_CONFIG[v] = {
+              templateKey: 'bp-step2-' + v.toLowerCase(),
+              headers: ['RecirQ ESN', 'Final Disposition', 'RMA#', 'RMA Submission Date'],
+              imeiAliases: ['RecirQ ESN', 'ESN', 'IMEI', 'Serial#', 'Serial', 'DeviceID'],
+              rmaAliases: ['RMA#', 'RMA', 'RMAs', 'RMANumber'],
+              extraCols: { disposition: ['Final Disposition', 'Disposition'], submDate: ['RMA Submission Date', 'Submission Date'] },
+              falloutHeaders: ['RecirQ ESN', 'Final Disposition', 'RMA#', 'RMA Submission Date'],
+              falloutRow: (item) => [item.imei, item.disposition, item.rma, item.submDate],
+            };
+          }
+        });
+      }
+    }
   } catch (e) { console.warn('PP load state failed:', e); }
   // Load photo references
   try {
@@ -6421,11 +6494,7 @@ function renderPPUploadSection() {
           <label>Vendor</label>
           <select id="pp-vendor">
             <option value="">Select vendor...</option>
-            <option value="VERIZON">Verizon</option>
-            <option value="BRIGHTPOINT">Brightpoint</option>
-            <option value="CRTC">CRTC</option>
-            <option value="SAMSUNG">Samsung (RTV Victra)</option>
-            <option value="CPO">CPO</option>
+            ${getAllVendorsWithVZ().map(v => '<option value="' + v.key + '">' + v.label + '</option>').join('')}
           </select>
         </div>
         <div class="form-group">
@@ -6875,11 +6944,7 @@ function renderPPHistorySection() {
         <label style="font-size:11px;color:#888;font-weight:600;">Vendor</label>
         <select id="pp-daily-vendor-filter" onchange="ppFilterHistoryByDate()" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;">
           <option value="">All Vendors</option>
-          <option value="VERIZON">Verizon</option>
-          <option value="BRIGHTPOINT">Brightpoint</option>
-          <option value="CRTC">CRTC</option>
-          <option value="SAMSUNG">Samsung</option>
-          <option value="CPO">CPO</option>
+          ${getAllVendorsWithVZ().map(v => '<option value="' + v.key + '">' + v.label + '</option>').join('')}
         </select>
         <label style="font-size:11px;color:#888;font-weight:600;">From</label>
         <input type="date" id="pp-daily-date-from" value="${today}" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;" onchange="ppFilterHistoryByDate()">
@@ -8764,6 +8829,93 @@ function reebeloRenderDetail(d) {
     h += '<div style="padding:20px;text-align:center;color:var(--success-green)">No issues found - perfect match!</div>';
   }
   return h;
+}
+
+// ═══════════ VENDOR CONFIGURATION ═══════════
+function renderVendorConfig() {
+  const listEl = document.getElementById('vendor-config-list');
+  const csvEl = document.getElementById('vendor-config-csv-info');
+  if (!listEl) return;
+
+  let html = '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+  // Verizon always present, not removable
+  html += '<div style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--pass-bg);border:1px solid var(--success-green);border-radius:8px;"><span style="font-weight:600;font-size:13px;">Verizon</span><span style="font-size:10px;color:var(--success-green);font-weight:600;">ALWAYS</span></div>';
+
+  VENDORS_3PL.forEach(v => {
+    const hasConfig = !!VENDOR_STEP2_CONFIG[v];
+    html += `<div style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--light-gray);border:1px solid var(--medium-gray);border-radius:8px;">
+      <span style="font-weight:600;font-size:13px;">${v}</span>
+      ${hasConfig ? '<span style="font-size:10px;color:var(--success-green);" title="CSV config exists">&#10003;</span>' : '<span style="font-size:10px;color:var(--warn-orange);" title="Using default CSV config">&#9888;</span>'}
+      <button onclick="vendorConfigRemove('${v}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--alert-red);padding:0 2px;" title="Remove ${v}">&times;</button>
+    </div>`;
+  });
+  html += '</div>';
+  listEl.innerHTML = html;
+
+  // CSV config info
+  let csvHtml = '<div class="tbl-wrap"><table style="font-size:12px;"><tr><th>Vendor</th><th>Template</th><th>IMEI Column</th><th>RMA Column</th><th>Status</th></tr>';
+  VENDORS_3PL.forEach(v => {
+    const cfg = VENDOR_STEP2_CONFIG[v];
+    if (cfg) {
+      csvHtml += `<tr><td><b>${v}</b></td><td>${cfg.templateKey}</td><td>${cfg.imeiAliases[0]}</td><td>${cfg.rmaAliases[0]}</td><td><span class="badge badge-pass">Configured</span></td></tr>`;
+    } else {
+      csvHtml += `<tr><td><b>${v}</b></td><td>default</td><td>RecirQ ESN</td><td>RMA#</td><td><span class="badge badge-review">Default</span></td></tr>`;
+    }
+  });
+  csvHtml += '</table></div>';
+  csvEl.innerHTML = csvHtml;
+}
+
+function vendorConfigAdd() {
+  const input = document.getElementById('vendor-config-new');
+  const name = (input.value || '').trim();
+  if (!name) return;
+  // Check duplicates (case-insensitive)
+  if (VENDORS_3PL.some(v => v.toUpperCase() === name.toUpperCase()) || name.toUpperCase() === 'VERIZON') {
+    alert('Vendor "' + name + '" already exists.');
+    return;
+  }
+  // Capitalize first letter
+  const formatted = name.charAt(0).toUpperCase() + name.slice(1);
+  VENDORS_3PL.push(formatted);
+
+  // Add default CSV config if not present
+  if (!VENDOR_STEP2_CONFIG[formatted]) {
+    VENDOR_STEP2_CONFIG[formatted] = {
+      templateKey: 'bp-step2-' + formatted.toLowerCase(),
+      headers: ['RecirQ ESN', 'Final Disposition', 'RMA#', 'RMA Submission Date'],
+      imeiAliases: ['RecirQ ESN', 'ESN', 'IMEI', 'Serial#', 'Serial', 'DeviceID'],
+      rmaAliases: ['RMA#', 'RMA', 'RMAs', 'RMANumber'],
+      extraCols: { disposition: ['Final Disposition', 'Disposition'], submDate: ['RMA Submission Date', 'Submission Date'] },
+      falloutHeaders: ['RecirQ ESN', 'Final Disposition', 'RMA#', 'RMA Submission Date'],
+      falloutRow: (item) => [item.imei, item.disposition, item.rma, item.submDate],
+    };
+  }
+
+  input.value = '';
+  vendorConfigSave();
+  renderVendorConfig();
+}
+
+function vendorConfigRemove(name) {
+  if (!confirm('Remove vendor "' + name + '"?\n\nThis will remove it from all dropdowns. Existing packing jobs and history for this vendor will not be deleted.')) return;
+  VENDORS_3PL = VENDORS_3PL.filter(v => v !== name);
+  vendorConfigSave();
+  renderVendorConfig();
+  // Update selected vendor if it was removed
+  if (selected3PLVendor === name) {
+    selected3PLVendor = VENDORS_3PL[0] || 'Brightpoint';
+  }
+}
+
+function vendorConfigSave() {
+  // Persist to pp_state
+  const payload = { value: VENDORS_3PL };
+  fetch(API + '/pp/state/ppVendors', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(e => console.warn('Failed to save vendor config:', e));
 }
 
 // -- Settings --
