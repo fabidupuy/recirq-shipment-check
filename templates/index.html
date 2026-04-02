@@ -6304,6 +6304,14 @@ async function ppLoadState() {
         if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
         if (job.boxLimit === undefined) job.boxLimit = 30;
       });
+      // Reconcile orphaned packed units after load
+      let totalRepaired = 0;
+      Object.keys(ppJobs).forEach(v => { totalRepaired += ppReconcileOrphans(v); });
+      if (totalRepaired > 0) {
+        console.warn('PP load: repaired ' + totalRepaired + ' orphaned units — saving fix');
+        // Save immediately (no debounce) so the repair persists
+        setTimeout(() => ppDoSave(), 100);
+      }
     }
     if (state.ppCompletedRMAs) {
       ppCompletedRMAs = JSON.parse(state.ppCompletedRMAs);
@@ -6370,6 +6378,35 @@ function ppRebuildGroups(job) {
     if (!job.rmaGroups[u.rmaNumber]) job.rmaGroups[u.rmaNumber] = [];
     job.rmaGroups[u.rmaNumber].push(u);
   });
+}
+
+// ── ORPHAN RECONCILIATION ──
+// Detect packed units not in any box and add them to the current box.
+// This fixes state corruption from multi-tab merge gaps or stale overwrites.
+function ppReconcileOrphans(vendor) {
+  const job = ppJobs[vendor];
+  if (!job || !job.boxes || vendor === 'VERIZON') return 0; // VZ doesn't use boxes
+
+  // Build set of all IMEIs across all boxes
+  const inBox = new Set();
+  job.boxes.forEach(b => (b.imeis || []).forEach(imei => inBox.add(imei)));
+
+  // Find packed, non-fallout units missing from all boxes
+  const orphans = job.units.filter(u => u.packed && !u.fallout && !inBox.has(u.imei));
+  if (orphans.length === 0) return 0;
+
+  // Add orphans to the current open box
+  const currentBox = job.boxes[job.currentBoxIdx];
+  if (!currentBox) return 0;
+
+  orphans.forEach(u => {
+    if (!currentBox.imeis.includes(u.imei)) {
+      currentBox.imeis.push(u.imei);
+    }
+  });
+
+  console.warn(`PP reconcile: found ${orphans.length} orphaned packed units for ${vendor}, added to box #${currentBox.boxNum}:`, orphans.map(u => u.imei));
+  return orphans.length;
 }
 async function ppDeleteJob(vendor) {
   if (!currentUser || currentUser.role !== 'admin') {
@@ -7541,9 +7578,15 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
         segments += '<div style="width:100%;flex:' + completedVendors[v] + ' 0 0%;background:' + vendorColors[v] + ';min-height:3px;" title="' + v + ': ' + completedVendors[v] + '"></div>';
       }
     });
-    // In-progress segment (single orange block)
+    // In-progress segment (single orange block, tooltip shows vendor breakdown)
     if (data.inProgress > 0) {
-      segments += '<div style="width:100%;flex:' + data.inProgress + ' 0 0%;background:var(--warn-orange);min-height:3px;" title="In Progress: ' + data.inProgress + '"></div>';
+      const ipVendors = {};
+      filtered.filter(u => u.packedAt.split('T')[0] === date && u.source === 'in-progress').forEach(u => {
+        const v = u.vendor || 'Unknown';
+        ipVendors[v] = (ipVendors[v] || 0) + 1;
+      });
+      const ipTooltip = 'In Progress: ' + data.inProgress + ' — ' + Object.entries(ipVendors).sort((a,b) => b[1]-a[1]).map(([v,c]) => v + ': ' + c).join(', ');
+      segments += '<div style="width:100%;flex:' + data.inProgress + ' 0 0%;background:var(--warn-orange);min-height:3px;" title="' + ipTooltip + '"></div>';
     }
 
     html += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer;" onclick="ppDashboardClickDate('${date}')">
@@ -8100,10 +8143,29 @@ async function ppCompleteDateGroup(vendor, subDate) {
   ppExpandedRMAs.delete(groupId);
 
   // Reset tracking and boxes for non-VZ vendors after completing a group
+  // Only reset if no remaining units exist; otherwise preserve boxes that contain remaining units
   job.tracking = '';
   job.trackingConfirmed = false;
-  job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
-  job.currentBoxIdx = 0;
+  if (job.units.length === 0) {
+    // No units left — safe to fully reset boxes
+    job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
+    job.currentBoxIdx = 0;
+  } else {
+    // Other date groups still active — remove completed IMEIs from boxes but keep the rest
+    const completedImeis = new Set(grp.map(u => u.imei));
+    job.boxes.forEach(b => {
+      b.imeis = (b.imeis || []).filter(imei => !completedImeis.has(imei));
+    });
+    // Remove empty closed boxes, keep current open box even if empty
+    const currentBox = job.boxes[job.currentBoxIdx];
+    job.boxes = job.boxes.filter(b => b === currentBox || b.imeis.length > 0);
+    job.currentBoxIdx = job.boxes.indexOf(currentBox);
+    if (job.currentBoxIdx < 0) {
+      // Current box was removed (shouldn't happen) — create a new one
+      job.boxes.push({ boxNum: (job.boxes.length > 0 ? Math.max(...job.boxes.map(b => b.boxNum)) + 1 : 1), imeis: [], closedAt: null, lockedDate: null });
+      job.currentBoxIdx = job.boxes.length - 1;
+    }
+  }
 
   ppSaveState();
   renderPPPackingSection();
@@ -8735,10 +8797,27 @@ function ppSetQC(unitIdx, vendor, field, value) {
     }
   } else {
     unit.qc[field] = value;
-    // If cosmetic is changed back to PASSED, clear fallout
+    // If cosmetic is changed back to PASSED, clear fallout and restore packed + box membership
     if (field === 'cosmetic' && value === 'PASSED' && unit.fallout) {
       unit.fallout = false;
       unit.falloutReason = '';
+      // Restore packed status (cosmetic FAIL set it to false)
+      if (!unit.packed) {
+        unit.packed = true;
+        unit.packedAt = new Date().toISOString();
+      }
+      // Restore box membership for non-VZ
+      const isVZ = vendor === 'VERIZON';
+      if (!isVZ) {
+        const job = ppJobs[vendor];
+        const inAnyBox = job.boxes.some(b => (b.imeis || []).includes(unit.imei));
+        if (!inAnyBox) {
+          const currentBox = job.boxes[job.currentBoxIdx];
+          if (currentBox && !currentBox.closedAt) {
+            currentBox.imeis.push(unit.imei);
+          }
+        }
+      }
     }
   }
   ppSaveState();
@@ -9175,12 +9254,26 @@ function ppResolveAllConflicts(action, vendor) {
               changed = true;
             }
 
-            // Merge boxes: adopt closed boxes from server, keep local open box
+            // Merge boxes: adopt closed boxes from server, merge open box imeis (union)
             if (serverJob.boxes && localJob.boxes) {
               serverJob.boxes.forEach((sb, idx) => {
                 if (sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
                   localJob.boxes[idx] = sb; // adopt closed box from server
                   changed = true;
+                } else if (!sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
+                  // Both sides have this box open — union the imeis arrays (never remove, only add)
+                  const localImeis = new Set(localJob.boxes[idx].imeis || []);
+                  (sb.imeis || []).forEach(imei => {
+                    if (!localImeis.has(imei)) {
+                      localJob.boxes[idx].imeis.push(imei);
+                      changed = true;
+                      needsSaveBack = true; // persist the merged imeis to server
+                    }
+                  });
+                  // Adopt lockedDate from server if local doesn't have one
+                  if (sb.lockedDate && !localJob.boxes[idx].lockedDate) {
+                    localJob.boxes[idx].lockedDate = sb.lockedDate;
+                  }
                 }
               });
               // If server has more boxes (another tab created them), append them
@@ -9207,6 +9300,11 @@ function ppResolveAllConflicts(action, vendor) {
               if (job.units && job.units.length > 0) ppRebuildGroups(job);
               if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
               if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
+            });
+            // Reconcile orphaned packed units after merge
+            Object.keys(ppJobs).forEach(v => {
+              const repaired = ppReconcileOrphans(v);
+              if (repaired > 0) needsSaveBack = true;
             });
           }
         }
