@@ -7527,33 +7527,23 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
     const today = new Date().toISOString().split('T')[0];
     const isToday = date === today;
 
-    // Build stacked segments — all units grouped by vendor (solid), in-progress as one block at bottom
+    // Build stacked segments — all by vendor (completed solid, in-progress orange)
     let segments = '';
-    const vendorCounts = {};
-    const ipVendors = {};
-    let ipTotal = 0;
-    filtered.filter(u => u.packedAt.split('T')[0] === date).forEach(u => {
+    const completedVendors = {};
+    filtered.filter(u => u.packedAt.split('T')[0] === date && u.source === 'completed').forEach(u => {
       const v = u.vendor || 'Unknown';
-      if (u.source === 'completed') {
-        vendorCounts[v] = (vendorCounts[v] || 0) + 1;
-      } else {
-        ipVendors[v] = (ipVendors[v] || 0) + 1;
-        ipTotal++;
-      }
+      completedVendors[v] = (completedVendors[v] || 0) + 1;
     });
 
     // Completed segments (solid vendor color)
     allVendorNames.forEach(v => {
-      if (vendorCounts[v]) {
-        segments += '<div style="width:100%;flex:' + vendorCounts[v] + ' 0 0%;background:' + vendorColors[v] + ';min-height:3px;" title="' + v + ': ' + vendorCounts[v] + ' completed"></div>';
+      if (completedVendors[v]) {
+        segments += '<div style="width:100%;flex:' + completedVendors[v] + ' 0 0%;background:' + vendorColors[v] + ';min-height:3px;" title="' + v + ': ' + completedVendors[v] + '"></div>';
       }
     });
-    // In-progress segment (single orange block with vendor breakdown in tooltip)
-    if (ipTotal > 0) {
-      const ipTooltip = allVendorNames.filter(v => ipVendors[v]).map(v => v + ': ' + ipVendors[v]).join(', ');
-      segments += '<div class="ppd-ip-bar" style="width:100%;flex:' + ipTotal + ' 0 0%;background:var(--warn-orange);min-height:3px;position:relative;cursor:pointer;" data-ip-detail="' + ipTooltip.replace(/"/g, '&quot;') + '">' +
-        '<div class="ppd-ip-tooltip" style="display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#333;color:white;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;z-index:10;pointer-events:none;margin-bottom:4px;">' + ipTotal + ' In Progress: ' + ipTooltip + '</div>' +
-        '</div>';
+    // In-progress segment (single orange block)
+    if (data.inProgress > 0) {
+      segments += '<div style="width:100%;flex:' + data.inProgress + ' 0 0%;background:var(--warn-orange);min-height:3px;" title="In Progress: ' + data.inProgress + '"></div>';
     }
 
     html += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer;" onclick="ppDashboardClickDate('${date}')">
@@ -7577,7 +7567,7 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
     html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:' + vendorColors[v] + ';"></div> ' + v + '</div>';
   });
   if (inProgressUnits > 0) {
-    html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:var(--warn-orange);"></div> In Progress (hover for details)</div>';
+    html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:var(--warn-orange);"></div> In Progress</div>';
   }
   html += '</div></div>';
 
@@ -7695,14 +7685,6 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
   html += '</div>';
 
   body.innerHTML = html;
-
-  // Attach hover listeners for in-progress tooltips
-  body.querySelectorAll('.ppd-ip-bar').forEach(bar => {
-    const tooltip = bar.querySelector('.ppd-ip-tooltip');
-    if (!tooltip) return;
-    bar.addEventListener('mouseenter', () => { tooltip.style.display = 'block'; });
-    bar.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
-  });
 }
 
 // ── RMA PHOTO GALLERY (Packed RMAs) ──
