@@ -7030,7 +7030,7 @@ function renderPPHistorySection() {
     </div>
   </div>`;
 
-  html += '<div class="card"><h2>Completed RMAs</h2><p style="font-size:13px;color:#888;margin-bottom:8px;">RMAs that have been fully packed and removed from the packing queue.</p>';
+  html += '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><h2 style="margin:0;">Completed RMAs</h2><div id="pp-hist-totals" style="font-size:13px;font-weight:600;color:var(--dark-green);"></div></div><p style="font-size:13px;color:#888;margin-bottom:8px;">RMAs that have been fully packed and removed from the packing queue.</p>';
   html += '<div style="margin-bottom:12px;"><input type="text" id="pp-hist-search" placeholder="Search by RMA#, Tracking#, or IMEI..." oninput="ppSearchHistory()" style="width:100%;max-width:400px;padding:8px 12px;border:2px solid var(--medium-gray);border-radius:8px;font-size:13px;"></div>';
   html += '<div class="tbl-wrap"><table><tr><th>Group</th><th>Vendor</th><th>Units</th><th>RMAs</th><th>Tracking</th><th>Completed</th><th>By</th><th></th></tr>';
 
@@ -7040,7 +7040,7 @@ function renderPPHistorySection() {
     const activeUnits = entry.units.filter(u => !u.fallout);
     const completedDate = entry.completedAt ? entry.completedAt.split('T')[0] : '';
     const vzImeis = activeUnits.map(u => u.imei).join(',');
-    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}" data-vendor="VERIZON" data-rma="${entry.rma}" data-tracking="${entry.tracking || ''}" data-imeis="${vzImeis}">
+    html += `<tr class="pp-hist-row" data-completed-date="${completedDate}" data-vendor="VERIZON" data-rma="${entry.rma}" data-tracking="${entry.tracking || ''}" data-imeis="${vzImeis}" data-units="${activeUnits.length}">
       <td><b>RMA# ${entry.rma}</b></td>
       <td><span class="badge badge-verizon">VERIZON</span></td>
       <td>${activeUnits.length}</td>
@@ -7072,7 +7072,7 @@ function renderPPHistorySection() {
     const subDate = group.entries.find(e => e.submissionDate)?.submissionDate || '';
     const groupCompletedDate = group.completedAt ? group.completedAt.split('T')[0] : '';
     const grpImeis = group.allUnits.map(u => u.imei).join(',');
-    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}" data-vendor="${group.vendor}" data-rma="${[...rmaSet].join(',')}" data-tracking="${group.tracking || ''}" data-imeis="${grpImeis}">
+    html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}" data-vendor="${group.vendor}" data-rma="${[...rmaSet].join(',')}" data-tracking="${group.tracking || ''}" data-imeis="${grpImeis}" data-units="${activeUnits.length}">
       <td><b>${subDate || group.tracking}</b>${falloutUnits.length > 0 ? ' <span style="font-size:11px;color:var(--alert-red);">(' + falloutUnits.length + ' fallout)</span>' : ''}</td>
       <td><span class="badge ${badgeClass}">${group.vendor}</span></td>
       <td>${activeUnits.length}</td>
@@ -7098,6 +7098,21 @@ function renderPPHistorySection() {
 
   html += '</table></div></div>';
   el.innerHTML = html;
+  ppUpdateHistoryTotals();
+}
+
+function ppUpdateHistoryTotals() {
+  const el = document.getElementById('pp-hist-totals');
+  if (!el) return;
+  const rows = document.querySelectorAll('.pp-hist-row');
+  let totalUnits = 0, totalGroups = 0;
+  rows.forEach(row => {
+    if (row.style.display !== 'none') {
+      totalUnits += parseInt(row.getAttribute('data-units') || '0', 10);
+      totalGroups++;
+    }
+  });
+  el.textContent = totalGroups + ' group' + (totalGroups !== 1 ? 's' : '') + ' \u00B7 ' + totalUnits + ' units packed';
 }
 
 function ppToggleHistoryDetail(idx) {
@@ -7156,6 +7171,7 @@ function ppFilterHistoryByDate() {
   } else if (noMatchRow) {
     noMatchRow.remove();
   }
+  ppUpdateHistoryTotals();
 }
 
 function ppClearHistoryDateFilter() {
@@ -7171,6 +7187,7 @@ function ppClearHistoryDateFilter() {
   document.querySelectorAll('.pp-hist-detail-row').forEach(row => { row.style.display = 'none'; });
   const noMatchRow = document.getElementById('pp-hist-no-match');
   if (noMatchRow) noMatchRow.remove();
+  ppUpdateHistoryTotals();
 }
 
 function ppSearchHistory() {
@@ -7218,6 +7235,7 @@ function ppSearchHistory() {
   } else if (noMatchRow) {
     noMatchRow.remove();
   }
+  ppUpdateHistoryTotals();
 }
 
 // ── RMA PHOTO GALLERY (Packed RMAs) ──
