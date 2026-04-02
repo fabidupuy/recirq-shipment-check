@@ -7355,9 +7355,15 @@ function ppDashboardClearFilters() {
   ppDashboardApplyFilters();
 }
 
-function renderPPDashboard() {
+async function renderPPDashboard() {
   const el = document.getElementById('pp-dashboard-content');
   if (!el) return;
+
+  // Ensure PP state is loaded (may not be ready if user navigates here directly)
+  if (Object.keys(ppJobs).length === 0 && ppCompletedRMAs.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:#888;"><div style="font-size:14px;">Loading packing data...</div></div>';
+    await ppLoadState();
+  }
 
   const allUnits = ppCollectAllPackedUnits();
 
@@ -7562,7 +7568,7 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
   allVendorNames.forEach(v => {
     html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:' + vendorColors[v] + ';"></div> ' + v + '</div>';
   });
-  if (inProgressCount > 0) {
+  if (inProgressUnits > 0) {
     html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:var(--warn-orange);"></div> In Progress</div>';
   }
   html += '</div></div>';
