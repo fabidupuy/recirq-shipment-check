@@ -6316,6 +6316,28 @@ async function ppLoadState() {
     }
     if (state.ppCompletedRMAs) {
       ppCompletedRMAs = JSON.parse(state.ppCompletedRMAs);
+      // Deduplicate: keep only the latest entry per RMA+vendor (skip fallouts)
+      const seen = new Map();
+      const deduped = [];
+      ppCompletedRMAs.forEach(e => {
+        const isFallout = e.rma && e.rma.startsWith('FALLOUT');
+        if (isFallout) { deduped.push(e); return; }
+        const key = e.rma + '|' + e.vendor;
+        if (seen.has(key)) {
+          // Keep the one with the later completedAt
+          const prev = seen.get(key);
+          if (e.completedAt > deduped[prev].completedAt) deduped[prev] = e;
+        } else {
+          seen.set(key, deduped.length);
+          deduped.push(e);
+        }
+      });
+      if (deduped.length < ppCompletedRMAs.length) {
+        console.warn('PP load: removed ' + (ppCompletedRMAs.length - deduped.length) + ' duplicate completed RMA entries');
+        ppCompletedRMAs = deduped;
+        // Save the cleaned-up state
+        setTimeout(() => ppDoSave(), 200);
+      }
     }
     if (state.ppVendors) {
       const saved = JSON.parse(state.ppVendors);
@@ -7146,7 +7168,7 @@ function renderPPHistorySection() {
     const badgeClass = 'badge-3pl';
     const subDate = group.entries.find(e => e.submissionDate)?.submissionDate || '';
     const groupCompletedDate = group.completedAt ? group.completedAt.split('T')[0] : '';
-    const grpImeis = group.allUnits.map(u => u.imei).join(',');
+    const grpImeis = activeUnits.map(u => u.imei).join(',');
     html += `<tr class="pp-hist-row" data-completed-date="${groupCompletedDate}" data-vendor="${group.vendor}" data-rma="${[...rmaSet].join(',')}" data-tracking="${group.tracking || ''}" data-imeis="${grpImeis}" data-units="${activeUnits.length}">
       <td><b>${subDate || group.tracking}</b>${falloutUnits.length > 0 ? ' <span style="font-size:11px;color:var(--alert-red);">(' + falloutUnits.length + ' fallout)</span>' : ''}</td>
       <td><span class="badge ${badgeClass}">${group.vendor}</span></td>
@@ -7180,14 +7202,16 @@ function ppUpdateHistoryTotals() {
   const el = document.getElementById('pp-hist-totals');
   if (!el) return;
   const rows = document.querySelectorAll('.pp-hist-row');
-  let totalUnits = 0, totalGroups = 0;
+  let totalGroups = 0;
+  const seenIMEIs = new Set();
   rows.forEach(row => {
     if (row.style.display !== 'none') {
-      totalUnits += parseInt(row.getAttribute('data-units') || '0', 10);
       totalGroups++;
+      const imeis = (row.getAttribute('data-imeis') || '').split(',').filter(Boolean);
+      imeis.forEach(id => seenIMEIs.add(id));
     }
   });
-  el.textContent = totalGroups + ' group' + (totalGroups !== 1 ? 's' : '') + ' \u00B7 ' + totalUnits + ' units packed';
+  el.textContent = totalGroups + ' group' + (totalGroups !== 1 ? 's' : '') + ' \u00B7 ' + seenIMEIs.size + ' units packed';
 }
 
 function ppToggleHistoryDetail(idx) {
@@ -9354,14 +9378,21 @@ function ppResolveAllConflicts(action, vendor) {
         }
         if (state.ppCompletedRMAs) {
           const serverCompleted = JSON.parse(state.ppCompletedRMAs);
-          // Merge: add any entries from server that we don't have locally (by rma+completedAt key)
+          // Merge: add any entries from server that we don't have locally
+          // Use rma+vendor as primary key for non-fallout entries to prevent duplicates
           const localKeys = new Set(ppCompletedRMAs.map(e => e.rma + '|' + e.completedAt));
+          const localRMAKeys = new Set(ppCompletedRMAs.filter(e => !e.rma.startsWith('FALLOUT')).map(e => e.rma + '|' + e.vendor));
           serverCompleted.forEach(se => {
             const key = se.rma + '|' + se.completedAt;
-            if (!localKeys.has(key)) {
-              ppCompletedRMAs.push(se);
-              changed = true;
-            }
+            const rmaKey = se.rma + '|' + se.vendor;
+            const isFallout = se.rma && se.rma.startsWith('FALLOUT');
+            // For non-fallout: skip if we already have this RMA+vendor combo
+            if (!isFallout && localRMAKeys.has(rmaKey)) return;
+            if (localKeys.has(key)) return;
+            ppCompletedRMAs.push(se);
+            if (!isFallout) localRMAKeys.add(rmaKey);
+            localKeys.add(key);
+            changed = true;
           });
           // Also adopt loadedToShipmentCheck flags from server
           const serverMap = {};
