@@ -378,6 +378,9 @@
         <div class="sidebar-item" data-section="pp-history" onclick="sidebarNav('pp-history')">
           <span class="icon">&#128203;</span> Packed RMAs
         </div>
+        <div class="sidebar-item" data-section="pp-dashboard" onclick="sidebarNav('pp-dashboard')">
+          <span class="icon">&#128202;</span> Packing Dashboard
+        </div>
       </div>
     </div>
     <!-- Shipment Check -->
@@ -689,6 +692,11 @@
 <!-- ═══════════ PICK & PACK: PACKED HISTORY ═══════════ -->
 <div id="sec-pp-history" class="section">
   <div id="pp-history-content"></div>
+</div>
+
+<!-- ═══════════ PICK & PACK: PACKING DASHBOARD ═══════════ -->
+<div id="sec-pp-dashboard" class="section">
+  <div id="pp-dashboard-content"></div>
 </div>
 
 <!-- ═══════════ VENDOR CONFIG ═══════════ -->
@@ -1505,7 +1513,7 @@ function showSection(id) {
   document.getElementById('sec-' + id).classList.add('active');
   // Update old nav tabs (kept for compat)
   document.querySelectorAll('.nav-tabs button').forEach(b => b.classList.remove('active'));
-  const map = { dashboard: 0, 'pp-upload': 1, 'pp-packing': 1, 'pp-history': 1, 'vendor-hub': 2, history: 3 };
+  const map = { dashboard: 0, 'pp-upload': 1, 'pp-packing': 1, 'pp-history': 1, 'pp-dashboard': 1, 'vendor-hub': 2, history: 3 };
   if (map[id] >= 0) document.querySelectorAll('.nav-tabs button')[map[id]].classList.add('active');
   // Update sidebar active state
   document.querySelectorAll('.sidebar-item[data-section]').forEach(el => el.classList.remove('active'));
@@ -1517,6 +1525,7 @@ function showSection(id) {
   if (id === 'pp-upload') renderPPUploadSection();
   if (id === 'pp-packing') renderPPPackingSection();
   if (id === 'pp-history') renderPPHistorySection();
+  if (id === 'pp-dashboard') renderPPDashboard();
   if (id === 'reebelo-trends') reebeloLoadTrends();
   if (id === 'reebelo-settings') reebeloLoadSettings();
   if (id === 'vendor-config') renderVendorConfig();
@@ -7236,6 +7245,422 @@ function ppSearchHistory() {
     noMatchRow.remove();
   }
   ppUpdateHistoryTotals();
+}
+
+// ══════════════════════════════════════
+// PACKING DASHBOARD
+// ══════════════════════════════════════
+
+function ppCollectAllPackedUnits() {
+  // Aggregate every packed unit from both completed RMAs and active jobs
+  const units = [];
+  const seenIMEIs = new Set();
+
+  // 1. Completed RMAs
+  ppCompletedRMAs.forEach(entry => {
+    if (!entry.units) return;
+    entry.units.forEach(u => {
+      if (u.fallout || !u.packedAt) return;
+      const key = u.imei || Math.random();
+      if (seenIMEIs.has(key)) return;
+      seenIMEIs.add(key);
+      units.push({
+        imei: u.imei || '',
+        description: u.description || '',
+        rma: u.rmaNumber || entry.rma || '',
+        vendor: entry.vendor || '',
+        tracking: u.trackingNumber || entry.tracking || '',
+        packedAt: u.packedAt,
+        packedBy: u.packedBy || entry.completedBy || '',
+        source: 'completed',
+        disposition: u.disposition || u.qc?.cosmetic || '',
+      });
+    });
+  });
+
+  // 2. Active jobs (packed but group not yet completed)
+  Object.values(ppJobs).forEach(job => {
+    if (!job.units) return;
+    job.units.forEach(u => {
+      if (!u.packed || u.fallout || !u.packedAt) return;
+      const key = u.imei || Math.random();
+      if (seenIMEIs.has(key)) return;
+      seenIMEIs.add(key);
+      units.push({
+        imei: u.imei || '',
+        description: u.description || '',
+        rma: u.rmaNumber || '',
+        vendor: job.vendor || '',
+        tracking: u.trackingNumber || job.tracking || '',
+        packedAt: u.packedAt,
+        packedBy: u.packedBy || '',
+        source: 'in-progress',
+        disposition: u.disposition || u.qc?.cosmetic || '',
+      });
+    });
+  });
+
+  return units;
+}
+
+function ppFilterDashboardUnits(units) {
+  const vendorEl = document.getElementById('ppd-filter-vendor');
+  const fromEl = document.getElementById('ppd-filter-from');
+  const toEl = document.getElementById('ppd-filter-to');
+  const operatorEl = document.getElementById('ppd-filter-operator');
+  const trackingEl = document.getElementById('ppd-filter-tracking');
+
+  const vendorFilter = vendorEl ? vendorEl.value : '';
+  const fromDate = fromEl ? fromEl.value : '';
+  const toDate = toEl ? toEl.value : '';
+  const operatorFilter = operatorEl ? operatorEl.value : '';
+  const trackingFilter = trackingEl ? trackingEl.value.trim().toLowerCase() : '';
+
+  return units.filter(u => {
+    const d = u.packedAt.split('T')[0];
+    if (vendorFilter && u.vendor !== vendorFilter) return false;
+    if (fromDate && d < fromDate) return false;
+    if (toDate && d > toDate) return false;
+    if (operatorFilter && u.packedBy !== operatorFilter) return false;
+    if (trackingFilter && !(u.tracking || '').toLowerCase().includes(trackingFilter) && !(u.rma || '').toLowerCase().includes(trackingFilter)) return false;
+    return true;
+  });
+}
+
+function ppDashboardApplyFilters() {
+  ppdSelectedDate = null;
+  const allUnits = ppCollectAllPackedUnits();
+  const filtered = ppFilterDashboardUnits(allUnits);
+  ppRenderDashboardBody(filtered, allUnits);
+}
+
+function ppDashboardClearFilters() {
+  const vendorEl = document.getElementById('ppd-filter-vendor');
+  const fromEl = document.getElementById('ppd-filter-from');
+  const toEl = document.getElementById('ppd-filter-to');
+  const operatorEl = document.getElementById('ppd-filter-operator');
+  const trackingEl = document.getElementById('ppd-filter-tracking');
+  if (vendorEl) vendorEl.value = '';
+  if (fromEl) fromEl.value = '';
+  if (toEl) toEl.value = '';
+  if (operatorEl) operatorEl.value = '';
+  if (trackingEl) trackingEl.value = '';
+  ppDashboardApplyFilters();
+}
+
+function renderPPDashboard() {
+  const el = document.getElementById('pp-dashboard-content');
+  if (!el) return;
+
+  const allUnits = ppCollectAllPackedUnits();
+
+  // Get unique operators and vendors for filter dropdowns
+  const operators = [...new Set(allUnits.map(u => u.packedBy).filter(Boolean))].sort();
+  const vendors = [...new Set(allUnits.map(u => u.vendor).filter(Boolean))].sort();
+
+  const today = new Date().toISOString().split('T')[0];
+
+  let html = `
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h2 style="color:var(--dark-green);margin:0;">Packing Dashboard</h2>
+        <p style="font-size:12px;color:#888;margin:4px 0 0;">Daily packing metrics by operator, vendor, and tracking group.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <label style="font-size:11px;color:#888;font-weight:600;">Vendor</label>
+        <select id="ppd-filter-vendor" onchange="ppDashboardApplyFilters()" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;">
+          <option value="">All Vendors</option>
+          ${vendors.map(v => '<option value="' + v + '">' + v + '</option>').join('')}
+        </select>
+        <label style="font-size:11px;color:#888;font-weight:600;">Operator</label>
+        <select id="ppd-filter-operator" onchange="ppDashboardApplyFilters()" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;">
+          <option value="">All Operators</option>
+          ${operators.map(o => '<option value="' + o + '">' + o + '</option>').join('')}
+        </select>
+        <label style="font-size:11px;color:#888;font-weight:600;">From</label>
+        <input type="date" id="ppd-filter-from" value="${today}" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;" onchange="ppDashboardApplyFilters()">
+        <label style="font-size:11px;color:#888;font-weight:600;">To</label>
+        <input type="date" id="ppd-filter-to" value="${today}" style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;" onchange="ppDashboardApplyFilters()">
+        <input type="text" id="ppd-filter-tracking" placeholder="RMA# or Tracking#..." style="padding:5px 8px;border:2px solid var(--medium-gray);border-radius:6px;font-size:12px;width:160px;" oninput="ppDashboardApplyFilters()">
+        <button class="btn btn-sm btn-outline" onclick="ppDashboardClearFilters()" style="font-size:11px;padding:4px 10px;">All</button>
+      </div>
+    </div>
+  </div>
+  <div id="ppd-body"></div>`;
+
+  el.innerHTML = html;
+
+  // Apply default filter (today)
+  const filtered = ppFilterDashboardUnits(allUnits);
+  ppRenderDashboardBody(filtered, allUnits);
+}
+
+let ppdSelectedDate = null; // tracks which daily bar is clicked
+
+function ppDashboardClickDate(date) {
+  const fromEl = document.getElementById('ppd-filter-from');
+  const toEl = document.getElementById('ppd-filter-to');
+  if (ppdSelectedDate === date) {
+    // Deselect — restore original filter range
+    ppdSelectedDate = null;
+    ppDashboardApplyFilters();
+  } else {
+    ppdSelectedDate = date;
+    // Don't touch the filter inputs — just re-render with the date drill-down
+    const allUnits = ppCollectAllPackedUnits();
+    const filtered = ppFilterDashboardUnits(allUnits);
+    // Sub-filter to just this date for operator/vendor sections
+    const dayFiltered = filtered.filter(u => u.packedAt.split('T')[0] === date);
+    ppRenderDashboardBody(filtered, allUnits, dayFiltered, date);
+  }
+}
+
+function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
+  const body = document.getElementById('ppd-body');
+  if (!body) return;
+
+  // If no day drill-down, show everything
+  if (!dayFiltered) dayFiltered = filtered;
+  if (!selectedDate) selectedDate = ppdSelectedDate;
+
+  // ── KPI CARDS (always from full filtered set) ──
+  const totalUnits = filtered.length;
+  const uniqueRMAs = new Set(filtered.map(u => u.rma).filter(Boolean)).size;
+  const uniqueTrackings = new Set(filtered.map(u => u.tracking).filter(Boolean)).size;
+  const inProgressCount = filtered.filter(u => u.source === 'in-progress').length;
+  const completedCount = filtered.filter(u => u.source === 'completed').length;
+  const uniqueOperators = new Set(filtered.map(u => u.packedBy).filter(Boolean)).size;
+
+  let html = `
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+    <div class="card" style="text-align:center;padding:16px;">
+      <div style="font-size:32px;font-weight:800;color:var(--dark-green);">${totalUnits.toLocaleString()}</div>
+      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">Units Packed</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px;">
+      <div style="font-size:32px;font-weight:800;color:var(--dark-green);">${uniqueRMAs}</div>
+      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">RMAs</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px;">
+      <div style="font-size:32px;font-weight:800;color:var(--dark-green);">${uniqueTrackings}</div>
+      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">Tracking #s</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px;">
+      <div style="font-size:32px;font-weight:800;color:var(--info-blue);">${completedCount.toLocaleString()}</div>
+      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">Completed</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px;">
+      <div style="font-size:32px;font-weight:800;color:var(--warn-orange);">${inProgressCount}</div>
+      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">In Progress</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px;">
+      <div style="font-size:32px;font-weight:800;color:#555;">${uniqueOperators}</div>
+      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">Operators</div>
+    </div>
+  </div>`;
+
+  // ── DAILY VOLUME CHART (always from full filtered set) ──
+  const byDate = {};
+  filtered.forEach(u => {
+    const d = u.packedAt.split('T')[0];
+    if (!byDate[d]) byDate[d] = { units: 0, byVendor: {}, inProgress: 0 };
+    byDate[d].units++;
+    if (u.source === 'in-progress') byDate[d].inProgress++;
+    const v = u.vendor || 'Unknown';
+    if (!byDate[d].byVendor[v]) byDate[d].byVendor[v] = 0;
+    byDate[d].byVendor[v]++;
+  });
+  const chartDates = Object.keys(byDate).sort();
+  const maxUnits = Math.max(...chartDates.map(d => byDate[d].units), 1);
+
+  // Collect all vendor names for consistent coloring
+  const allVendorNames = [...new Set(filtered.map(u => u.vendor).filter(Boolean))].sort();
+  const vendorColors = {};
+  allVendorNames.forEach((v, i) => {
+    if (v === 'VERIZON') vendorColors[v] = 'var(--dark-green)';
+    else {
+      const palette = ['#1565c0', '#7b1fa2', '#00838f', '#e65100', '#4527a0', '#2e7d32'];
+      vendorColors[v] = palette[i % palette.length];
+    }
+  });
+
+  html += `<div class="card" style="margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <h3 style="color:var(--dark-green);margin:0;">Daily Volume</h3>
+      ${selectedDate ? '<button class="btn btn-sm btn-outline" onclick="ppDashboardClickDate(&#39;'+selectedDate+'&#39;)" style="font-size:10px;color:var(--info-blue);">Clear day selection</button>' : '<span style="font-size:11px;color:#888;">Click a bar to drill down</span>'}
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:6px;padding:20px 0 0;height:220px;">`;
+
+  chartDates.forEach(date => {
+    const data = byDate[date];
+    const pct = Math.round((data.units / maxUnits) * 100);
+    const isSelected = selectedDate === date;
+    const barBorder = isSelected ? 'outline:3px solid var(--info-blue);outline-offset:2px;' : '';
+    const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const today = new Date().toISOString().split('T')[0];
+    const isToday = date === today;
+
+    // Build stacked segments
+    let segments = '';
+    const completedVendors = {};
+    filtered.filter(u => u.packedAt.split('T')[0] === date && u.source === 'completed').forEach(u => {
+      const v = u.vendor || 'Unknown';
+      completedVendors[v] = (completedVendors[v] || 0) + 1;
+    });
+
+    // Vendor segments (completed)
+    allVendorNames.forEach(v => {
+      if (completedVendors[v]) {
+        const segPct = Math.round((completedVendors[v] / data.units) * 100);
+        segments += '<div style="width:100%;height:' + segPct + '%;background:' + vendorColors[v] + ';"></div>';
+      }
+    });
+    // In-progress segment
+    if (data.inProgress > 0) {
+      const ipPct = Math.round((data.inProgress / data.units) * 100);
+      segments += '<div style="width:100%;height:' + ipPct + '%;background:var(--warn-orange);"></div>';
+    }
+
+    html += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer;" onclick="ppDashboardClickDate('${date}')">
+      <div style="font-size:13px;font-weight:700;color:var(--dark-green);margin-bottom:4px;">${data.units}</div>
+      <div style="width:70%;max-width:60px;height:${pct}%;border-radius:6px 6px 0 0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;${barBorder}">
+        ${segments}
+      </div>
+      <div style="font-size:10px;${isToday ? 'font-weight:700;color:var(--dark-green);' : isSelected ? 'font-weight:700;color:var(--info-blue);' : 'color:#888;font-weight:600;'}margin-top:6px;text-align:center;">${dateLabel}</div>
+    </div>`;
+  });
+
+  if (chartDates.length === 0) {
+    html += '<div style="flex:1;text-align:center;color:#888;padding:40px;">No data for selected range</div>';
+  }
+
+  html += '</div>';
+
+  // Legend
+  html += '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;">';
+  allVendorNames.forEach(v => {
+    html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:' + vendorColors[v] + ';"></div> ' + v + '</div>';
+  });
+  if (inProgressCount > 0) {
+    html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:var(--warn-orange);"></div> In Progress</div>';
+  }
+  html += '</div></div>';
+
+  // ── OPERATOR BREAKDOWN (uses dayFiltered if a day is selected) ──
+  const opData = selectedDate ? dayFiltered : filtered;
+  const byOperator = {};
+  opData.forEach(u => {
+    const op = u.packedBy || 'Unknown';
+    if (!byOperator[op]) byOperator[op] = { units: 0, rmas: new Set(), trackings: new Set(), completed: 0, inProgress: 0, byVendor: {} };
+    byOperator[op].units++;
+    if (u.rma) byOperator[op].rmas.add(u.rma);
+    if (u.tracking) byOperator[op].trackings.add(u.tracking);
+    if (u.source === 'completed') byOperator[op].completed++;
+    else byOperator[op].inProgress++;
+    const v = u.vendor || 'Unknown';
+    if (!byOperator[op].byVendor[v]) byOperator[op].byVendor[v] = 0;
+    byOperator[op].byVendor[v]++;
+  });
+
+  const sortedOperators = Object.entries(byOperator).sort((a, b) => b[1].units - a[1].units);
+  const dateLabel = selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+
+  html += `<div class="card" style="margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="color:var(--dark-green);margin:0;">Operator Breakdown</h3>
+      ${selectedDate ? '<span class="badge" style="background:var(--info-bg);color:var(--info-blue);font-size:11px;">' + dateLabel + '</span>' : ''}
+    </div>`;
+
+  if (sortedOperators.length === 0) {
+    html += '<div style="text-align:center;color:#888;padding:20px;">No packing data for selected filters</div>';
+  } else {
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;">';
+    sortedOperators.forEach(([op, data]) => {
+      const vendorSegs = Object.entries(data.byVendor).sort((a, b) => b[1] - a[1]);
+      let barSegments = '';
+      let barLabels = '';
+      vendorSegs.forEach(([v, count]) => {
+        const pct = Math.round((count / data.units) * 100);
+        const color = vendorColors[v] || '#888';
+        barSegments += '<div style="width:' + pct + '%;height:100%;background:' + color + ';" title="' + v + ' ' + count + '"></div>';
+        barLabels += '<span style="font-size:10px;color:' + color + ';font-weight:600;">' + v + ' ' + count + '</span>';
+      });
+      if (data.inProgress > 0) {
+        const ipPct = Math.round((data.inProgress / data.units) * 100);
+        barSegments += '<div style="width:' + ipPct + '%;height:100%;background:var(--warn-orange);" title="In Progress ' + data.inProgress + '"></div>';
+        barLabels += '<span style="font-size:10px;color:var(--warn-orange);font-weight:600;">In Prog ' + data.inProgress + '</span>';
+      }
+
+      html += `<div style="background:white;border:1px solid #e8e8e8;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:15px;font-weight:700;color:var(--dark-green);">${op}</div>
+          <div style="font-size:28px;font-weight:800;color:var(--dark-green);">${data.units}</div>
+        </div>
+        <div style="display:flex;gap:16px;">
+          <div style="text-align:center;"><div style="font-size:16px;font-weight:700;">${data.rmas.size}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">RMAs</div></div>
+          <div style="text-align:center;"><div style="font-size:16px;font-weight:700;">${data.trackings.size}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">Tracking #s</div></div>
+          <div style="text-align:center;"><div style="font-size:16px;font-weight:700;color:var(--info-blue);">${data.completed}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">Completed</div></div>
+          <div style="text-align:center;"><div style="font-size:16px;font-weight:700;color:var(--warn-orange);">${data.inProgress}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">In Progress</div></div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#888;margin-bottom:4px;font-weight:600;">VENDOR SPLIT</div>
+          <div style="height:10px;background:#f0f2f5;border-radius:5px;overflow:hidden;display:flex;">${barSegments}</div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">${barLabels}</div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // ── VENDOR BREAKDOWN (horizontal bars, uses dayFiltered if day selected) ──
+  const vendorTotals = {};
+  let vendorInProgress = 0;
+  opData.forEach(u => {
+    if (u.source === 'in-progress') { vendorInProgress++; return; }
+    const v = u.vendor || 'Unknown';
+    vendorTotals[v] = (vendorTotals[v] || 0) + 1;
+  });
+  const sortedVendors = Object.entries(vendorTotals).sort((a, b) => b[1] - a[1]);
+  const maxVendor = Math.max(...sortedVendors.map(([, c]) => c), vendorInProgress, 1);
+
+  html += `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="color:var(--dark-green);margin:0;">Vendor Breakdown</h3>
+      ${selectedDate ? '<span class="badge" style="background:var(--info-bg);color:var(--info-blue);font-size:11px;">' + dateLabel + '</span>' : ''}
+    </div>`;
+
+  sortedVendors.forEach(([v, count]) => {
+    const pct = Math.round((count / maxVendor) * 100);
+    const color = vendorColors[v] || '#888';
+    html += `<div style="display:flex;align-items:center;margin-bottom:10px;gap:10px;">
+      <div style="min-width:120px;font-size:13px;font-weight:600;text-align:right;">${v}</div>
+      <div style="flex:1;height:32px;background:#f0f2f5;border-radius:6px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;transition:width 0.4s ease;">${count > 0 ? count : ''}</div>
+      </div>
+      <div style="min-width:50px;font-size:14px;font-weight:700;color:#333;">${count}</div>
+    </div>`;
+  });
+
+  if (vendorInProgress > 0) {
+    const ipPct = Math.round((vendorInProgress / maxVendor) * 100);
+    html += `<div style="display:flex;align-items:center;margin-bottom:10px;gap:10px;">
+      <div style="min-width:120px;font-size:13px;font-weight:600;text-align:right;font-style:italic;color:var(--warn-orange);">In Progress</div>
+      <div style="flex:1;height:32px;background:#f0f2f5;border-radius:6px;overflow:hidden;">
+        <div style="height:100%;width:${ipPct}%;background:var(--warn-orange);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;transition:width 0.4s ease;">${vendorInProgress}</div>
+      </div>
+      <div style="min-width:50px;font-size:14px;font-weight:700;color:var(--warn-orange);">${vendorInProgress}</div>
+    </div>`;
+  }
+
+  if (sortedVendors.length === 0 && vendorInProgress === 0) {
+    html += '<div style="text-align:center;color:#888;padding:20px;">No data for selected filters</div>';
+  }
+
+  html += '</div>';
+
+  body.innerHTML = html;
 }
 
 // ── RMA PHOTO GALLERY (Packed RMAs) ──
