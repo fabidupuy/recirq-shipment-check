@@ -6224,8 +6224,24 @@ async function ppDoSave() {
   }
   try {
     const resp2 = await fetch(API + '/pp/state/ppCompletedRMAs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: ppCompletedRMAs }) });
-    if (!resp2.ok) console.warn('PP save completed RMAs failed:', resp2.status);
-  } catch(e) { console.warn('PP save completed failed:', e); }
+    if (!resp2.ok) {
+      console.error('PP save completed RMAs failed:', resp2.status);
+      if (!ppSaveFailed) {
+        ppSaveFailed = true;
+        alert('WARNING: Failed to save completed RMA history to server.\n\nDO NOT close or refresh this tab — your completed RMA data exists only in this browser.\n\nTry again or contact support.');
+      }
+      ppSaveInFlight = false;
+      return;
+    }
+  } catch(e) {
+    console.error('PP save completed RMAs network error:', e);
+    if (!ppSaveFailed) {
+      ppSaveFailed = true;
+      alert('WARNING: Failed to save completed RMA history (network error).\n\nDO NOT close or refresh this tab — your completed RMA data exists only in this browser.');
+    }
+    ppSaveInFlight = false;
+    return;
+  }
   ppSaveInFlight = false;
 }
 async function ppLoadState() {
@@ -7448,6 +7464,17 @@ async function ppCompleteRMA(vendor, rma) {
   confirmMsg += `\n\nThis will move the RMA to Packed history.`;
   if (!confirm(confirmMsg)) return;
 
+  // Duplicate guard: prevent completing an RMA that's already in history
+  const alreadyCompleted = ppCompletedRMAs.some(e => e.rma === rma && e.vendor === vendor && !e.rma.startsWith('FALLOUT'));
+  if (alreadyCompleted) {
+    alert(`RMA# ${rma} has already been completed. Removing from job list.`);
+    job.units = job.units.filter(u => u.rmaNumber !== rma);
+    ppRebuildGroups(job);
+    ppSaveState();
+    renderPPPackingSection();
+    return;
+  }
+
   // Store in history with deep copies so they persist independently
   ppCompletedRMAs.push({
     rma,
@@ -7529,8 +7556,10 @@ async function ppCompleteDateGroup(vendor, subDate) {
   // Capture closed box numbers for this group so gallery can show correct photos
   const groupBoxNums = closedBoxes.map(b => b.boxNum);
 
-  // Store each RMA as a separate completed entry
+  // Store each RMA as a separate completed entry (skip duplicates)
   rmas.forEach(rma => {
+    const alreadyCompleted = ppCompletedRMAs.some(e => e.rma === rma && e.vendor === vendor && !e.rma.startsWith('FALLOUT'));
+    if (alreadyCompleted) return; // skip — already in history
     const rmaUnits = grp.filter(u => u.rmaNumber === rma);
     ppCompletedRMAs.push({
       rma,
@@ -8569,7 +8598,7 @@ function ppResolveAllConflicts(action, vendor) {
       try { await loadBatchesFromServer(); } catch (e) { /* silent */ }
     }, 60000);
 
-    // Auto-refresh PP state every 30 seconds
+    // Auto-refresh PP state every 30 seconds — MERGE-based to prevent data loss
     setInterval(async () => {
       // Skip refresh if a save is pending or in-flight to prevent overwriting unsaved local state
       if (ppSavePending || ppSaveInFlight) return;
@@ -8577,10 +8606,100 @@ function ppResolveAllConflicts(action, vendor) {
         const resp = await fetch(API + '/pp/state');
         const state = await resp.json();
         let changed = false;
+        let needsSaveBack = false; // true if local wins a merge conflict and server needs updating
         if (state.ppJobs) {
-          const newJobs = JSON.parse(state.ppJobs);
-          if (JSON.stringify(newJobs) !== JSON.stringify(Object.fromEntries(Object.entries(ppJobs).map(([k,v]) => [k, {...v, rmaGroups: undefined}])))) {
-            ppJobs = newJobs;
+          const serverJobs = JSON.parse(state.ppJobs);
+          // MERGE: for each vendor job, merge unit-level changes instead of overwriting
+          Object.keys(serverJobs).forEach(vendor => {
+            const serverJob = serverJobs[vendor];
+            const localJob = ppJobs[vendor];
+            if (!localJob) {
+              // New vendor job from another tab — adopt it
+              ppJobs[vendor] = serverJob;
+              changed = true;
+              return;
+            }
+            // Build IMEI lookup for server units
+            const serverUnitMap = {};
+            (serverJob.units || []).forEach(u => { serverUnitMap[u.imei] = u; });
+            const localUnitMap = {};
+            (localJob.units || []).forEach(u => { localUnitMap[u.imei] = u; });
+
+            // Merge server units into local: adopt new units, merge packed/qc status
+            (serverJob.units || []).forEach(su => {
+              const lu = localUnitMap[su.imei];
+              if (!lu) {
+                // Unit exists on server but not locally (added from another tab)
+                localJob.units.push(su);
+                changed = true;
+              } else {
+                // Unit exists in both — merge: packed status should never regress
+                if (su.packed && !lu.packed) {
+                  // Server says packed, local says not — adopt server (another tab packed it)
+                  Object.assign(lu, su);
+                  changed = true;
+                } else if (!su.packed && lu.packed) {
+                  // Local says packed, server says not — keep local (we packed it, server is stale)
+                  needsSaveBack = true;
+                }
+                // Merge QC: keep the more complete version
+                if (su.qc && lu.qc) {
+                  Object.keys(su.qc).forEach(k => {
+                    if (!(k in lu.qc)) { lu.qc[k] = su.qc[k]; changed = true; }
+                  });
+                }
+                // Merge fallout status: once marked fallout, keep it
+                if (su.fallout && !lu.fallout) {
+                  lu.fallout = true;
+                  lu.falloutReason = su.falloutReason || lu.falloutReason;
+                  changed = true;
+                }
+              }
+            });
+
+            // Check for units removed on server (completed RMA) — remove locally too
+            localJob.units = localJob.units.filter(u => {
+              if (serverUnitMap[u.imei]) return true; // still on server
+              // Unit gone from server — check if it was completed
+              const wasCompleted = ppCompletedRMAs.some(e => e.units && e.units.some(cu => cu.imei === u.imei));
+              if (wasCompleted) { changed = true; return false; } // remove — it was completed
+              // Not completed — might be a local-only addition; keep it
+              return true;
+            });
+
+            // Merge tracking number — prefer confirmed
+            if (serverJob.trackingConfirmed && !localJob.trackingConfirmed) {
+              localJob.tracking = serverJob.tracking;
+              localJob.trackingConfirmed = true;
+              changed = true;
+            }
+
+            // Merge boxes: adopt closed boxes from server, keep local open box
+            if (serverJob.boxes && localJob.boxes) {
+              serverJob.boxes.forEach((sb, idx) => {
+                if (sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
+                  localJob.boxes[idx] = sb; // adopt closed box from server
+                  changed = true;
+                }
+              });
+              // If server has more boxes (another tab created them), append them
+              if (serverJob.boxes.length > localJob.boxes.length) {
+                for (let i = localJob.boxes.length; i < serverJob.boxes.length; i++) {
+                  localJob.boxes.push(serverJob.boxes[i]);
+                }
+                localJob.currentBoxIdx = Math.max(localJob.currentBoxIdx, serverJob.currentBoxIdx || 0);
+                changed = true;
+              }
+            }
+          });
+
+          // Adopt entirely new vendor jobs from server
+          Object.keys(serverJobs).forEach(v => {
+            if (!ppJobs[v]) { ppJobs[v] = serverJobs[v]; changed = true; }
+          });
+
+          // Rebuild rmaGroups after merge
+          if (changed) {
             Object.values(ppJobs).forEach(job => {
               if (!job.rmaGroups) job.rmaGroups = {};
               if (job.units) job.units.forEach(u => { if (!u.qc) u.qc = {}; });
@@ -8588,21 +8707,38 @@ function ppResolveAllConflicts(action, vendor) {
               if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
               if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
             });
-            changed = true;
           }
         }
         if (state.ppCompletedRMAs) {
-          const newCompleted = JSON.parse(state.ppCompletedRMAs);
-          if (newCompleted.length !== ppCompletedRMAs.length) {
-            ppCompletedRMAs = newCompleted;
-            changed = true;
-          }
+          const serverCompleted = JSON.parse(state.ppCompletedRMAs);
+          // Merge: add any entries from server that we don't have locally (by rma+completedAt key)
+          const localKeys = new Set(ppCompletedRMAs.map(e => e.rma + '|' + e.completedAt));
+          serverCompleted.forEach(se => {
+            const key = se.rma + '|' + se.completedAt;
+            if (!localKeys.has(key)) {
+              ppCompletedRMAs.push(se);
+              changed = true;
+            }
+          });
+          // Also adopt loadedToShipmentCheck flags from server
+          const serverMap = {};
+          serverCompleted.forEach(se => { serverMap[se.rma + '|' + se.completedAt] = se; });
+          ppCompletedRMAs.forEach(le => {
+            const se = serverMap[le.rma + '|' + le.completedAt];
+            if (se && se.loadedToShipmentCheck && !le.loadedToShipmentCheck) {
+              le.loadedToShipmentCheck = true;
+              changed = true;
+            }
+          });
         }
         // Refresh photos cache
         const photoResp = await fetch(API + '/photos/all');
         ppAllPhotos = await photoResp.json();
         // Keep shipment photos on batch objects in sync
         hydrateShipmentPhotos();
+
+        // If local had changes the server didn't, push them back
+        if (needsSaveBack) ppSaveState();
 
         // Re-render current section if data changed
         if (changed) {

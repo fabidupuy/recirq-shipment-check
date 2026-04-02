@@ -515,6 +515,53 @@ def fix_rename_tracking():
     return jsonify({'updated': updated, 'old': old_val, 'new': new_val})
 
 
+@app.route('/api/fix/mark-shipped', methods=['GET'])
+def fix_mark_shipped():
+    """Mark a tracking group as already shipped (hides from auto-fill).
+    Usage: /api/fix/mark-shipped?tracking=BRP03182026-1
+    """
+    tracking_val = request.args.get('tracking', '')
+    if not tracking_val:
+        return jsonify({'error': 'Provide ?tracking=... query param'}), 400
+    state_json = db.get_pp_state('ppCompletedRMAs')
+    if not state_json:
+        return jsonify({'error': 'No completed RMAs found'}), 404
+    entries = json.loads(state_json)
+    marked = 0
+    for e in entries:
+        if e.get('tracking') == tracking_val:
+            e['loadedToShipmentCheck'] = True
+            marked += 1
+    if marked > 0:
+        db.save_pp_state('ppCompletedRMAs', json.dumps(entries))
+    return jsonify({'marked_shipped': marked, 'tracking': tracking_val})
+
+
+@app.route('/api/fix/dedup-completed', methods=['GET'])
+def fix_dedup_completed():
+    """Remove duplicate entries from ppCompletedRMAs, keeping the first of each RMA."""
+    state_json = db.get_pp_state('ppCompletedRMAs')
+    if not state_json:
+        return jsonify({'error': 'No completed RMAs found'}), 404
+    entries = json.loads(state_json)
+    seen = set()
+    deduped = []
+    removed = 0
+    for e in entries:
+        key = e.get('rma', '') + '|' + e.get('vendor', '')
+        if e.get('rma', '').startswith('FALLOUT'):
+            # Fallouts use a different key to allow per-date fallouts
+            key = e.get('rma', '') + '|' + e.get('vendor', '') + '|' + e.get('submissionDate', '')
+        if key in seen:
+            removed += 1
+            continue
+        seen.add(key)
+        deduped.append(e)
+    if removed > 0:
+        db.save_pp_state('ppCompletedRMAs', json.dumps(deduped))
+    return jsonify({'removed': removed, 'before': len(entries), 'after': len(deduped)})
+
+
 @app.route('/api/photos/all', methods=['GET'])
 def all_photos():
     """Get all photo references with fresh presigned URLs."""
