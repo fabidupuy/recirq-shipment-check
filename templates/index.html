@@ -6304,8 +6304,9 @@ async function ppLoadState() {
         if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
         if (job.boxLimit === undefined) job.boxLimit = 30;
       });
-      // Reconcile orphaned packed units after load
+      // Deduplicate units and reconcile orphans after load
       let totalRepaired = 0;
+      Object.keys(ppJobs).forEach(v => { totalRepaired += ppDeduplicateUnits(v); });
       Object.keys(ppJobs).forEach(v => { totalRepaired += ppReconcileOrphans(v); });
       if (totalRepaired > 0) {
         console.warn('PP load: repaired ' + totalRepaired + ' orphaned units — saving fix');
@@ -6378,6 +6379,34 @@ function ppRebuildGroups(job) {
     if (!job.rmaGroups[u.rmaNumber]) job.rmaGroups[u.rmaNumber] = [];
     job.rmaGroups[u.rmaNumber].push(u);
   });
+}
+
+// ── UNIT DEDUPLICATION ──
+// Remove duplicate IMEIs from a job's units array (keeps the most complete version)
+function ppDeduplicateUnits(vendor) {
+  const job = ppJobs[vendor];
+  if (!job || !job.units) return 0;
+  const seen = new Map();
+  const deduped = [];
+  job.units.forEach(u => {
+    const existing = seen.get(u.imei);
+    if (!existing) {
+      seen.set(u.imei, deduped.length);
+      deduped.push(u);
+    } else {
+      // Keep the one with more data (packed > not packed, has QC > no QC)
+      const prev = deduped[existing];
+      if (u.packed && !prev.packed) deduped[existing] = u;
+      else if (u.qc && Object.keys(u.qc).length > Object.keys(prev.qc || {}).length) deduped[existing] = u;
+    }
+  });
+  const removed = job.units.length - deduped.length;
+  if (removed > 0) {
+    console.warn(`PP dedup: removed ${removed} duplicate IMEI(s) for ${vendor}`);
+    job.units = deduped;
+    ppRebuildGroups(job);
+  }
+  return removed;
 }
 
 // ── ORPHAN RECONCILIATION ──
@@ -7083,7 +7112,7 @@ function renderPPHistorySection() {
   // VZ entries — one row per RMA
   vzEntries.slice().reverse().forEach((entry) => {
     const idx = ppCompletedRMAs.indexOf(entry);
-    const activeUnits = entry.units.filter(u => !u.fallout);
+    const activeUnits = entry.units.filter(u => !u.fallout && u.packedAt);
     const completedDate = entry.completedAt ? entry.completedAt.split('T')[0] : '';
     const vzImeis = activeUnits.map(u => u.imei).join(',');
     html += `<tr class="pp-hist-row" data-completed-date="${completedDate}" data-vendor="VERIZON" data-rma="${entry.rma}" data-tracking="${entry.tracking || ''}" data-imeis="${vzImeis}" data-units="${activeUnits.length}">
@@ -7111,7 +7140,7 @@ function renderPPHistorySection() {
   // Non-VZ entries — one row per tracking group (fallouts included in details, not counted)
   Object.values(nonVZGroups).reverse().forEach((group) => {
     const gIdx = 'grp-' + group.tracking;
-    const activeUnits = group.allUnits.filter(u => !u.fallout);
+    const activeUnits = group.allUnits.filter(u => !u.fallout && u.packedAt);
     const falloutUnits = group.allUnits.filter(u => u.fallout);
     const rmaSet = new Set(group.entries.filter(e => !(e.rma && e.rma.startsWith('FALLOUT'))).map(e => e.rma));
     const badgeClass = 'badge-3pl';
@@ -9033,8 +9062,21 @@ async function ppTryMerge() {
     }
   });
 
+  // Deduplicate newUnits by IMEI (CSV may have the same IMEI on multiple rows)
+  const seenNewIMEIs = new Set();
+  const dedupedNewUnits = [];
+  newUnits.forEach(u => {
+    if (!seenNewIMEIs.has(u.imei)) {
+      seenNewIMEIs.add(u.imei);
+      dedupedNewUnits.push(u);
+    }
+  });
+  if (dedupedNewUnits.length < newUnits.length) {
+    console.warn('PP import: removed ' + (newUnits.length - dedupedNewUnits.length) + ' duplicate IMEI(s) from CSV');
+  }
+
   // Merge
-  job.units = [...job.units, ...newUnits];
+  job.units = [...job.units, ...dedupedNewUnits];
   ppRebuildGroups(job);
   // Save immediately (don't rely on debounce for large uploads)
   clearTimeout(ppSaveTimer);
@@ -9301,8 +9343,10 @@ function ppResolveAllConflicts(action, vendor) {
               if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
               if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
             });
-            // Reconcile orphaned packed units after merge
+            // Deduplicate units and reconcile orphaned packed units after merge
             Object.keys(ppJobs).forEach(v => {
+              const deduped = ppDeduplicateUnits(v);
+              if (deduped > 0) needsSaveBack = true;
               const repaired = ppReconcileOrphans(v);
               if (repaired > 0) needsSaveBack = true;
             });
