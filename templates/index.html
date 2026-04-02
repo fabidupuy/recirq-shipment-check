@@ -7527,7 +7527,7 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
     const today = new Date().toISOString().split('T')[0];
     const isToday = date === today;
 
-    // Build stacked segments
+    // Build stacked segments using flex-grow for accurate proportions
     let segments = '';
     const completedVendors = {};
     filtered.filter(u => u.packedAt.split('T')[0] === date && u.source === 'completed').forEach(u => {
@@ -7535,22 +7535,20 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
       completedVendors[v] = (completedVendors[v] || 0) + 1;
     });
 
-    // Vendor segments (completed)
+    // Vendor segments (completed) — use flex-grow for proportional sizing
     allVendorNames.forEach(v => {
       if (completedVendors[v]) {
-        const segPct = Math.round((completedVendors[v] / data.units) * 100);
-        segments += '<div style="width:100%;height:' + segPct + '%;background:' + vendorColors[v] + ';"></div>';
+        segments += '<div style="width:100%;flex:' + completedVendors[v] + ' 0 0%;background:' + vendorColors[v] + ';min-height:3px;" title="' + v + ': ' + completedVendors[v] + '"></div>';
       }
     });
     // In-progress segment
     if (data.inProgress > 0) {
-      const ipPct = Math.round((data.inProgress / data.units) * 100);
-      segments += '<div style="width:100%;height:' + ipPct + '%;background:var(--warn-orange);"></div>';
+      segments += '<div style="width:100%;flex:' + data.inProgress + ' 0 0%;background:var(--warn-orange);min-height:3px;" title="In Progress: ' + data.inProgress + '"></div>';
     }
 
     html += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer;" onclick="ppDashboardClickDate('${date}')">
       <div style="font-size:13px;font-weight:700;color:var(--dark-green);margin-bottom:4px;">${data.units}</div>
-      <div style="width:70%;max-width:60px;height:${pct}%;border-radius:6px 6px 0 0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;${barBorder}">
+      <div style="width:70%;max-width:60px;height:${pct}%;border-radius:6px 6px 0 0;overflow:hidden;display:flex;flex-direction:column;${barBorder}">
         ${segments}
       </div>
       <div style="font-size:10px;${isToday ? 'font-weight:700;color:var(--dark-green);' : isSelected ? 'font-weight:700;color:var(--info-blue);' : 'color:#888;font-weight:600;'}margin-top:6px;text-align:center;">${dateLabel}</div>
