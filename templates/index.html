@@ -7251,6 +7251,13 @@ function ppSearchHistory() {
 // PACKING DASHBOARD
 // ══════════════════════════════════════
 
+function ppNormalizeOperator(val) {
+  // Handle legacy data where packedBy was stored as a user object instead of a string
+  if (!val) return '';
+  if (typeof val === 'object') return val.displayName || val.username || '';
+  return val;
+}
+
 function ppCollectAllPackedUnits() {
   // Aggregate every packed unit from both completed RMAs and active jobs
   const units = [];
@@ -7271,7 +7278,7 @@ function ppCollectAllPackedUnits() {
         vendor: entry.vendor || '',
         tracking: u.trackingNumber || entry.tracking || '',
         packedAt: u.packedAt,
-        packedBy: u.packedBy || entry.completedBy || '',
+        packedBy: ppNormalizeOperator(u.packedBy) || entry.completedBy || '',
         source: 'completed',
         disposition: u.disposition || u.qc?.cosmetic || '',
       });
@@ -7293,7 +7300,7 @@ function ppCollectAllPackedUnits() {
         vendor: job.vendor || '',
         tracking: u.trackingNumber || job.tracking || '',
         packedAt: u.packedAt,
-        packedBy: u.packedBy || '',
+        packedBy: ppNormalizeOperator(u.packedBy) || '',
         source: 'in-progress',
         disposition: u.disposition || u.qc?.cosmetic || '',
       });
@@ -7428,12 +7435,23 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
   const totalUnits = filtered.length;
   const uniqueRMAs = new Set(filtered.map(u => u.rma).filter(Boolean)).size;
   const uniqueTrackings = new Set(filtered.map(u => u.tracking).filter(Boolean)).size;
-  const inProgressCount = filtered.filter(u => u.source === 'in-progress').length;
-  const completedCount = filtered.filter(u => u.source === 'completed').length;
+  const inProgressUnits = filtered.filter(u => u.source === 'in-progress').length;
+  const completedUnits = filtered.filter(u => u.source === 'completed').length;
+  // RMA-level completed vs in-progress
+  const completedRMASet = new Set();
+  const inProgressRMASet = new Set();
+  filtered.forEach(u => {
+    if (!u.rma) return;
+    if (u.source === 'completed') completedRMASet.add(u.rma);
+    else inProgressRMASet.add(u.rma);
+  });
+  // Remove RMAs from in-progress if they also appear in completed (mixed state counts as in-progress)
+  const pureCompletedRMAs = [...completedRMASet].filter(r => !inProgressRMASet.has(r)).length;
+  const inProgressRMAs = inProgressRMASet.size;
   const uniqueOperators = new Set(filtered.map(u => u.packedBy).filter(Boolean)).size;
 
   let html = `
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">
     <div class="card" style="text-align:center;padding:16px;">
       <div style="font-size:32px;font-weight:800;color:var(--dark-green);">${totalUnits.toLocaleString()}</div>
       <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">Units Packed</div>
@@ -7447,12 +7465,14 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
       <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">Tracking #s</div>
     </div>
     <div class="card" style="text-align:center;padding:16px;">
-      <div style="font-size:32px;font-weight:800;color:var(--info-blue);">${completedCount.toLocaleString()}</div>
-      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">Completed</div>
+      <div style="font-size:32px;font-weight:800;color:var(--info-blue);">${completedUnits.toLocaleString()}</div>
+      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">Completed Units</div>
+      <div style="font-size:12px;color:var(--info-blue);font-weight:600;margin-top:4px;">${pureCompletedRMAs} RMA${pureCompletedRMAs !== 1 ? 's' : ''}</div>
     </div>
     <div class="card" style="text-align:center;padding:16px;">
-      <div style="font-size:32px;font-weight:800;color:var(--warn-orange);">${inProgressCount}</div>
-      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">In Progress</div>
+      <div style="font-size:32px;font-weight:800;color:var(--warn-orange);">${inProgressUnits}</div>
+      <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;margin-top:2px;">In Progress Units</div>
+      <div style="font-size:12px;color:var(--warn-orange);font-weight:600;margin-top:4px;">${inProgressRMAs} RMA${inProgressRMAs !== 1 ? 's' : ''}</div>
     </div>
     <div class="card" style="text-align:center;padding:16px;">
       <div style="font-size:32px;font-weight:800;color:#555;">${uniqueOperators}</div>
@@ -7595,13 +7615,13 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
       html += `<div style="background:white;border:1px solid #e8e8e8;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div style="font-size:15px;font-weight:700;color:var(--dark-green);">${op}</div>
-          <div style="font-size:28px;font-weight:800;color:var(--dark-green);">${data.units}</div>
+          <div><div style="font-size:28px;font-weight:800;color:var(--dark-green);text-align:right;">${data.units}</div><div style="font-size:10px;color:#888;font-weight:600;text-align:right;">UNITS</div></div>
         </div>
         <div style="display:flex;gap:16px;">
           <div style="text-align:center;"><div style="font-size:16px;font-weight:700;">${data.rmas.size}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">RMAs</div></div>
           <div style="text-align:center;"><div style="font-size:16px;font-weight:700;">${data.trackings.size}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">Tracking #s</div></div>
-          <div style="text-align:center;"><div style="font-size:16px;font-weight:700;color:var(--info-blue);">${data.completed}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">Completed</div></div>
-          <div style="text-align:center;"><div style="font-size:16px;font-weight:700;color:var(--warn-orange);">${data.inProgress}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">In Progress</div></div>
+          <div style="text-align:center;"><div style="font-size:16px;font-weight:700;color:var(--info-blue);">${data.completed}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">Completed Units</div></div>
+          <div style="text-align:center;"><div style="font-size:16px;font-weight:700;color:var(--warn-orange);">${data.inProgress}</div><div style="font-size:10px;color:#888;text-transform:uppercase;font-weight:600;">In Prog Units</div></div>
         </div>
         <div>
           <div style="font-size:10px;color:#888;margin-bottom:4px;font-weight:600;">VENDOR SPLIT</div>
@@ -8468,7 +8488,7 @@ async function ppScanIMEI() {
 
   unit.packed = true;
   unit.packedAt = new Date().toISOString();
-  unit.packedBy = currentUser;
+  unit.packedBy = currentUser ? (currentUser.displayName || currentUser.username) : '';
   unit.trackingNumber = job.tracking || '';
   ppLastScanned = { unitIdx, vendor };
 
