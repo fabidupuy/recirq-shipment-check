@@ -6176,12 +6176,53 @@ let ppSaveTimer = null;
 let ppSaveFailed = false;
 let ppSavePending = false; // true when a debounced save is waiting to fire
 let ppSaveInFlight = false; // true when a save request is in progress
+let ppRetryTimer = null; // retry timer for failed saves
+let ppRetryCount = 0;
+const PP_MAX_RETRIES = 10;
+const PP_RETRY_DELAYS = [2000, 3000, 5000, 8000, 12000, 20000, 30000, 30000, 30000, 30000]; // escalating backoff
+
 function ppSaveState() {
   // Debounce saves to avoid hammering server on rapid scans
   ppSavePending = true;
   clearTimeout(ppSaveTimer);
   ppSaveTimer = setTimeout(() => { ppSavePending = false; ppDoSave(); }, 500);
 }
+
+async function ppPostWithRetry(key, payload, label) {
+  // Attempt a single POST; returns true on success, false on failure
+  try {
+    const resp = await fetch(API + '/pp/state/' + key, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: payload })
+    });
+    if (!resp.ok) {
+      console.error('PP save ' + label + ' failed:', resp.status);
+      return false;
+    }
+    return true;
+  } catch(e) {
+    console.error('PP save ' + label + ' network error:', e);
+    return false;
+  }
+}
+
+function ppScheduleRetry() {
+  if (ppRetryTimer) return; // already scheduled
+  if (ppRetryCount >= PP_MAX_RETRIES) {
+    console.error('PP save: max retries reached, giving up auto-retry');
+    alert('WARNING: Save has failed after multiple retries.\n\nDO NOT close this tab — your data exists only in this browser.\n\nPlease check your internet connection and try refreshing, or contact support.');
+    return;
+  }
+  const delay = PP_RETRY_DELAYS[ppRetryCount] || 30000;
+  ppRetryCount++;
+  console.warn('PP save: scheduling retry #' + ppRetryCount + ' in ' + (delay/1000) + 's');
+  ppRetryTimer = setTimeout(() => {
+    ppRetryTimer = null;
+    ppDoSave();
+  }, delay);
+}
+
 async function ppDoSave() {
   if (ppSaveInFlight) {
     // Another save is already in progress — re-queue so we don't lose this one
@@ -6201,46 +6242,39 @@ async function ppDoSave() {
     });
     jobsToSave[v] = { ...j, rmaGroups: undefined, units: slimUnits };
   });
-  try {
-    const resp = await fetch(API + '/pp/state/ppJobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: jobsToSave }) });
-    if (!resp.ok) {
-      console.error('PP save jobs failed:', resp.status);
-      if (!ppSaveFailed) {
-        ppSaveFailed = true;
-        alert('WARNING: Failed to save packing job data to server.\n\nDO NOT close or refresh this tab — your data exists only in this browser.\n\nTry again or contact support.');
-      }
-      ppSaveInFlight = false;
-      return;
-    }
-    ppSaveFailed = false;
-  } catch(e) {
-    console.error('PP save jobs network error:', e);
+
+  // Save ppJobs
+  const jobsOk = await ppPostWithRetry('ppJobs', jobsToSave, 'jobs');
+  if (!jobsOk) {
     if (!ppSaveFailed) {
       ppSaveFailed = true;
-      alert('WARNING: Failed to save packing job data to server (network error).\n\nDO NOT close or refresh this tab — your data exists only in this browser.');
+      alert('WARNING: Failed to save packing data to server.\n\nDO NOT close or refresh this tab — auto-retry is in progress.');
     }
     ppSaveInFlight = false;
+    ppScheduleRetry();
     return;
   }
-  try {
-    const resp2 = await fetch(API + '/pp/state/ppCompletedRMAs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: ppCompletedRMAs }) });
-    if (!resp2.ok) {
-      console.error('PP save completed RMAs failed:', resp2.status);
-      if (!ppSaveFailed) {
-        ppSaveFailed = true;
-        alert('WARNING: Failed to save completed RMA history to server.\n\nDO NOT close or refresh this tab — your completed RMA data exists only in this browser.\n\nTry again or contact support.');
-      }
-      ppSaveInFlight = false;
-      return;
-    }
-  } catch(e) {
-    console.error('PP save completed RMAs network error:', e);
+
+  // Save ppCompletedRMAs
+  const compOk = await ppPostWithRetry('ppCompletedRMAs', ppCompletedRMAs, 'completed RMAs');
+  if (!compOk) {
     if (!ppSaveFailed) {
       ppSaveFailed = true;
-      alert('WARNING: Failed to save completed RMA history (network error).\n\nDO NOT close or refresh this tab — your completed RMA data exists only in this browser.');
+      alert('WARNING: Failed to save completed RMA history to server.\n\nDO NOT close or refresh this tab — auto-retry is in progress.');
     }
     ppSaveInFlight = false;
+    ppScheduleRetry();
     return;
+  }
+
+  // Both succeeded
+  if (ppSaveFailed) {
+    ppSaveFailed = false;
+    ppRetryCount = 0;
+    console.log('PP save: recovered — all data saved successfully');
+    alert('Data saved successfully — safe to continue.');
+  } else {
+    ppRetryCount = 0;
   }
   ppSaveInFlight = false;
 }
@@ -6806,37 +6840,7 @@ function renderPPPackingSection() {
       return aTime - bTime;
     });
 
-    // Show closed boxes with Reprint option
-    const closedBoxes = job.boxes.filter(b => b.closedAt);
-    if (closedBoxes.length > 0) {
-      let closedHTML = '<div style="margin-bottom:12px;">';
-      closedHTML += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Closed Boxes</div>';
-      closedBoxes.forEach(b => {
-        const boxTracking = b.tracking || (b.labelData && b.labelData.tracking) || '';
-        const boxId = `closed-box-${ppActivePackingVendor}-${b.boxNum}`;
-        closedHTML += `<div style="background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;margin-bottom:4px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;">
-            <div>
-              <span style="font-size:12px;font-weight:600;">Box #${b.boxNum}</span>
-              <span style="font-size:11px;color:#888;margin-left:8px;">${b.imeis.length} units</span>
-              ${boxTracking ? '<span style="font-size:11px;color:var(--dark-green);margin-left:8px;font-family:monospace;">' + boxTracking + '</span>' : ''}
-              ${b.lockedDate ? '<span style="font-size:11px;color:#888;margin-left:8px;">' + b.lockedDate + '</span>' : ''}
-            </div>
-            <div style="display:flex;gap:4px;">
-              <button class="btn btn-sm btn-outline" onclick="ppToggleBoxContents('${boxId}')" style="font-size:10px;padding:2px 8px;">View Contents</button>
-              <button class="btn btn-sm btn-outline" onclick="ppReprintBoxLabel('${ppActivePackingVendor}',${b.boxNum})" style="font-size:10px;padding:2px 8px;">Reprint Label</button>
-            </div>
-          </div>
-          <div id="${boxId}" style="display:none;padding:4px 12px 8px;border-top:1px solid #e8e8e8;">
-            ${ppRenderBoxContents(b, ppActivePackingVendor)}
-          </div>
-        </div>`;
-      });
-      closedHTML += '</div>';
-      html += closedHTML;
-    }
-
-    // Show current box info
+    // Show current box info (at the top so operators don't have to scroll)
     const currentBox = job.boxes[job.currentBoxIdx];
     const currentBoxId = `current-box-${ppActivePackingVendor}-${currentBox.boxNum}`;
     const boxLimit = job.boxLimit || 0;
@@ -6868,6 +6872,36 @@ function renderPPPackingSection() {
       </div>
     `;
     html += currentBoxInfo;
+
+    // Show closed boxes with Reprint option
+    const closedBoxes = job.boxes.filter(b => b.closedAt);
+    if (closedBoxes.length > 0) {
+      let closedHTML = '<div style="margin-bottom:12px;">';
+      closedHTML += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Closed Boxes</div>';
+      closedBoxes.forEach(b => {
+        const boxTracking = b.tracking || (b.labelData && b.labelData.tracking) || '';
+        const boxId = `closed-box-${ppActivePackingVendor}-${b.boxNum}`;
+        closedHTML += `<div style="background:#f9f9f9;border:1px solid #e8e8e8;border-radius:6px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;">
+            <div>
+              <span style="font-size:12px;font-weight:600;">Box #${b.boxNum}</span>
+              <span style="font-size:11px;color:#888;margin-left:8px;">${b.imeis.length} units</span>
+              ${boxTracking ? '<span style="font-size:11px;color:var(--dark-green);margin-left:8px;font-family:monospace;">' + boxTracking + '</span>' : ''}
+              ${b.lockedDate ? '<span style="font-size:11px;color:#888;margin-left:8px;">' + b.lockedDate + '</span>' : ''}
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button class="btn btn-sm btn-outline" onclick="ppToggleBoxContents('${boxId}')" style="font-size:10px;padding:2px 8px;">View Contents</button>
+              <button class="btn btn-sm btn-outline" onclick="ppReprintBoxLabel('${ppActivePackingVendor}',${b.boxNum})" style="font-size:10px;padding:2px 8px;">Reprint Label</button>
+            </div>
+          </div>
+          <div id="${boxId}" style="display:none;padding:4px 12px 8px;border-top:1px solid #e8e8e8;">
+            ${ppRenderBoxContents(b, ppActivePackingVendor)}
+          </div>
+        </div>`;
+      });
+      closedHTML += '</div>';
+      html += closedHTML;
+    }
 
     // Render date groups
     sortedDates.forEach(subDate => {
