@@ -7527,24 +7527,28 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
     const today = new Date().toISOString().split('T')[0];
     const isToday = date === today;
 
-    // Build stacked segments using flex-grow for accurate proportions
+    // Build stacked segments — completed (solid) then in-progress (striped) per vendor
     let segments = '';
     const completedVendors = {};
-    filtered.filter(u => u.packedAt.split('T')[0] === date && u.source === 'completed').forEach(u => {
+    const ipVendors = {};
+    filtered.filter(u => u.packedAt.split('T')[0] === date).forEach(u => {
       const v = u.vendor || 'Unknown';
-      completedVendors[v] = (completedVendors[v] || 0) + 1;
+      if (u.source === 'completed') completedVendors[v] = (completedVendors[v] || 0) + 1;
+      else ipVendors[v] = (ipVendors[v] || 0) + 1;
     });
 
-    // Vendor segments (completed) — use flex-grow for proportional sizing
+    // Completed segments (solid color)
     allVendorNames.forEach(v => {
       if (completedVendors[v]) {
-        segments += '<div style="width:100%;flex:' + completedVendors[v] + ' 0 0%;background:' + vendorColors[v] + ';min-height:3px;" title="' + v + ': ' + completedVendors[v] + '"></div>';
+        segments += '<div style="width:100%;flex:' + completedVendors[v] + ' 0 0%;background:' + vendorColors[v] + ';min-height:3px;" title="' + v + ' (completed): ' + completedVendors[v] + '"></div>';
       }
     });
-    // In-progress segment
-    if (data.inProgress > 0) {
-      segments += '<div style="width:100%;flex:' + data.inProgress + ' 0 0%;background:var(--warn-orange);min-height:3px;" title="In Progress: ' + data.inProgress + '"></div>';
-    }
+    // In-progress segments (striped with vendor color)
+    allVendorNames.forEach(v => {
+      if (ipVendors[v]) {
+        segments += '<div style="width:100%;flex:' + ipVendors[v] + ' 0 0%;background:repeating-linear-gradient(135deg,' + vendorColors[v] + ',' + vendorColors[v] + ' 3px,var(--warn-orange) 3px,var(--warn-orange) 6px);min-height:3px;" title="' + v + ' (in progress): ' + ipVendors[v] + '"></div>';
+      }
+    });
 
     html += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;cursor:pointer;" onclick="ppDashboardClickDate('${date}')">
       <div style="font-size:13px;font-weight:700;color:var(--dark-green);margin-bottom:4px;">${data.units}</div>
@@ -7562,12 +7566,12 @@ function ppRenderDashboardBody(filtered, allUnits, dayFiltered, selectedDate) {
   html += '</div>';
 
   // Legend
-  html += '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;">';
+  html += '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;align-items:center;">';
   allVendorNames.forEach(v => {
     html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:' + vendorColors[v] + ';"></div> ' + v + '</div>';
   });
   if (inProgressUnits > 0) {
-    html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:12px;height:12px;border-radius:3px;background:var(--warn-orange);"></div> In Progress</div>';
+    html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;font-weight:600;"><div style="width:16px;height:12px;border-radius:3px;background:repeating-linear-gradient(135deg,var(--dark-green),var(--dark-green) 3px,var(--warn-orange) 3px,var(--warn-orange) 6px);"></div> Striped = In Progress</div>';
   }
   html += '</div></div>';
 
