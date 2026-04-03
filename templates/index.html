@@ -7222,40 +7222,20 @@ function renderPPHistorySection() {
 function ppUpdateHistoryTotals() {
   const el = document.getElementById('pp-hist-totals');
   if (!el) return;
-  // Use the same deduped unit collection as the Dashboard for accurate totals
-  const allUnits = ppCollectAllPackedUnits();
-  const filtered = ppFilterHistoryUnits(allUnits);
-  const uniqueRMAs = new Set(filtered.map(u => u.rma).filter(Boolean));
-  el.textContent = uniqueRMAs.size + ' group' + (uniqueRMAs.size !== 1 ? 's' : '') + ' \u00B7 ' + filtered.length + ' units packed';
-}
-
-function ppFilterHistoryUnits(units) {
-  // Apply the same filters active on the Packed Summary view (vendor, date, search)
-  const vendorEl = document.getElementById('pp-daily-vendor-filter');
-  const fromEl = document.getElementById('pp-daily-date-from');
-  const toEl = document.getElementById('pp-daily-date-to');
-  const searchEl = document.getElementById('pp-hist-search');
-
-  const vendorFilter = vendorEl ? vendorEl.value : '';
-  const fromDate = (!ppDateFilterAll && fromEl) ? fromEl.value : '';
-  const toDate = (!ppDateFilterAll && toEl) ? toEl.value : '';
-  const query = searchEl ? searchEl.value.trim().toLowerCase() : '';
-
-  return units.filter(u => {
-    if (vendorFilter && u.vendor !== vendorFilter) return false;
-    if (fromDate || toDate) {
-      const d = u.packedAt ? u.packedAt.split('T')[0] : '';
-      if (fromDate && d < fromDate) return false;
-      if (toDate && d > toDate) return false;
+  const rows = document.querySelectorAll('.pp-hist-row');
+  const seenIMEIs = new Set();
+  const seenRMAs = new Set();
+  rows.forEach(row => {
+    if (row.style.display !== 'none') {
+      // Collect unique IMEIs across all visible rows
+      const imeis = (row.getAttribute('data-imeis') || '').split(',').filter(Boolean);
+      imeis.forEach(id => seenIMEIs.add(id));
+      // Collect unique RMAs (data-rma can be comma-separated for non-VZ groups)
+      const rmas = (row.getAttribute('data-rma') || '').split(',').filter(Boolean);
+      rmas.forEach(r => { if (!r.startsWith('FALLOUT')) seenRMAs.add(r); });
     }
-    if (query) {
-      const match = (u.rma || '').toLowerCase().includes(query) ||
-                    (u.tracking || '').toLowerCase().includes(query) ||
-                    (u.imei || '').toLowerCase().includes(query);
-      if (!match) return false;
-    }
-    return true;
   });
+  el.textContent = seenRMAs.size + ' group' + (seenRMAs.size !== 1 ? 's' : '') + ' \u00B7 ' + seenIMEIs.size + ' units packed';
 }
 
 function ppToggleHistoryDetail(idx) {
