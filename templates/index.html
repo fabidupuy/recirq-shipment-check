@@ -2125,17 +2125,38 @@ function ppLoadToShipmentCheck(trackingGroup, vendor) {
   const syntheticCSV = ppBuildSyntheticRmaCSV(trackingGroup);
 
   // Populate the upload object — ship date left for user to set in Step 1
+  // MERGE with existing data if a previous tracking group was already loaded
   if (vendor === 'VERIZON') {
-    vzUpload.rmaCSV = syntheticCSV;
-    vzUpload.rmaFile = {
-      name: `Auto-loaded from Pick & Pack (${trackingGroup.tracking})`,
-    };
+    if (vzUpload.rmaCSV && vzUpload.rmaCSV.rows && vzUpload.rmaCSV.rows.length > 0) {
+      // Append new rows to existing data
+      vzUpload.rmaCSV.rows = vzUpload.rmaCSV.rows.concat(syntheticCSV.rows);
+      // Update the file name to reflect all loaded trackings
+      const prevName = vzUpload.rmaFile ? vzUpload.rmaFile.name : '';
+      const prevTrackings = (prevName.match(/\(([^)]+)\)/) || ['', ''])[1];
+      const allTrackings = prevTrackings ? `${prevTrackings}, ${trackingGroup.tracking}` : trackingGroup.tracking;
+      vzUpload.rmaFile = { name: `Auto-loaded from Pick & Pack (${allTrackings})` };
+    } else {
+      vzUpload.rmaCSV = syntheticCSV;
+      vzUpload.rmaFile = {
+        name: `Auto-loaded from Pick & Pack (${trackingGroup.tracking})`,
+      };
+    }
   } else {
     // For 3PL vendors
-    bpUpload.rmaCSV = syntheticCSV;
-    bpUpload.rmaFile = {
-      name: `Auto-loaded from Pick & Pack (${trackingGroup.tracking})`,
-    };
+    if (bpUpload.rmaCSV && bpUpload.rmaCSV.rows && bpUpload.rmaCSV.rows.length > 0) {
+      // Append new rows to existing data
+      bpUpload.rmaCSV.rows = bpUpload.rmaCSV.rows.concat(syntheticCSV.rows);
+      // Update the file name to reflect all loaded trackings
+      const prevName = bpUpload.rmaFile ? bpUpload.rmaFile.name : '';
+      const prevTrackings = (prevName.match(/\(([^)]+)\)/) || ['', ''])[1];
+      const allTrackings = prevTrackings ? `${prevTrackings}, ${trackingGroup.tracking}` : trackingGroup.tracking;
+      bpUpload.rmaFile = { name: `Auto-loaded from Pick & Pack (${allTrackings})` };
+    } else {
+      bpUpload.rmaCSV = syntheticCSV;
+      bpUpload.rmaFile = {
+        name: `Auto-loaded from Pick & Pack (${trackingGroup.tracking})`,
+      };
+    }
   }
 
   // Mark as loaded in ppCompletedRMAs
