@@ -6315,6 +6315,7 @@ async function ppLoadState() {
     if (state.ppJobs) {
       ppJobs = JSON.parse(state.ppJobs);
       // Rebuild rmaGroups for each job
+      let boxRepairs = 0;
       Object.values(ppJobs).forEach(job => {
         if (!job.rmaGroups) job.rmaGroups = {};
         // Ensure every unit has a qc object (may have been stripped by a previous save bug)
@@ -6324,9 +6325,31 @@ async function ppLoadState() {
         if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
         if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
         if (job.boxLimit === undefined) job.boxLimit = 30;
+        // Cleanup: remove orphaned IMEIs from boxes (IMEIs not in job.units)
+        const validImeis = new Set((job.units || []).map(u => u.imei));
+        let boxesDirty = false;
+        job.boxes.forEach(b => {
+          const before = (b.imeis || []).length;
+          b.imeis = (b.imeis || []).filter(imei => validImeis.has(imei));
+          if (b.imeis.length !== before) boxesDirty = true;
+          if (b.imeis.length === 0) b.lockedDate = null;
+        });
+        if (boxesDirty) {
+          // Remove empty closed boxes, keep current open box
+          const currentBox = job.boxes[job.currentBoxIdx];
+          job.boxes = job.boxes.filter(b => b === currentBox || b.imeis.length > 0);
+          job.currentBoxIdx = job.boxes.indexOf(currentBox);
+          if (job.currentBoxIdx < 0) {
+            job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
+            job.currentBoxIdx = 0;
+          }
+          // Renumber boxes sequentially
+          job.boxes.forEach((b, i) => { b.boxNum = i + 1; });
+          boxRepairs++;
+        }
       });
       // Deduplicate units and reconcile orphans after load
-      let totalRepaired = 0;
+      let totalRepaired = boxRepairs;
       Object.keys(ppJobs).forEach(v => { totalRepaired += ppDeduplicateUnits(v); });
       Object.keys(ppJobs).forEach(v => { totalRepaired += ppReconcileOrphans(v); });
       if (totalRepaired > 0) {
