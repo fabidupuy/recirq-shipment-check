@@ -6338,6 +6338,21 @@ async function ppLoadState() {
         // Save the cleaned-up state
         setTimeout(() => ppDoSave(), 200);
       }
+
+      // Clean up legacy data: remove fallout units from per-RMA entries
+      // (they belong only in the dedicated FALLOUT entries)
+      let legacyCleaned = false;
+      ppCompletedRMAs.forEach(entry => {
+        if (entry.rma && !entry.rma.startsWith('FALLOUT') && entry.units) {
+          const before = entry.units.length;
+          entry.units = entry.units.filter(u => !u.fallout);
+          if (entry.units.length < before) legacyCleaned = true;
+        }
+      });
+      if (legacyCleaned) {
+        console.warn('PP load: cleaned fallout units from per-RMA entries (legacy fix)');
+        setTimeout(() => ppDoSave(), 400);
+      }
     }
     if (state.ppVendors) {
       const saved = JSON.parse(state.ppVendors);
@@ -8180,7 +8195,8 @@ async function ppCompleteDateGroup(vendor, subDate) {
   rmas.forEach(rma => {
     const alreadyCompleted = ppCompletedRMAs.some(e => e.rma === rma && e.vendor === vendor && !e.rma.startsWith('FALLOUT'));
     if (alreadyCompleted) return; // skip — already in history
-    const rmaUnits = grp.filter(u => u.rmaNumber === rma);
+    const rmaUnits = grp.filter(u => u.rmaNumber === rma && !u.fallout);
+    if (rmaUnits.length === 0) return; // skip if all units in this RMA are fallouts
     ppCompletedRMAs.push({
       rma,
       vendor,
