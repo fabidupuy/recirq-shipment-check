@@ -8262,9 +8262,12 @@ async function ppCompleteDateGroup(vendor, subDate) {
     job.currentBoxIdx = 0;
   } else {
     // Other date groups still active — remove completed IMEIs from boxes but keep the rest
-    const completedImeis = new Set(grp.map(u => u.imei));
+    // Also remove any orphaned IMEIs not in job.units (stale data from previously completed groups)
+    const remainingImeis = new Set(job.units.map(u => u.imei));
     job.boxes.forEach(b => {
-      b.imeis = (b.imeis || []).filter(imei => !completedImeis.has(imei));
+      b.imeis = (b.imeis || []).filter(imei => remainingImeis.has(imei));
+      // Clear lockedDate if box is now empty (group was completed)
+      if (b.imeis.length === 0) b.lockedDate = null;
     });
     // Remove empty closed boxes, keep current open box even if empty
     const currentBox = job.boxes[job.currentBoxIdx];
@@ -8272,9 +8275,11 @@ async function ppCompleteDateGroup(vendor, subDate) {
     job.currentBoxIdx = job.boxes.indexOf(currentBox);
     if (job.currentBoxIdx < 0) {
       // Current box was removed (shouldn't happen) — create a new one
-      job.boxes.push({ boxNum: (job.boxes.length > 0 ? Math.max(...job.boxes.map(b => b.boxNum)) + 1 : 1), imeis: [], closedAt: null, lockedDate: null });
+      job.boxes.push({ boxNum: 1, imeis: [], closedAt: null, lockedDate: null });
       job.currentBoxIdx = job.boxes.length - 1;
     }
+    // Renumber remaining boxes sequentially so next group starts fresh
+    job.boxes.forEach((b, i) => { b.boxNum = i + 1; });
   }
 
   ppSaveState();
