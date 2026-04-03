@@ -6320,8 +6320,6 @@ async function ppLoadState() {
       const seen = new Map();
       const deduped = [];
       ppCompletedRMAs.forEach(e => {
-        const isFallout = e.rma && e.rma.startsWith('FALLOUT');
-        if (isFallout) { deduped.push(e); return; }
         const key = e.rma + '|' + e.vendor;
         if (seen.has(key)) {
           // Keep the one with the later completedAt
@@ -7222,20 +7220,33 @@ function renderPPHistorySection() {
 function ppUpdateHistoryTotals() {
   const el = document.getElementById('pp-hist-totals');
   if (!el) return;
-  const rows = document.querySelectorAll('.pp-hist-row');
-  const seenIMEIs = new Set();
-  const seenRMAs = new Set();
-  rows.forEach(row => {
-    if (row.style.display !== 'none') {
-      // Collect unique IMEIs across all visible rows
-      const imeis = (row.getAttribute('data-imeis') || '').split(',').filter(Boolean);
-      imeis.forEach(id => seenIMEIs.add(id));
-      // Collect unique RMAs (data-rma can be comma-separated for non-VZ groups)
-      const rmas = (row.getAttribute('data-rma') || '').split(',').filter(Boolean);
-      rmas.forEach(r => { if (!r.startsWith('FALLOUT')) seenRMAs.add(r); });
+
+  // Use the exact same deduped unit collection as the Packing Dashboard
+  const allUnits = ppCollectAllPackedUnits();
+
+  // Apply the same search/filter that controls row visibility
+  const searchEl = document.getElementById('pp-hist-search');
+  const query = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  const vendorEl = document.getElementById('pp-daily-vendor-filter');
+  const vendorFilter = vendorEl ? vendorEl.value : '';
+  const fromEl = document.getElementById('pp-daily-date-from');
+  const toEl = document.getElementById('pp-daily-date-to');
+  const fromDate = (!ppDateFilterAll && fromEl) ? fromEl.value : '';
+  const toDate = (!ppDateFilterAll && toEl) ? toEl.value : '';
+
+  const filtered = allUnits.filter(u => {
+    if (vendorFilter && u.vendor !== vendorFilter) return false;
+    if (fromDate) { const d = (u.packedAt || '').split('T')[0]; if (d < fromDate) return false; }
+    if (toDate) { const d = (u.packedAt || '').split('T')[0]; if (d > toDate) return false; }
+    if (query) {
+      const hay = ((u.rma || '') + '|' + (u.tracking || '') + '|' + (u.imei || '')).toLowerCase();
+      if (!hay.includes(query)) return false;
     }
+    return true;
   });
-  el.textContent = seenRMAs.size + ' group' + (seenRMAs.size !== 1 ? 's' : '') + ' \u00B7 ' + seenIMEIs.size + ' units packed';
+
+  const uniqueRMAs = new Set(filtered.map(u => u.rma).filter(Boolean));
+  el.textContent = uniqueRMAs.size + ' group' + (uniqueRMAs.size !== 1 ? 's' : '') + ' \u00B7 ' + filtered.length + ' units packed';
 }
 
 function ppToggleHistoryDetail(idx) {
@@ -9404,18 +9415,17 @@ function ppResolveAllConflicts(action, vendor) {
         if (state.ppCompletedRMAs) {
           const serverCompleted = JSON.parse(state.ppCompletedRMAs);
           // Merge: add any entries from server that we don't have locally
-          // Use rma+vendor as primary key for non-fallout entries to prevent duplicates
+          // Use rma+vendor as primary key to prevent duplicates (including FALLOUT entries)
           const localKeys = new Set(ppCompletedRMAs.map(e => e.rma + '|' + e.completedAt));
-          const localRMAKeys = new Set(ppCompletedRMAs.filter(e => !e.rma.startsWith('FALLOUT')).map(e => e.rma + '|' + e.vendor));
+          const localRMAKeys = new Set(ppCompletedRMAs.map(e => e.rma + '|' + e.vendor));
           serverCompleted.forEach(se => {
             const key = se.rma + '|' + se.completedAt;
             const rmaKey = se.rma + '|' + se.vendor;
-            const isFallout = se.rma && se.rma.startsWith('FALLOUT');
-            // For non-fallout: skip if we already have this RMA+vendor combo
-            if (!isFallout && localRMAKeys.has(rmaKey)) return;
+            // Skip if we already have this RMA+vendor combo
+            if (localRMAKeys.has(rmaKey)) return;
             if (localKeys.has(key)) return;
             ppCompletedRMAs.push(se);
-            if (!isFallout) localRMAKeys.add(rmaKey);
+            localRMAKeys.add(rmaKey);
             localKeys.add(key);
             changed = true;
           });
