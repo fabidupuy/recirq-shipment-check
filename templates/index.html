@@ -7112,9 +7112,15 @@ function renderPPHistorySection() {
   const nonVZGroups = {};
   nonVZEntries.forEach((entry) => {
     const key = entry.tracking || 'NO_TRACKING';
-    if (!nonVZGroups[key]) nonVZGroups[key] = { tracking: key, vendor: entry.vendor, entries: [], allUnits: [], completedAt: entry.completedAt, completedBy: entry.completedBy, boxNumbers: [] };
+    if (!nonVZGroups[key]) nonVZGroups[key] = { tracking: key, vendor: entry.vendor, entries: [], allUnits: [], _seenIMEIs: new Set(), completedAt: entry.completedAt, completedBy: entry.completedBy, boxNumbers: [] };
     nonVZGroups[key].entries.push(entry);
-    nonVZGroups[key].allUnits.push(...(entry.units || []));
+    // Deduplicate units by IMEI to prevent fallout units appearing twice
+    (entry.units || []).forEach(u => {
+      if (!nonVZGroups[key]._seenIMEIs.has(u.imei)) {
+        nonVZGroups[key]._seenIMEIs.add(u.imei);
+        nonVZGroups[key].allUnits.push(u);
+      }
+    });
     if (entry.boxNumbers) entry.boxNumbers.forEach(n => { if (!nonVZGroups[key].boxNumbers.includes(n)) nonVZGroups[key].boxNumbers.push(n); });
   });
 
