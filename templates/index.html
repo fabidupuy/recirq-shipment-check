@@ -9478,13 +9478,19 @@ function ppResolveAllConflicts(action, vendor) {
             localKeys.add(key);
             changed = true;
           });
-          // Also adopt loadedToShipmentCheck flags from server
+          // Also adopt loadedToShipmentCheck flags and tracking updates from server
           const serverMap = {};
           serverCompleted.forEach(se => { serverMap[se.rma + '|' + se.completedAt] = se; });
           ppCompletedRMAs.forEach(le => {
             const se = serverMap[le.rma + '|' + le.completedAt];
-            if (se && se.loadedToShipmentCheck && !le.loadedToShipmentCheck) {
+            if (!se) return;
+            if (se.loadedToShipmentCheck && !le.loadedToShipmentCheck) {
               le.loadedToShipmentCheck = true;
+              changed = true;
+            }
+            // Adopt tracking changes made on server (e.g. via /api/fix/rename-tracking)
+            if (se.tracking && se.tracking !== le.tracking) {
+              le.tracking = se.tracking;
               changed = true;
             }
           });

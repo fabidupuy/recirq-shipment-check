@@ -496,11 +496,12 @@ def fix_swap_tracking():
 
 @app.route('/api/fix/rename-tracking', methods=['GET'])
 def fix_rename_tracking():
-    """One-time fix: rename a tracking number. Usage: ?old=X&new=Y"""
+    """One-time fix: rename a tracking number. Usage: ?old=X&new=Y&rma=Z (rma optional)"""
     old_val = request.args.get('old', '')
     new_val = request.args.get('new', '')
+    rma_filter = request.args.get('rma', '')
     if not old_val or not new_val:
-        return jsonify({'error': 'Provide ?old=...&new=... query params'}), 400
+        return jsonify({'error': 'Provide ?old=...&new=... query params (optional &rma=... to target specific RMA)'}), 400
     state_json = db.get_pp_state('ppCompletedRMAs')
     if not state_json:
         return jsonify({'error': 'No completed RMAs found'}), 404
@@ -508,11 +509,13 @@ def fix_rename_tracking():
     updated = 0
     for e in entries:
         if e.get('tracking') == old_val:
+            if rma_filter and e.get('rma') != rma_filter:
+                continue
             e['tracking'] = new_val
             updated += 1
     if updated > 0:
         db.save_pp_state('ppCompletedRMAs', json.dumps(entries))
-    return jsonify({'updated': updated, 'old': old_val, 'new': new_val})
+    return jsonify({'updated': updated, 'old': old_val, 'new': new_val, 'rma': rma_filter or 'all'})
 
 
 @app.route('/api/fix/mark-shipped', methods=['GET'])
