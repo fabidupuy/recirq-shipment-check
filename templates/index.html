@@ -9491,6 +9491,12 @@ function ppResolveAllConflicts(action, vendor) {
             // Adopt tracking changes made on server (e.g. via /api/fix/rename-tracking)
             if (se.tracking && se.tracking !== le.tracking) {
               le.tracking = se.tracking;
+              // Also update unit-level trackingNumber to match
+              (le.units || []).forEach(lu => {
+                if (lu.trackingNumber && lu.trackingNumber !== se.tracking) {
+                  lu.trackingNumber = se.tracking;
+                }
+              });
               changed = true;
             }
           });

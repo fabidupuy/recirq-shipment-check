@@ -507,15 +507,21 @@ def fix_rename_tracking():
         return jsonify({'error': 'No completed RMAs found'}), 404
     entries = json.loads(state_json)
     updated = 0
+    units_updated = 0
     for e in entries:
         if e.get('tracking') == old_val:
             if rma_filter and e.get('rma') != rma_filter:
                 continue
             e['tracking'] = new_val
             updated += 1
+            # Also update unit-level trackingNumber so dashboard counts match
+            for u in e.get('units', []):
+                if u.get('trackingNumber') == old_val:
+                    u['trackingNumber'] = new_val
+                    units_updated += 1
     if updated > 0:
         db.save_pp_state('ppCompletedRMAs', json.dumps(entries))
-    return jsonify({'updated': updated, 'old': old_val, 'new': new_val, 'rma': rma_filter or 'all'})
+    return jsonify({'updated': updated, 'units_updated': units_updated, 'old': old_val, 'new': new_val, 'rma': rma_filter or 'all'})
 
 
 @app.route('/api/fix/mark-shipped', methods=['GET'])
