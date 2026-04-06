@@ -8644,6 +8644,18 @@ async function ppScanIMEI() {
   }
 
   const unit = job.units[unitIdx];
+  if (unit.fallout) {
+    ppLastScanned = { unitIdx, vendor }; // Allow QC edit but don't re-pack
+    ppLastFeedback = `
+      <div style="background:var(--critical-bg);border:2px solid var(--alert-red);border-radius:10px;padding:14px 18px;margin:0;">
+        <div style="font-size:11px;color:var(--alert-red);font-weight:600;text-transform:uppercase;">Fallout Unit</div>
+        <div style="font-size:14px;margin-top:4px;">IMEI <span style="font-family:monospace;font-weight:700;">${imei}</span></div>
+        <div style="font-size:16px;font-weight:700;color:var(--alert-red);margin-top:4px;">This unit is a fallout (${unit.falloutReason || 'Unknown reason'}). It will NOT be packed.</div>
+        <div style="font-size:12px;color:#888;margin-top:8px;">To undo the fallout, change the Cosmetic QC back to Pass below.</div>
+      </div>`;
+    renderPPPackingSection();
+    return;
+  }
   if (unit.packed) {
     ppLastScanned = { unitIdx, vendor }; // Still allow QC edit on already-packed
     ppLastFeedback = `
@@ -9364,26 +9376,32 @@ function ppResolveAllConflicts(action, vendor) {
                 localJob.units.push(su);
                 changed = true;
               } else {
-                // Unit exists in both — merge: packed status should never regress
-                if (su.packed && !lu.packed) {
-                  // Server says packed, local says not — adopt server (another tab packed it)
+                // Unit exists in both — merge carefully
+                // RULE: fallout status is sticky — never overwrite a local fallout with server packed
+                if (lu.fallout && !su.fallout) {
+                  // Local is fallout, server doesn't know yet — push local state to server
+                  needsSaveBack = true;
+                } else if (su.fallout && !lu.fallout) {
+                  // Server says fallout, local doesn't know — adopt fallout from server
+                  lu.fallout = true;
+                  lu.falloutReason = su.falloutReason || lu.falloutReason;
+                  lu.packed = false;
+                  lu.packedAt = null;
+                  if (su.qc && su.qc.cosmetic) lu.qc.cosmetic = su.qc.cosmetic;
+                  changed = true;
+                } else if (su.packed && !lu.packed && !lu.fallout) {
+                  // Server says packed, local says not (and not fallout) — adopt server
                   Object.assign(lu, su);
                   changed = true;
                 } else if (!su.packed && lu.packed) {
                   // Local says packed, server says not — keep local (we packed it, server is stale)
                   needsSaveBack = true;
                 }
-                // Merge QC: keep the more complete version
+                // Merge QC: keep the more complete version (only fill missing keys)
                 if (su.qc && lu.qc) {
                   Object.keys(su.qc).forEach(k => {
                     if (!(k in lu.qc)) { lu.qc[k] = su.qc[k]; changed = true; }
                   });
-                }
-                // Merge fallout status: once marked fallout, keep it
-                if (su.fallout && !lu.fallout) {
-                  lu.fallout = true;
-                  lu.falloutReason = su.falloutReason || lu.falloutReason;
-                  changed = true;
                 }
               }
             });
@@ -9412,15 +9430,20 @@ function ppResolveAllConflicts(action, vendor) {
                   localJob.boxes[idx] = sb; // adopt closed box from server
                   changed = true;
                 } else if (!sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
-                  // Both sides have this box open — union the imeis arrays (never remove, only add)
+                  // Both sides have this box open — union the imeis arrays (never add fallout units)
+                  const falloutImeis = new Set(localJob.units.filter(u => u.fallout).map(u => u.imei));
                   const localImeis = new Set(localJob.boxes[idx].imeis || []);
                   (sb.imeis || []).forEach(imei => {
-                    if (!localImeis.has(imei)) {
+                    if (!localImeis.has(imei) && !falloutImeis.has(imei)) {
                       localJob.boxes[idx].imeis.push(imei);
                       changed = true;
                       needsSaveBack = true; // persist the merged imeis to server
                     }
                   });
+                  // Also clean up: remove any fallout IMEIs that snuck into the box
+                  const beforeLen = localJob.boxes[idx].imeis.length;
+                  localJob.boxes[idx].imeis = localJob.boxes[idx].imeis.filter(i => !falloutImeis.has(i));
+                  if (localJob.boxes[idx].imeis.length < beforeLen) { changed = true; needsSaveBack = true; }
                   // Adopt lockedDate from server if local doesn't have one
                   if (sb.lockedDate && !localJob.boxes[idx].lockedDate) {
                     localJob.boxes[idx].lockedDate = sb.lockedDate;
