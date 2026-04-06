@@ -6325,8 +6325,8 @@ async function ppLoadState() {
         if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
         if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
         if (job.boxLimit === undefined) job.boxLimit = 30;
-        // Cleanup: remove orphaned IMEIs from boxes (IMEIs not in job.units)
-        const validImeis = new Set((job.units || []).map(u => u.imei));
+        // Cleanup: remove orphaned/fallout IMEIs from boxes (only keep packed, non-fallout units)
+        const validImeis = new Set((job.units || []).filter(u => u.packed && !u.fallout).map(u => u.imei));
         let boxesDirty = false;
         job.boxes.forEach(b => {
           const before = (b.imeis || []).length;
@@ -9430,19 +9430,20 @@ function ppResolveAllConflicts(action, vendor) {
                   localJob.boxes[idx] = sb; // adopt closed box from server
                   changed = true;
                 } else if (!sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
-                  // Both sides have this box open — union the imeis arrays (never add fallout units)
-                  const falloutImeis = new Set(localJob.units.filter(u => u.fallout).map(u => u.imei));
+                  // Both sides have this box open — union the imeis arrays
+                  // Only add IMEIs that are valid packed units in the local job (not fallout, not ghost)
+                  const validPackedImeis = new Set(localJob.units.filter(u => u.packed && !u.fallout).map(u => u.imei));
                   const localImeis = new Set(localJob.boxes[idx].imeis || []);
                   (sb.imeis || []).forEach(imei => {
-                    if (!localImeis.has(imei) && !falloutImeis.has(imei)) {
+                    if (!localImeis.has(imei) && validPackedImeis.has(imei)) {
                       localJob.boxes[idx].imeis.push(imei);
                       changed = true;
-                      needsSaveBack = true; // persist the merged imeis to server
+                      needsSaveBack = true;
                     }
                   });
-                  // Also clean up: remove any fallout IMEIs that snuck into the box
+                  // Clean up: remove any IMEIs that aren't valid packed units (ghost/fallout/stale)
                   const beforeLen = localJob.boxes[idx].imeis.length;
-                  localJob.boxes[idx].imeis = localJob.boxes[idx].imeis.filter(i => !falloutImeis.has(i));
+                  localJob.boxes[idx].imeis = localJob.boxes[idx].imeis.filter(i => validPackedImeis.has(i));
                   if (localJob.boxes[idx].imeis.length < beforeLen) { changed = true; needsSaveBack = true; }
                   // Adopt lockedDate from server if local doesn't have one
                   if (sb.lockedDate && !localJob.boxes[idx].lockedDate) {
