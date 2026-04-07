@@ -311,7 +311,39 @@ def save_pp_state(key):
     """Save a Pick & Pack state value."""
     try:
         data = request.get_json()
-        value_json = json.dumps(data.get('value', {}))
+        value = data.get('value', {})
+
+        # Guard ppCompletedRMAs: preserve server-side tracking fixes from being overwritten by stale tabs
+        if key == 'ppCompletedRMAs' and isinstance(value, list):
+            existing_json = db.get_pp_state('ppCompletedRMAs')
+            if existing_json:
+                existing = json.loads(existing_json)
+                # Build lookup of server entries with trackingUpdatedAt by rma+completedAt
+                server_tracking = {}
+                for e in existing:
+                    if e.get('trackingUpdatedAt'):
+                        k = e.get('rma', '') + '|' + e.get('completedAt', '')
+                        server_tracking[k] = {
+                            'tracking': e['tracking'],
+                            'trackingUpdatedAt': e['trackingUpdatedAt']
+                        }
+                # Protect: if incoming entry has older/missing trackingUpdatedAt, keep server's tracking
+                if server_tracking:
+                    for e in value:
+                        k = e.get('rma', '') + '|' + e.get('completedAt', '')
+                        if k in server_tracking:
+                            sv = server_tracking[k]
+                            incoming_ts = e.get('trackingUpdatedAt', '')
+                            server_ts = sv['trackingUpdatedAt']
+                            if server_ts > (incoming_ts or ''):
+                                e['tracking'] = sv['tracking']
+                                e['trackingUpdatedAt'] = sv['trackingUpdatedAt']
+                                # Also fix unit-level trackingNumber
+                                for u in e.get('units', []):
+                                    if u.get('trackingNumber') and u['trackingNumber'] != sv['tracking']:
+                                        u['trackingNumber'] = sv['tracking']
+
+        value_json = json.dumps(value)
         db.save_pp_state(key, value_json)
         return jsonify({'status': 'saved', 'key': key, 'size': len(value_json)})
     except Exception as e:
@@ -508,11 +540,14 @@ def fix_rename_tracking():
     entries = json.loads(state_json)
     updated = 0
     units_updated = 0
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
     for e in entries:
         if e.get('tracking') == old_val:
             if rma_filter and e.get('rma') != rma_filter:
                 continue
             e['tracking'] = new_val
+            e['trackingUpdatedAt'] = now_iso
             updated += 1
             # Also update unit-level trackingNumber so dashboard counts match
             for u in e.get('units', []):

@@ -9526,14 +9526,28 @@ function ppResolveAllConflicts(action, vendor) {
               changed = true;
             }
             // Adopt tracking changes made on server (e.g. via /api/fix/rename-tracking)
+            // Only adopt if server has a trackingUpdatedAt timestamp that is newer than local
             if (se.tracking && se.tracking !== le.tracking) {
-              le.tracking = se.tracking;
-              // Also update unit-level trackingNumber to match
-              (le.units || []).forEach(lu => {
-                if (lu.trackingNumber && lu.trackingNumber !== se.tracking) {
-                  lu.trackingNumber = se.tracking;
-                }
-              });
+              const serverTs = se.trackingUpdatedAt || '';
+              const localTs = le.trackingUpdatedAt || '';
+              if (serverTs >= localTs) {
+                le.tracking = se.tracking;
+                le.trackingUpdatedAt = se.trackingUpdatedAt;
+                // Also update unit-level trackingNumber to match
+                (le.units || []).forEach(lu => {
+                  if (lu.trackingNumber && lu.trackingNumber !== se.tracking) {
+                    lu.trackingNumber = se.tracking;
+                  }
+                });
+                changed = true;
+              } else {
+                // Local has newer tracking — push it back to server
+                needsSaveBack = true;
+              }
+            }
+            // Always adopt trackingUpdatedAt from server if local doesn't have it
+            if (se.trackingUpdatedAt && !le.trackingUpdatedAt) {
+              le.trackingUpdatedAt = se.trackingUpdatedAt;
               changed = true;
             }
           });
