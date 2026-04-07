@@ -6328,9 +6328,15 @@ async function ppLoadState() {
         // Cleanup: remove orphaned/fallout IMEIs from boxes (only keep packed, non-fallout units)
         const validImeis = new Set((job.units || []).filter(u => u.packed && !u.fallout).map(u => u.imei));
         let boxesDirty = false;
+        const seenImeis = new Set();
         job.boxes.forEach(b => {
           const before = (b.imeis || []).length;
-          b.imeis = (b.imeis || []).filter(imei => validImeis.has(imei));
+          // Remove invalid IMEIs AND cross-box duplicates (keep first occurrence)
+          b.imeis = (b.imeis || []).filter(imei => {
+            if (!validImeis.has(imei) || seenImeis.has(imei)) return false;
+            seenImeis.add(imei);
+            return true;
+          });
           if (b.imeis.length !== before) boxesDirty = true;
           if (b.imeis.length === 0) b.lockedDate = null;
         });
@@ -9427,18 +9433,23 @@ function ppResolveAllConflicts(action, vendor) {
 
             // Merge boxes: adopt closed boxes from server, merge open box imeis (union)
             if (serverJob.boxes && localJob.boxes) {
+              // Build a set of all IMEIs already in ANY local box (for cross-box dedup)
+              const allLocalBoxImeis = new Set();
+              localJob.boxes.forEach(b => (b.imeis || []).forEach(i => allLocalBoxImeis.add(i)));
+
               serverJob.boxes.forEach((sb, idx) => {
                 if (sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
                   localJob.boxes[idx] = sb; // adopt closed box from server
                   changed = true;
                 } else if (!sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
                   // Both sides have this box open — union the imeis arrays
-                  // Only add IMEIs that are valid packed units in the local job (not fallout, not ghost)
+                  // Only add IMEIs that are valid packed units AND not already in another box
                   const validPackedImeis = new Set(localJob.units.filter(u => u.packed && !u.fallout).map(u => u.imei));
                   const localImeis = new Set(localJob.boxes[idx].imeis || []);
                   (sb.imeis || []).forEach(imei => {
-                    if (!localImeis.has(imei) && validPackedImeis.has(imei)) {
+                    if (!localImeis.has(imei) && !allLocalBoxImeis.has(imei) && validPackedImeis.has(imei)) {
                       localJob.boxes[idx].imeis.push(imei);
+                      allLocalBoxImeis.add(imei);
                       changed = true;
                       needsSaveBack = true;
                     }
