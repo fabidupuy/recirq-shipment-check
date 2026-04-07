@@ -6325,32 +6325,29 @@ async function ppLoadState() {
         if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
         if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
         if (job.boxLimit === undefined) job.boxLimit = 30;
-        // Cleanup: remove orphaned/fallout IMEIs from boxes (only keep packed, non-fallout units)
+        // Cleanup: only clean the CURRENT OPEN box (remove orphaned/fallout IMEIs)
+        // NEVER modify closed boxes — they are sealed and removing their IMEIs causes
+        // index misalignment with the server, leading to cross-box merge bugs.
         const validImeis = new Set((job.units || []).filter(u => u.packed && !u.fallout).map(u => u.imei));
-        let boxesDirty = false;
         const seenImeis = new Set();
+        let boxesDirty = false;
+        // First pass: collect all IMEIs from closed boxes (these are authoritative)
         job.boxes.forEach(b => {
+          if (b.closedAt) {
+            (b.imeis || []).forEach(imei => seenImeis.add(imei));
+          }
+        });
+        // Second pass: clean only the current open box
+        job.boxes.forEach((b, idx) => {
+          if (b.closedAt) return; // skip closed boxes entirely
           const before = (b.imeis || []).length;
-          // Remove invalid IMEIs AND cross-box duplicates (keep first occurrence)
           b.imeis = (b.imeis || []).filter(imei => {
             if (!validImeis.has(imei) || seenImeis.has(imei)) return false;
             seenImeis.add(imei);
             return true;
           });
           if (b.imeis.length !== before) boxesDirty = true;
-          if (b.imeis.length === 0) b.lockedDate = null;
         });
-        if (boxesDirty) {
-          // Remove empty closed boxes, keep current open box
-          const currentBox = job.boxes[job.currentBoxIdx];
-          job.boxes = job.boxes.filter(b => b === currentBox || b.imeis.length > 0);
-          job.currentBoxIdx = job.boxes.indexOf(currentBox);
-          if (job.currentBoxIdx < 0) {
-            job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
-            job.currentBoxIdx = 0;
-          }
-          boxRepairs++;
-        }
         // Always renumber boxes sequentially (fixes stale boxNum after cleanup)
         job.boxes.forEach((b, i) => {
           if (b.boxNum !== i + 1) { b.boxNum = i + 1; boxRepairs++; }
@@ -9431,47 +9428,39 @@ function ppResolveAllConflicts(action, vendor) {
               changed = true;
             }
 
-            // Merge boxes: adopt closed boxes from server, merge open box imeis (union)
+            // Merge boxes: adopt closed boxes from server, but NEVER union IMEIs into
+            // the current open box. Local state is authoritative for the open box.
+            // Index-based matching is unsafe when boxes are added/removed, so we
+            // match closed boxes by their closedAt timestamp as a stable identity.
             if (serverJob.boxes && localJob.boxes) {
-              // Build a set of all IMEIs already in ANY local box (for cross-box dedup)
-              const allLocalBoxImeis = new Set();
-              localJob.boxes.forEach(b => (b.imeis || []).forEach(i => allLocalBoxImeis.add(i)));
+              // Build lookup of local closed boxes by closedAt timestamp
+              const localClosedByTs = new Map();
+              localJob.boxes.forEach((lb, i) => {
+                if (lb.closedAt) localClosedByTs.set(lb.closedAt, i);
+              });
 
-              serverJob.boxes.forEach((sb, idx) => {
-                if (sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
-                  localJob.boxes[idx] = sb; // adopt closed box from server
-                  changed = true;
-                } else if (!sb.closedAt && localJob.boxes[idx] && !localJob.boxes[idx].closedAt) {
-                  // Both sides have this box open — union the imeis arrays
-                  // Only add IMEIs that are valid packed units AND not already in another box
-                  const validPackedImeis = new Set(localJob.units.filter(u => u.packed && !u.fallout).map(u => u.imei));
-                  const localImeis = new Set(localJob.boxes[idx].imeis || []);
-                  (sb.imeis || []).forEach(imei => {
-                    if (!localImeis.has(imei) && !allLocalBoxImeis.has(imei) && validPackedImeis.has(imei)) {
-                      localJob.boxes[idx].imeis.push(imei);
-                      allLocalBoxImeis.add(imei);
-                      changed = true;
-                      needsSaveBack = true;
-                    }
-                  });
-                  // Clean up: remove any IMEIs that aren't valid packed units (ghost/fallout/stale)
-                  const beforeLen = localJob.boxes[idx].imeis.length;
-                  localJob.boxes[idx].imeis = localJob.boxes[idx].imeis.filter(i => validPackedImeis.has(i));
-                  if (localJob.boxes[idx].imeis.length < beforeLen) { changed = true; needsSaveBack = true; }
-                  // Adopt lockedDate from server if local doesn't have one
-                  if (sb.lockedDate && !localJob.boxes[idx].lockedDate) {
-                    localJob.boxes[idx].lockedDate = sb.lockedDate;
-                  }
+              // Adopt closed boxes from server that we don't have locally
+              serverJob.boxes.forEach(sb => {
+                if (!sb.closedAt) return; // skip server's open box
+                if (localClosedByTs.has(sb.closedAt)) return; // already have it
+                // This is a new closed box from server — insert before the current open box
+                const insertIdx = localJob.currentBoxIdx;
+                localJob.boxes.splice(insertIdx, 0, sb);
+                localJob.currentBoxIdx++; // shift current box index
+                changed = true;
+              });
+
+              // Adopt lockedDate on matching closed boxes
+              serverJob.boxes.forEach(sb => {
+                if (!sb.closedAt || !sb.lockedDate) return;
+                const localIdx = localClosedByTs.get(sb.closedAt);
+                if (localIdx !== undefined && !localJob.boxes[localIdx].lockedDate) {
+                  localJob.boxes[localIdx].lockedDate = sb.lockedDate;
                 }
               });
-              // If server has more boxes (another tab created them), append them
-              if (serverJob.boxes.length > localJob.boxes.length) {
-                for (let i = localJob.boxes.length; i < serverJob.boxes.length; i++) {
-                  localJob.boxes.push(serverJob.boxes[i]);
-                }
-                localJob.currentBoxIdx = Math.max(localJob.currentBoxIdx, serverJob.currentBoxIdx || 0);
-                changed = true;
-              }
+
+              // Renumber boxes after merge
+              localJob.boxes.forEach((b, i) => { b.boxNum = i + 1; });
             }
           });
 
