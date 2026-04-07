@@ -6343,10 +6343,12 @@ async function ppLoadState() {
             job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
             job.currentBoxIdx = 0;
           }
-          // Renumber boxes sequentially
-          job.boxes.forEach((b, i) => { b.boxNum = i + 1; });
           boxRepairs++;
         }
+        // Always renumber boxes sequentially (fixes stale boxNum after cleanup)
+        job.boxes.forEach((b, i) => {
+          if (b.boxNum !== i + 1) { b.boxNum = i + 1; boxRepairs++; }
+        });
       });
       // Deduplicate units and reconcile orphans after load
       let totalRepaired = boxRepairs;
