@@ -6210,6 +6210,7 @@ let ppRetryTimer = null; // retry timer for failed saves
 let ppRetryCount = 0;
 const PP_MAX_RETRIES = 10;
 const PP_RETRY_DELAYS = [2000, 3000, 5000, 8000, 12000, 20000, 30000, 30000, 30000, 30000]; // escalating backoff
+let ppJobsVersion = null; // optimistic concurrency version for ppJobs
 
 function ppSaveState() {
   // Debounce saves to avoid hammering server on rapid scans
@@ -6221,14 +6222,27 @@ function ppSaveState() {
 async function ppPostWithRetry(key, payload, label) {
   // Attempt a single POST; returns true on success, false on failure
   try {
+    const body = { value: payload };
+    if (key === 'ppJobs' && ppJobsVersion !== null) body.version = ppJobsVersion;
     const resp = await fetch(API + '/pp/state/' + key, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: payload })
+      body: JSON.stringify(body)
     });
+    if (resp.status === 409) {
+      // Conflict: another tab saved first. Reload fresh state.
+      console.warn('PP save ' + label + ': version conflict — reloading from server');
+      await ppLoadState();
+      renderPPPackingSection();
+      return true; // not a failure, just a conflict resolved by reload
+    }
     if (!resp.ok) {
       console.error('PP save ' + label + ' failed:', resp.status);
       return false;
+    }
+    const result = await resp.json();
+    if (key === 'ppJobs' && result.version !== undefined) {
+      ppJobsVersion = result.version;
     }
     return true;
   } catch(e) {
@@ -6312,6 +6326,8 @@ async function ppLoadState() {
   try {
     const resp = await fetch(API + '/pp/state');
     const state = await resp.json();
+    // Read version for optimistic concurrency control
+    if (state.ppJobs_version !== undefined) ppJobsVersion = state.ppJobs_version;
     if (state.ppJobs) {
       ppJobs = JSON.parse(state.ppJobs);
       // Rebuild rmaGroups for each job
@@ -9346,131 +9362,23 @@ function ppResolveAllConflicts(action, vendor) {
       try { await loadBatchesFromServer(); } catch (e) { /* silent */ }
     }, 60000);
 
-    // Auto-refresh PP state every 30 seconds — MERGE-based to prevent data loss
+    // Auto-refresh PP state every 30 seconds — version-aware reload
+    // With optimistic concurrency, we simply reload server state.
+    // If this tab has unsaved changes, the save will either succeed (version matches)
+    // or get a 409 conflict and reload automatically.
     setInterval(async () => {
-      // Skip refresh if a save is pending or in-flight to prevent overwriting unsaved local state
       if (ppSavePending || ppSaveInFlight) return;
       try {
         const resp = await fetch(API + '/pp/state');
         const state = await resp.json();
-        let changed = false;
-        let needsSaveBack = false; // true if local wins a merge conflict and server needs updating
-        if (state.ppJobs) {
-          const serverJobs = JSON.parse(state.ppJobs);
-          // MERGE: for each vendor job, merge unit-level changes instead of overwriting
-          Object.keys(serverJobs).forEach(vendor => {
-            const serverJob = serverJobs[vendor];
-            const localJob = ppJobs[vendor];
-            if (!localJob) {
-              // New vendor job from another tab — adopt it
-              ppJobs[vendor] = serverJob;
-              changed = true;
-              return;
-            }
-            // Build IMEI lookup for server units
-            const serverUnitMap = {};
-            (serverJob.units || []).forEach(u => { serverUnitMap[u.imei] = u; });
-            const localUnitMap = {};
-            (localJob.units || []).forEach(u => { localUnitMap[u.imei] = u; });
+        const serverVersion = state.ppJobs_version || 0;
 
-            // Merge server units into local: adopt new units, merge packed/qc status
-            (serverJob.units || []).forEach(su => {
-              const lu = localUnitMap[su.imei];
-              if (!lu) {
-                // Unit exists on server but not locally (added from another tab)
-                localJob.units.push(su);
-                changed = true;
-              } else {
-                // Unit exists in both — merge carefully
-                // RULE: fallout status is sticky — never overwrite a local fallout with server packed
-                if (lu.fallout && !su.fallout) {
-                  // Local is fallout, server doesn't know yet — push local state to server
-                  needsSaveBack = true;
-                } else if (su.fallout && !lu.fallout) {
-                  // Server says fallout, local doesn't know — adopt fallout from server
-                  lu.fallout = true;
-                  lu.falloutReason = su.falloutReason || lu.falloutReason;
-                  lu.packed = false;
-                  lu.packedAt = null;
-                  if (su.qc && su.qc.cosmetic) lu.qc.cosmetic = su.qc.cosmetic;
-                  changed = true;
-                } else if (su.packed && !lu.packed && !lu.fallout) {
-                  // Server says packed, local says not (and not fallout) — adopt server
-                  Object.assign(lu, su);
-                  changed = true;
-                } else if (!su.packed && lu.packed) {
-                  // Local says packed, server says not — keep local (we packed it, server is stale)
-                  needsSaveBack = true;
-                }
-                // Merge QC: keep the more complete version (only fill missing keys)
-                if (su.qc && lu.qc) {
-                  Object.keys(su.qc).forEach(k => {
-                    if (!(k in lu.qc)) { lu.qc[k] = su.qc[k]; changed = true; }
-                  });
-                }
-              }
-            });
-
-            // Check for units removed on server (completed RMA) — remove locally too
-            localJob.units = localJob.units.filter(u => {
-              if (serverUnitMap[u.imei]) return true; // still on server
-              // Unit gone from server — check if it was completed
-              const wasCompleted = ppCompletedRMAs.some(e => e.units && e.units.some(cu => cu.imei === u.imei));
-              if (wasCompleted) { changed = true; return false; } // remove — it was completed
-              // Not completed — might be a local-only addition; keep it
-              return true;
-            });
-
-            // Merge tracking number — prefer confirmed
-            if (serverJob.trackingConfirmed && !localJob.trackingConfirmed) {
-              localJob.tracking = serverJob.tracking;
-              localJob.trackingConfirmed = true;
-              changed = true;
-            }
-
-            // Merge boxes: adopt closed boxes from server, but NEVER union IMEIs into
-            // the current open box. Local state is authoritative for the open box.
-            // Index-based matching is unsafe when boxes are added/removed, so we
-            // match closed boxes by their closedAt timestamp as a stable identity.
-            if (serverJob.boxes && localJob.boxes) {
-              // Build lookup of local closed boxes by closedAt timestamp
-              const localClosedByTs = new Map();
-              localJob.boxes.forEach((lb, i) => {
-                if (lb.closedAt) localClosedByTs.set(lb.closedAt, i);
-              });
-
-              // Adopt closed boxes from server that we don't have locally
-              serverJob.boxes.forEach(sb => {
-                if (!sb.closedAt) return; // skip server's open box
-                if (localClosedByTs.has(sb.closedAt)) return; // already have it
-                // This is a new closed box from server — insert before the current open box
-                const insertIdx = localJob.currentBoxIdx;
-                localJob.boxes.splice(insertIdx, 0, sb);
-                localJob.currentBoxIdx++; // shift current box index
-                changed = true;
-              });
-
-              // Adopt lockedDate on matching closed boxes
-              serverJob.boxes.forEach(sb => {
-                if (!sb.closedAt || !sb.lockedDate) return;
-                const localIdx = localClosedByTs.get(sb.closedAt);
-                if (localIdx !== undefined && !localJob.boxes[localIdx].lockedDate) {
-                  localJob.boxes[localIdx].lockedDate = sb.lockedDate;
-                }
-              });
-
-              // Renumber boxes after merge
-              localJob.boxes.forEach((b, i) => { b.boxNum = i + 1; });
-            }
-          });
-
-          // Adopt entirely new vendor jobs from server
-          Object.keys(serverJobs).forEach(v => {
-            if (!ppJobs[v]) { ppJobs[v] = serverJobs[v]; changed = true; }
-          });
-
-          // Rebuild rmaGroups after merge
-          if (changed) {
+        // Only reload if server version is ahead of ours (another tab saved)
+        if (serverVersion > ppJobsVersion) {
+          console.log('PP sync: server version ' + serverVersion + ' > local ' + ppJobsVersion + ' — reloading');
+          ppJobsVersion = serverVersion;
+          if (state.ppJobs) {
+            ppJobs = JSON.parse(state.ppJobs);
             Object.values(ppJobs).forEach(job => {
               if (!job.rmaGroups) job.rmaGroups = {};
               if (job.units) job.units.forEach(u => { if (!u.qc) u.qc = {}; });
@@ -9478,80 +9386,11 @@ function ppResolveAllConflicts(action, vendor) {
               if (!job.boxes) job.boxes = [{ boxNum: 1, imeis: [], closedAt: null, lockedDate: null }];
               if (job.currentBoxIdx === undefined) job.currentBoxIdx = 0;
             });
-            // Deduplicate units and reconcile orphaned packed units after merge
-            Object.keys(ppJobs).forEach(v => {
-              const deduped = ppDeduplicateUnits(v);
-              if (deduped > 0) needsSaveBack = true;
-              const repaired = ppReconcileOrphans(v);
-              if (repaired > 0) needsSaveBack = true;
-            });
           }
-        }
-        if (state.ppCompletedRMAs) {
-          const serverCompleted = JSON.parse(state.ppCompletedRMAs);
-          // Merge: add any entries from server that we don't have locally
-          // Use rma+vendor as primary key to prevent duplicates (including FALLOUT entries)
-          const localKeys = new Set(ppCompletedRMAs.map(e => e.rma + '|' + e.completedAt));
-          const localRMAKeys = new Set(ppCompletedRMAs.map(e => e.rma + '|' + e.vendor));
-          serverCompleted.forEach(se => {
-            const key = se.rma + '|' + se.completedAt;
-            const rmaKey = se.rma + '|' + se.vendor;
-            // Skip if we already have this RMA+vendor combo
-            if (localRMAKeys.has(rmaKey)) return;
-            if (localKeys.has(key)) return;
-            ppCompletedRMAs.push(se);
-            localRMAKeys.add(rmaKey);
-            localKeys.add(key);
-            changed = true;
-          });
-          // Also adopt loadedToShipmentCheck flags and tracking updates from server
-          const serverMap = {};
-          serverCompleted.forEach(se => { serverMap[se.rma + '|' + se.completedAt] = se; });
-          ppCompletedRMAs.forEach(le => {
-            const se = serverMap[le.rma + '|' + le.completedAt];
-            if (!se) return;
-            if (se.loadedToShipmentCheck && !le.loadedToShipmentCheck) {
-              le.loadedToShipmentCheck = true;
-              changed = true;
-            }
-            // Adopt tracking changes made on server (e.g. via /api/fix/rename-tracking)
-            // Only adopt if server has a trackingUpdatedAt timestamp that is newer than local
-            if (se.tracking && se.tracking !== le.tracking) {
-              const serverTs = se.trackingUpdatedAt || '';
-              const localTs = le.trackingUpdatedAt || '';
-              if (serverTs >= localTs) {
-                le.tracking = se.tracking;
-                le.trackingUpdatedAt = se.trackingUpdatedAt;
-                // Also update unit-level trackingNumber to match
-                (le.units || []).forEach(lu => {
-                  if (lu.trackingNumber && lu.trackingNumber !== se.tracking) {
-                    lu.trackingNumber = se.tracking;
-                  }
-                });
-                changed = true;
-              } else {
-                // Local has newer tracking — push it back to server
-                needsSaveBack = true;
-              }
-            }
-            // Always adopt trackingUpdatedAt from server if local doesn't have it
-            if (se.trackingUpdatedAt && !le.trackingUpdatedAt) {
-              le.trackingUpdatedAt = se.trackingUpdatedAt;
-              changed = true;
-            }
-          });
-        }
-        // Refresh photos cache
-        const photoResp = await fetch(API + '/photos/all');
-        ppAllPhotos = await photoResp.json();
-        // Keep shipment photos on batch objects in sync
-        hydrateShipmentPhotos();
-
-        // If local had changes the server didn't, push them back
-        if (needsSaveBack) ppSaveState();
-
-        // Re-render current section if data changed
-        if (changed) {
+          if (state.ppCompletedRMAs) {
+            ppCompletedRMAs = JSON.parse(state.ppCompletedRMAs);
+          }
+          // Re-render current section
           const activeSection = document.querySelector('.section:not([style*="display: none"])');
           if (activeSection) {
             const id = activeSection.id;
@@ -9560,6 +9399,10 @@ function ppResolveAllConflicts(action, vendor) {
             else if (id === 'sec-pp-history') renderPPHistorySection();
           }
         }
+        // Refresh photos cache
+        const photoResp = await fetch(API + '/photos/all');
+        ppAllPhotos = await photoResp.json();
+        hydrateShipmentPhotos();
       } catch (e) { /* silent fail */ }
     }, 30000);
   }

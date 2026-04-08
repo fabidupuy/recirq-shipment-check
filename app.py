@@ -301,24 +301,44 @@ def get_batch_activity(batch_id):
 
 @app.route('/api/pp/state', methods=['GET'])
 def get_pp_state():
-    """Get all Pick & Pack state (ppJobs, ppCompletedRMAs)."""
+    """Get all Pick & Pack state (ppJobs, ppCompletedRMAs, ppJobs_version)."""
     state = db.get_all_pp_state()
+    # Include version for optimistic concurrency control
+    version_json = db.get_pp_state('ppJobs_version')
+    state['ppJobs_version'] = int(version_json) if version_json else 0
     return jsonify(state)
 
 
 @app.route('/api/pp/state/<key>', methods=['POST'])
 def save_pp_state(key):
-    """Save a Pick & Pack state value."""
+    """Save a Pick & Pack state value with optimistic concurrency control."""
     try:
         data = request.get_json()
         value = data.get('value', {})
+        client_version = data.get('version')  # version the client thinks it has
+
+        # Optimistic concurrency: reject stale saves for ppJobs
+        if key == 'ppJobs':
+            version_json = db.get_pp_state('ppJobs_version')
+            server_version = int(version_json) if version_json else 0
+            if client_version is not None and client_version != server_version:
+                return jsonify({
+                    'status': 'conflict',
+                    'message': 'State was modified by another tab. Reloading.',
+                    'server_version': server_version,
+                    'client_version': client_version
+                }), 409
+            new_version = server_version + 1
+            db.save_pp_state('ppJobs_version', str(new_version))
+            value_json = json.dumps(value)
+            db.save_pp_state(key, value_json)
+            return jsonify({'status': 'saved', 'key': key, 'size': len(value_json), 'version': new_version})
 
         # Guard ppCompletedRMAs: preserve server-side tracking fixes from being overwritten by stale tabs
         if key == 'ppCompletedRMAs' and isinstance(value, list):
             existing_json = db.get_pp_state('ppCompletedRMAs')
             if existing_json:
                 existing = json.loads(existing_json)
-                # Build lookup of server entries with trackingUpdatedAt by rma+completedAt
                 server_tracking = {}
                 for e in existing:
                     if e.get('trackingUpdatedAt'):
@@ -327,7 +347,6 @@ def save_pp_state(key):
                             'tracking': e['tracking'],
                             'trackingUpdatedAt': e['trackingUpdatedAt']
                         }
-                # Protect: if incoming entry has older/missing trackingUpdatedAt, keep server's tracking
                 if server_tracking:
                     for e in value:
                         k = e.get('rma', '') + '|' + e.get('completedAt', '')
@@ -338,55 +357,9 @@ def save_pp_state(key):
                             if server_ts > (incoming_ts or ''):
                                 e['tracking'] = sv['tracking']
                                 e['trackingUpdatedAt'] = sv['trackingUpdatedAt']
-                                # Also fix unit-level trackingNumber
                                 for u in e.get('units', []):
                                     if u.get('trackingNumber') and u['trackingNumber'] != sv['tracking']:
                                         u['trackingNumber'] = sv['tracking']
-
-        # Guard ppJobs: preserve closed boxes from being lost/merged by stale tabs
-        if key == 'ppJobs' and isinstance(value, dict):
-            existing_json = db.get_pp_state('ppJobs')
-            if existing_json:
-                existing_jobs = json.loads(existing_json)
-                for vendor, incoming_job in value.items():
-                    existing_job = existing_jobs.get(vendor)
-                    if not existing_job or not existing_job.get('boxes'):
-                        continue
-                    incoming_boxes = incoming_job.get('boxes', [])
-                    existing_boxes = existing_job.get('boxes', [])
-                    # Build set of closed box identities on server (by closedAt timestamp)
-                    server_closed = {}
-                    for b in existing_boxes:
-                        if b.get('closedAt'):
-                            server_closed[b['closedAt']] = b
-                    # Check if incoming data is missing any server closed boxes
-                    incoming_closed_ts = set()
-                    for b in incoming_boxes:
-                        if b.get('closedAt'):
-                            incoming_closed_ts.add(b['closedAt'])
-                    missing = {ts: b for ts, b in server_closed.items() if ts not in incoming_closed_ts}
-                    if missing:
-                        # Re-insert missing closed boxes before the current open box
-                        open_idx = incoming_job.get('currentBoxIdx', len(incoming_boxes) - 1)
-                        for ts in sorted(missing.keys()):
-                            incoming_boxes.insert(open_idx, missing[ts])
-                            open_idx += 1
-                        incoming_job['currentBoxIdx'] = open_idx
-                        incoming_job['boxes'] = incoming_boxes
-                        # Renumber
-                        for i, b in enumerate(incoming_boxes):
-                            b['boxNum'] = i + 1
-                    # Also prevent the open box from having IMEIs that belong to closed boxes
-                    closed_imeis = set()
-                    for b in incoming_boxes:
-                        if b.get('closedAt'):
-                            for imei in b.get('imeis', []):
-                                closed_imeis.add(imei)
-                    cur_idx = incoming_job.get('currentBoxIdx', len(incoming_boxes) - 1)
-                    if 0 <= cur_idx < len(incoming_boxes):
-                        cur_box = incoming_boxes[cur_idx]
-                        if not cur_box.get('closedAt'):
-                            cur_box['imeis'] = [i for i in cur_box.get('imeis', []) if i not in closed_imeis]
 
         value_json = json.dumps(value)
         db.save_pp_state(key, value_json)
