@@ -321,6 +321,14 @@ def save_pp_state(key):
         if key == 'ppJobs':
             version_json = db.get_pp_state('ppJobs_version')
             server_version = int(version_json) if version_json else 0
+            # Reject if: (a) client sends wrong version, or (b) client sends no version
+            # but server version > 0 (meaning new code has already saved at least once)
+            if client_version is None and server_version > 0:
+                return jsonify({
+                    'status': 'conflict',
+                    'message': 'Old client without version support. Please refresh.',
+                    'server_version': server_version
+                }), 409
             if client_version is not None and client_version != server_version:
                 return jsonify({
                     'status': 'conflict',
