@@ -343,6 +343,51 @@ def save_pp_state(key):
                                     if u.get('trackingNumber') and u['trackingNumber'] != sv['tracking']:
                                         u['trackingNumber'] = sv['tracking']
 
+        # Guard ppJobs: preserve closed boxes from being lost/merged by stale tabs
+        if key == 'ppJobs' and isinstance(value, dict):
+            existing_json = db.get_pp_state('ppJobs')
+            if existing_json:
+                existing_jobs = json.loads(existing_json)
+                for vendor, incoming_job in value.items():
+                    existing_job = existing_jobs.get(vendor)
+                    if not existing_job or not existing_job.get('boxes'):
+                        continue
+                    incoming_boxes = incoming_job.get('boxes', [])
+                    existing_boxes = existing_job.get('boxes', [])
+                    # Build set of closed box identities on server (by closedAt timestamp)
+                    server_closed = {}
+                    for b in existing_boxes:
+                        if b.get('closedAt'):
+                            server_closed[b['closedAt']] = b
+                    # Check if incoming data is missing any server closed boxes
+                    incoming_closed_ts = set()
+                    for b in incoming_boxes:
+                        if b.get('closedAt'):
+                            incoming_closed_ts.add(b['closedAt'])
+                    missing = {ts: b for ts, b in server_closed.items() if ts not in incoming_closed_ts}
+                    if missing:
+                        # Re-insert missing closed boxes before the current open box
+                        open_idx = incoming_job.get('currentBoxIdx', len(incoming_boxes) - 1)
+                        for ts in sorted(missing.keys()):
+                            incoming_boxes.insert(open_idx, missing[ts])
+                            open_idx += 1
+                        incoming_job['currentBoxIdx'] = open_idx
+                        incoming_job['boxes'] = incoming_boxes
+                        # Renumber
+                        for i, b in enumerate(incoming_boxes):
+                            b['boxNum'] = i + 1
+                    # Also prevent the open box from having IMEIs that belong to closed boxes
+                    closed_imeis = set()
+                    for b in incoming_boxes:
+                        if b.get('closedAt'):
+                            for imei in b.get('imeis', []):
+                                closed_imeis.add(imei)
+                    cur_idx = incoming_job.get('currentBoxIdx', len(incoming_boxes) - 1)
+                    if 0 <= cur_idx < len(incoming_boxes):
+                        cur_box = incoming_boxes[cur_idx]
+                        if not cur_box.get('closedAt'):
+                            cur_box['imeis'] = [i for i in cur_box.get('imeis', []) if i not in closed_imeis]
+
         value_json = json.dumps(value)
         db.save_pp_state(key, value_json)
         return jsonify({'status': 'saved', 'key': key, 'size': len(value_json)})
