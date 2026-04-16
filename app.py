@@ -607,6 +607,28 @@ def fix_mark_shipped():
     return jsonify({'marked_shipped': marked, 'tracking': tracking_val})
 
 
+@app.route('/api/fix/clear-unmatched', methods=['GET'])
+def fix_clear_unmatched():
+    """One-time fix: remove all UNMATCHED units from the VERIZON packing job.
+    Bumps ppJobs_version so stale tabs reload."""
+    state_json = db.get_pp_state('ppJobs')
+    if not state_json:
+        return jsonify({'error': 'No packing jobs found'}), 404
+    jobs = json.loads(state_json)
+    vz = jobs.get('VERIZON')
+    if not vz:
+        return jsonify({'error': 'No VERIZON job found'}), 404
+    before = len(vz.get('units', []))
+    vz['units'] = [u for u in vz.get('units', []) if u.get('rmaNumber') != 'UNMATCHED']
+    removed = before - len(vz['units'])
+    if removed > 0:
+        version_json = db.get_pp_state('ppJobs_version')
+        server_version = int(version_json) if version_json else 0
+        db.save_pp_state('ppJobs_version', str(server_version + 1))
+        db.save_pp_state('ppJobs', json.dumps(jobs))
+    return jsonify({'vendor': 'VERIZON', 'removed': removed, 'before': before, 'after': len(vz['units'])})
+
+
 @app.route('/api/fix/dedup-completed', methods=['GET'])
 def fix_dedup_completed():
     """Remove duplicate entries from ppCompletedRMAs, keeping the first of each RMA."""

@@ -6446,6 +6446,7 @@ let ppExpandedRMAs = new Set();
 let ppPendingConflicts = [];
 let ppConflictAllUnits = [];
 let ppConflictRmaGroups = {};
+let ppLastSkippedNoSub = []; // IMEIs from last upload with no RMA submission match — not persisted
 let ppActivePackingVendor = ''; // which vendor tab is active in packing view
 let ppSelectMode = false; // admin selection mode for deleting RMAs/units
 let ppSelectedUnits = new Set(); // set of IMEI strings currently selected
@@ -6656,6 +6657,19 @@ function ppDownloadUnmatched(vendor) {
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = `Unmatched IMEIs - ${vendor} - ${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+function ppDownloadSkippedNoSub(vendor) {
+  if (!ppLastSkippedNoSub.length) { alert('No skipped IMEIs from the last upload.'); return; }
+  const headers = ['IMEI','Route','SKU','Description','Disposition','Rack ID','Processed Date'];
+  const rows = [headers.join(',')];
+  ppLastSkippedNoSub.forEach(u => {
+    rows.push([u.imei, u.route, u.sku, u.description, u.disposition, u.rackId, u.processedDate].map(v => `"${(v||'').replace(/"/g,'""')}"`).join(','));
+  });
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `Skipped No-Sub IMEIs - ${vendor} - ${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
 }
 
@@ -9176,29 +9190,31 @@ async function ppTryMerge() {
   // Filter out already-completed units from vendor data before merging
   const filteredVendorData = ppVendorData.filter(v => !alreadyCompletedIMEIs.has(v.imei));
 
-  let matched = 0, unmatched = 0, skipped = 0, rmaConflict = 0;
+  let matched = 0, skipped = 0, rmaConflict = 0;
   const rmaConflicts = [];
   const newUnits = [];
+  const skippedNoSub = []; // IMEIs with no RMA submission match — reported but NOT saved to job
 
   filteredVendorData.forEach(v => {
     const rmaInfo = ppRMAData[v.imei];
-    const newRMA = rmaInfo ? rmaInfo.rmaNumber : 'UNMATCHED';
+    // If no RMA submission match, skip entirely — don't persist as UNMATCHED.
+    // The user is told about these so they can re-submit and re-upload later.
+    if (!rmaInfo) {
+      skippedNoSub.push(v);
+      return;
+    }
+    const newRMA = rmaInfo.rmaNumber;
     if (existingIMEItoRMA.hasOwnProperty(v.imei)) {
       const existingRMA = existingIMEItoRMA[v.imei];
       if (existingRMA === newRMA) { skipped++; return; }
       else {
         rmaConflict++;
-        rmaConflicts.push({ imei: v.imei, existingRMA, newRMA, unitData: { ...v, rmaNumber: newRMA, deliveryNumber: rmaInfo ? rmaInfo.deliveryNumber : '', rmaSubmissionDate: rmaInfo ? rmaInfo.rmaSubmissionDate : '', packed: false, packedAt: null, packedBy: null, uploadedAt: new Date().toISOString(), qc: { box: v.box, cable: v.cable, wallCharger: v.wallCharger, cosmetic: v.conditionCheck, datawipe: v.datawipeStatus } } });
+        rmaConflicts.push({ imei: v.imei, existingRMA, newRMA, unitData: { ...v, rmaNumber: newRMA, deliveryNumber: rmaInfo.deliveryNumber, rmaSubmissionDate: rmaInfo.rmaSubmissionDate, packed: false, packedAt: null, packedBy: null, uploadedAt: new Date().toISOString(), qc: { box: v.box, cable: v.cable, wallCharger: v.wallCharger, cosmetic: v.conditionCheck, datawipe: v.datawipeStatus } } });
         return;
       }
     }
-    if (rmaInfo) {
-      matched++;
-      newUnits.push({ ...v, rmaNumber: rmaInfo.rmaNumber, deliveryNumber: rmaInfo.deliveryNumber, rmaSubmissionDate: rmaInfo.rmaSubmissionDate, packed: false, packedAt: null, packedBy: null, uploadedAt: new Date().toISOString(), qc: { box: v.box, cable: v.cable, wallCharger: v.wallCharger, cosmetic: v.conditionCheck, datawipe: v.datawipeStatus } });
-    } else {
-      unmatched++;
-      newUnits.push({ ...v, rmaNumber: 'UNMATCHED', deliveryNumber: '', rmaSubmissionDate: '', packed: false, packedAt: null, packedBy: null, uploadedAt: new Date().toISOString(), qc: { box: v.box, cable: v.cable, wallCharger: v.wallCharger, cosmetic: v.conditionCheck, datawipe: v.datawipeStatus } });
-    }
+    matched++;
+    newUnits.push({ ...v, rmaNumber: rmaInfo.rmaNumber, deliveryNumber: rmaInfo.deliveryNumber, rmaSubmissionDate: rmaInfo.rmaSubmissionDate, packed: false, packedAt: null, packedBy: null, uploadedAt: new Date().toISOString(), qc: { box: v.box, cable: v.cable, wallCharger: v.wallCharger, cosmetic: v.conditionCheck, datawipe: v.datawipeStatus } });
   });
 
   // Deduplicate newUnits by IMEI (CSV may have the same IMEI on multiple rows)
@@ -9246,20 +9262,21 @@ async function ppTryMerge() {
     </div>`;
   }
 
-  if (unmatched > 0) {
-    const unmatchedUnits = newUnits.filter(u => u.rmaNumber === 'UNMATCHED');
-    summaryHTML += ` <span style="color:var(--alert-red);"><b>${unmatched}</b> unmatched.</span>`;
-    summaryHTML += `<div style="margin-top:8px;border:1px solid var(--alert-red);border-radius:8px;overflow:hidden;">
-      <div style="background:var(--critical-bg);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-        <span style="font-weight:600;color:var(--alert-red);font-size:13px;">View ${unmatched} Unmatched</span>
-        <span style="font-size:11px;color:var(--alert-red);">click to expand</span>
+  if (skippedNoSub.length > 0) {
+    ppLastSkippedNoSub = skippedNoSub.slice();
+    summaryHTML += ` <span style="color:var(--warn-orange);"><b>${skippedNoSub.length}</b> skipped (no RMA submission yet).</span>`;
+    summaryHTML += `<div style="margin-top:8px;border:1px solid var(--warn-orange);border-radius:8px;overflow:hidden;">
+      <div style="background:#fff8e1;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <span style="font-weight:600;color:#e65100;font-size:13px;">&#9888; ${skippedNoSub.length} IMEI(s) Skipped — No RMA Submission Found</span>
+        <span style="font-size:11px;color:#e65100;">click to expand</span>
       </div>
-      <div style="display:none;max-height:200px;overflow-y:auto;background:white;">
+      <div style="display:none;max-height:250px;overflow-y:auto;background:white;">
+        <div style="padding:10px 14px;font-size:12px;color:#555;">These IMEIs were <b>not added</b> to the packing job because no matching RMA submission was found. Once Verizon submits them and you re-upload, they will be picked up automatically.</div>
         <table style="width:100%;font-size:12px;border-collapse:collapse;">
           <tr style="background:var(--light-gray);"><th style="padding:6px 10px;text-align:left;">IMEI</th><th style="padding:6px 10px;text-align:left;">Route</th><th style="padding:6px 10px;text-align:left;">Description</th><th style="padding:6px 10px;text-align:left;">Rack</th></tr>
-          ${unmatchedUnits.map(u => '<tr><td style="padding:4px 10px;font-family:monospace;font-size:11px;">' + u.imei + '</td><td style="padding:4px 10px;">' + (u.route||'—') + '</td><td style="padding:4px 10px;">' + (u.description||'—') + '</td><td style="padding:4px 10px;">' + (u.rackId||'—') + '</td></tr>').join('')}
+          ${skippedNoSub.map(u => '<tr><td style="padding:4px 10px;font-family:monospace;font-size:11px;">' + u.imei + '</td><td style="padding:4px 10px;">' + (u.route||'—') + '</td><td style="padding:4px 10px;">' + (u.description||'—') + '</td><td style="padding:4px 10px;">' + (u.rackId||'—') + '</td></tr>').join('')}
         </table>
-        <div style="padding:8px 10px;border-top:1px solid #eee;"><button class="btn btn-sm btn-outline" onclick="ppDownloadUnmatched('${vendor}')">Download CSV</button></div>
+        <div style="padding:8px 10px;border-top:1px solid #eee;"><button class="btn btn-sm btn-outline" onclick="ppDownloadSkippedNoSub('${vendor}')">Download CSV</button></div>
       </div>
     </div>`;
   }
