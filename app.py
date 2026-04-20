@@ -474,6 +474,47 @@ def _refresh_presigned_urls(photo_list):
     return refreshed
 
 
+@app.route('/api/photos/delete', methods=['POST'])
+def delete_photo():
+    """Delete a single photo reference from ppPhotos state and remove the
+    underlying object from S3. Body: {key: 'shipment-<batchId>', s3Key: '<s3 key>'}."""
+    data = request.get_json() or {}
+    key = data.get('key', '')
+    s3_key = data.get('s3Key', '')
+    if not key or not s3_key:
+        return jsonify({'error': 'key and s3Key required'}), 400
+
+    state_json = db.get_pp_state('ppPhotos')
+    all_photos = json.loads(state_json) if state_json else {}
+    photo_list = all_photos.get(key, [])
+    new_list = [p for p in photo_list if p.get('key') != s3_key]
+    removed = len(photo_list) - len(new_list)
+    if removed == 0:
+        return jsonify({'error': 'photo not found', 'key': key, 's3Key': s3_key}), 404
+
+    all_photos[key] = new_list
+    db.save_pp_state('ppPhotos', json.dumps(all_photos))
+    print(f"[PhotoDelete] key={key!r}, s3Key={s3_key!r}, removed={removed}, remaining={len(new_list)}")
+
+    s3_deleted = False
+    s3_error = None
+    if s3_client:
+        try:
+            s3_client.delete_object(Bucket=S3_BUCKET, Key=s3_key)
+            s3_deleted = True
+        except Exception as e:
+            s3_error = str(e)
+            print(f"[PhotoDelete] S3 delete failed for {s3_key}: {s3_error}")
+
+    return jsonify({
+        'status': 'deleted',
+        'removed': removed,
+        'remaining': len(new_list),
+        's3Deleted': s3_deleted,
+        's3Error': s3_error,
+    })
+
+
 @app.route('/api/photos/list/<key>', methods=['GET'])
 def list_photos(key):
     """List all photos for an IMEI or box key, with fresh presigned URLs."""
