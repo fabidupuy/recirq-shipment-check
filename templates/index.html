@@ -345,89 +345,42 @@
   .customer-switcher select:focus { outline: none; border-color: var(--accent-gold); }
   .customer-switcher select option { background: var(--dark-green); color: #fff; }
 
-  /* ════ REEBELO RECEIVE & TRIAGE (scoped) ════ */
-  .reeb-recv-scope { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #333; }
-  .reeb-recv-scope .rr-card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,.06); border: 1px solid #e8ece8; }
-  .reeb-recv-scope .rr-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-  .reeb-recv-scope .rr-card-header .ico { font-size: 20px; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--light-green); }
-  .reeb-recv-scope .rr-card-header h2 { font-size: 16px; color: var(--dark-green); font-weight: 700; }
-  .reeb-recv-scope .rr-card-header .subtitle { font-size: 12px; color: #888; }
-  .reeb-recv-scope .rr-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
-  .reeb-recv-scope .rr-stat { background: white; border-radius: 10px; padding: 16px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,.05); border-top: 3px solid var(--medium-green, #2E7D5B); }
-  .reeb-recv-scope .rr-stat.warn { border-top-color: var(--warn-orange); }
-  .reeb-recv-scope .rr-stat.alert { border-top-color: var(--alert-red); }
-  .reeb-recv-scope .rr-stat.info { border-top-color: var(--info-blue); }
-  .reeb-recv-scope .rr-stat .num { font-size: 28px; font-weight: 700; color: var(--dark-green); }
-  .reeb-recv-scope .rr-stat .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .5px; }
-  .reeb-recv-scope .rr-form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
-  .reeb-recv-scope .rr-form-group { position: relative; }
-  .reeb-recv-scope .rr-form-group label { display: block; font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
-  .reeb-recv-scope .rr-form-group label .req { color: var(--alert-red); }
-  .reeb-recv-scope .rr-form-group input, .reeb-recv-scope .rr-form-group select { width: 100%; padding: 10px 12px; border: 1.5px solid #dde; border-radius: 8px; font-size: 14px; transition: border-color .15s; background: white; font-family: inherit; }
-  .reeb-recv-scope .rr-form-group input:focus, .reeb-recv-scope .rr-form-group select:focus { border-color: var(--medium-green, #2E7D5B); outline: none; box-shadow: 0 0 0 3px rgba(46,125,91,.1); }
-  .reeb-recv-scope .rr-form-group input.scan-input { border-color: var(--medium-green, #2E7D5B); font-size: 16px; padding: 12px 14px; }
-  .reeb-recv-scope .rr-choice-group { display: flex; flex-wrap: wrap; gap: 8px; }
-  .reeb-recv-scope .rr-choice-group label { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 1.5px solid #dde; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all .15s; text-transform: none; letter-spacing: 0; color: #333; }
-  .reeb-recv-scope .rr-choice-group label:hover { border-color: var(--medium-green, #2E7D5B); background: var(--light-green); }
-  .reeb-recv-scope .rr-choice-group label:has(input:checked) { border-color: var(--medium-green, #2E7D5B); background: var(--light-green); }
-  .reeb-recv-scope .rr-btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all .15s; font-family: inherit; }
-  .reeb-recv-scope .rr-btn-primary { background: var(--medium-green, #2E7D5B); color: white; }
-  .reeb-recv-scope .rr-btn-primary:hover { background: var(--dark-green); }
-  .reeb-recv-scope .rr-btn-primary:disabled { background: #bbb; cursor: not-allowed; }
-  .reeb-recv-scope .rr-btn-danger { background: var(--alert-red); color: white; }
-  .reeb-recv-scope .rr-btn-danger:hover { background: #a31c1c; }
-  .reeb-recv-scope .rr-btn-secondary { background: #eee; color: #333; }
-  .reeb-recv-scope .rr-btn-secondary:hover { background: #ddd; }
-  .reeb-recv-scope .rr-btn-sm { padding: 6px 12px; font-size: 12px; }
-  .reeb-recv-scope .rr-btn-lg { padding: 14px 28px; font-size: 15px; }
-  .reeb-recv-scope .rr-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
-  .reeb-recv-scope .rr-badge-pass { background: var(--success-bg); color: var(--success-green); }
-  .reeb-recv-scope .rr-badge-info { background: var(--info-bg); color: var(--info-blue); }
-  .reeb-recv-scope .rr-dropzone { border: 2px dashed #ccc; border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all .2s; background: #FAFBFC; }
-  .reeb-recv-scope .rr-dropzone:hover, .reeb-recv-scope .rr-dropzone.over { border-color: var(--medium-green, #2E7D5B); background: var(--light-green); }
-  .reeb-recv-scope .rr-dropzone.loaded { border-color: var(--success-green); background: var(--success-bg); border-style: solid; }
-  .reeb-recv-scope .rr-dropzone .dz-ico { font-size: 36px; margin-bottom: 6px; }
-  .reeb-recv-scope .rr-dropzone .dz-text { font-size: 13px; color: #888; }
-  .reeb-recv-scope .rr-dropzone .dz-fname { font-size: 13px; font-weight: 600; color: var(--success-green); margin-top: 6px; }
-  .reeb-recv-scope .rr-batch-list { display: grid; gap: 10px; }
-  .reeb-recv-scope .rr-batch-card { padding: 16px; border: 1.5px solid #dde; border-radius: 10px; cursor: pointer; transition: all .15s; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; background: white; }
-  .reeb-recv-scope .rr-batch-card:hover { border-color: var(--medium-green, #2E7D5B); background: var(--light-green); }
-  .reeb-recv-scope .rr-batch-card .bc-name { font-weight: 600; font-size: 14px; }
-  .reeb-recv-scope .rr-batch-card .bc-meta { font-size: 12px; color: #888; }
-  .reeb-recv-scope .rr-batch-card .bc-progress { text-align: right; }
-  .reeb-recv-scope .rr-batch-card .bc-progress .pct { font-size: 20px; font-weight: 700; color: var(--dark-green); }
-  .reeb-recv-scope .rr-progress { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-top: 8px; }
-  .reeb-recv-scope .rr-progress .fill { height: 100%; background: var(--success-green); border-radius: 4px; transition: width .3s; }
-  .reeb-recv-scope .rr-toast-stack { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
-  .reeb-recv-scope .rr-toast { padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,.15); animation: rr-slideIn .3s ease; max-width: 400px; color: white; }
-  .reeb-recv-scope .rr-toast.success { background: var(--success-green); }
-  .reeb-recv-scope .rr-toast.error { background: var(--alert-red); }
-  .reeb-recv-scope .rr-toast.warn { background: var(--warn-orange); }
-  @keyframes rr-slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-  .reeb-recv-scope .rr-search-result { padding: 14px; border: 1.5px solid var(--medium-green, #2E7D5B); border-radius: 10px; background: var(--light-green); margin-bottom: 16px; }
-  .reeb-recv-scope .rr-search-result .sr-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .reeb-recv-scope .rr-search-result .sr-product { font-weight: 700; font-size: 15px; color: var(--dark-green); }
-  .reeb-recv-scope .rr-search-result .sr-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px; font-size: 12px; }
-  .reeb-recv-scope .rr-search-result .sr-detail { display: flex; gap: 4px; }
-  .reeb-recv-scope .rr-search-result .sr-detail .lbl { color: #888; font-weight: 600; }
-  .reeb-recv-scope .rr-multi-match { padding: 14px; border: 1.5px solid var(--info-blue); border-radius: 10px; background: var(--info-bg); margin-bottom: 16px; }
-  .reeb-recv-scope .rr-multi-match h4 { font-size: 13px; color: var(--info-blue); margin-bottom: 8px; }
-  .reeb-recv-scope .rr-match-option { padding: 10px 14px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: all .15s; font-size: 12px; background: white; }
-  .reeb-recv-scope .rr-match-option:hover { border-color: var(--medium-green, #2E7D5B); background: var(--light-green); }
-  .reeb-recv-scope .rr-locked-banner { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border: 1.5px solid var(--medium-green, #2E7D5B); border-radius: 8px; background: var(--light-green); font-size: 13px; font-weight: 600; color: var(--dark-green); }
-  .reeb-recv-scope .rr-receive-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
-  @media (max-width: 900px) { .reeb-recv-scope .rr-receive-layout { grid-template-columns: 1fr; } }
-  .reeb-recv-scope .rr-processed { background: white; border-radius: 12px; border: 2px solid var(--light-green); overflow: hidden; height: fit-content; position: sticky; top: 20px; }
-  .reeb-recv-scope .rr-processed .panel-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; }
-  .reeb-recv-scope .rr-processed .panel-header h3 { font-size: 14px; color: var(--dark-green); font-weight: 700; display: flex; align-items: center; gap: 8px; }
-  .reeb-recv-scope .rr-processed .count-badge { width: 28px; height: 28px; border-radius: 50%; background: var(--success-green); color: white; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-  .reeb-recv-scope .rr-processed .panel-body { max-height: 500px; overflow-y: auto; padding: 8px; }
-  .reeb-recv-scope .rr-processed .empty-state { text-align: center; padding: 40px 20px; color: #aaa; }
-  .reeb-recv-scope .rr-processed .empty-state .ico { font-size: 40px; margin-bottom: 8px; opacity: .4; }
-  .reeb-recv-scope .rr-processed-item { padding: 10px 12px; border-radius: 8px; margin-bottom: 4px; background: #F5F5F5; font-size: 12px; border-left: 3px solid var(--success-green); }
-  .reeb-recv-scope .rr-processed-item.exception { border-left-color: var(--warn-orange); }
-  .reeb-recv-scope .rr-processed-item .pi-product { font-weight: 600; color: #333; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .reeb-recv-scope .rr-processed-item .pi-meta { color: #888; font-size: 11px; }
+  /* ── Reebelo Receive & Triage: only genuinely-new component patterns ── */
+  .reeb-receive-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .reeb-receive-layout { grid-template-columns: 1fr; } }
+  .reeb-batch-list { display: grid; gap: 10px; }
+  .reeb-batch-card { padding: 16px; border: 1.5px solid var(--medium-gray); border-radius: 10px; cursor: pointer; transition: all .15s; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; background: white; }
+  .reeb-batch-card:hover { border-color: var(--medium-green); background: var(--light-green); }
+  .reeb-batch-card .bc-name { font-weight: 600; font-size: 14px; }
+  .reeb-batch-card .bc-meta { font-size: 12px; color: #888; }
+  .reeb-batch-card .bc-progress { text-align: right; }
+  .reeb-batch-card .bc-progress .pct { font-size: 20px; font-weight: 700; color: var(--dark-green); }
+  .reeb-progress { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .reeb-progress .fill { height: 100%; background: var(--success-green); border-radius: 4px; transition: width .3s; }
+  .reeb-choice-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .reeb-choice-group label { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 2px solid var(--medium-gray); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all .15s; color: var(--dark-gray); margin-bottom: 0; }
+  .reeb-choice-group label:hover { border-color: var(--medium-green); background: var(--light-green); }
+  .reeb-choice-group label:has(input:checked) { border-color: var(--medium-green); background: var(--light-green); }
+  .reeb-search-result { padding: 14px; border: 2px solid var(--medium-green); border-radius: 8px; background: var(--light-green); margin-bottom: 16px; }
+  .reeb-search-result .sr-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .reeb-search-result .sr-product { font-weight: 700; font-size: 15px; color: var(--dark-green); }
+  .reeb-search-result .sr-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px; font-size: 12px; }
+  .reeb-search-result .sr-detail { display: flex; gap: 4px; }
+  .reeb-search-result .sr-detail .lbl { color: #888; font-weight: 600; }
+  .reeb-multi-match { padding: 14px; border: 2px solid var(--info-blue); border-radius: 8px; background: var(--info-bg); margin-bottom: 16px; }
+  .reeb-multi-match h4 { font-size: 13px; color: var(--info-blue); margin-bottom: 8px; }
+  .reeb-match-option { padding: 10px 14px; border: 1px solid var(--medium-gray); border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: all .15s; font-size: 12px; background: white; }
+  .reeb-match-option:hover { border-color: var(--medium-green); background: var(--light-green); }
+  .reeb-locked-banner { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border: 2px solid var(--medium-green); border-radius: 8px; background: var(--light-green); font-size: 13px; font-weight: 600; color: var(--dark-green); }
+  .reeb-processed-panel { background: white; border-radius: 10px; border: 2px solid var(--light-green); overflow: hidden; height: fit-content; position: sticky; top: 20px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+  .reeb-processed-panel .pp-header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; }
+  .reeb-processed-panel .pp-header h3 { font-size: 14px; color: var(--dark-green); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .reeb-processed-panel .pp-count { width: 28px; height: 28px; border-radius: 50%; background: var(--success-green); color: white; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .reeb-processed-panel .pp-body { max-height: 500px; overflow-y: auto; padding: 8px; }
+  .reeb-processed-item { padding: 10px 12px; border-radius: 8px; margin-bottom: 4px; background: var(--light-gray); font-size: 12px; border-left: 3px solid var(--success-green); }
+  .reeb-processed-item.exception { border-left-color: var(--warn-orange); }
+  .reeb-processed-item .pi-product { font-weight: 600; color: var(--dark-gray); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .reeb-processed-item .pi-meta { color: #888; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -912,24 +865,18 @@
 
 <!-- ═══════════ REEBELO — RECEIVE & TRIAGE: BATCHES ═══════════ -->
 <div id="sec-reeb-receive-batches" class="section">
-  <div class="container reeb-recv-scope">
-    <div class="rr-toast-stack" id="rr-toasts"></div>
-    <div class="rr-card">
-      <div class="rr-card-header">
-        <div class="ico">&#128230;</div>
-        <div>
-          <h2>Reebelo ASN Batches</h2>
-          <div class="subtitle">Upload Reebelo return CSVs or select an existing batch to begin receiving</div>
-        </div>
-      </div>
-      <div class="rr-dropzone" id="rr-asn-dropzone"
+  <div class="container">
+    <div class="card">
+      <h2>&#128230; Reebelo ASN Batches</h2>
+      <p style="font-size:13px;color:#888;margin-bottom:16px;">Upload Reebelo return CSVs or select an existing batch to begin receiving.</p>
+      <div class="reebelo-dropzone" id="rr-asn-dropzone"
            onclick="document.getElementById('rr-asn-file').click()"
            ondrop="ReebRecv.handleDrop(event)"
            ondragover="event.preventDefault(); this.classList.add('over')"
            ondragleave="this.classList.remove('over')">
-        <div class="dz-ico">&#128196;</div>
-        <div class="dz-text">Drop Reebelo ASN CSV here or click to upload</div>
-        <div class="dz-fname" id="rr-asn-fname"></div>
+        <div class="reebelo-dz-ico">&#128196;</div>
+        <div class="reebelo-dz-txt">Drop Reebelo ASN CSV here or click to upload</div>
+        <div class="reebelo-dz-fname" id="rr-asn-fname"></div>
         <input type="file" id="rr-asn-file" accept=".csv" style="display:none" onchange="ReebRecv.uploadASN(this.files[0])">
       </div>
     </div>
@@ -939,57 +886,50 @@
 
 <!-- ═══════════ REEBELO — RECEIVE & TRIAGE: RECEIVE ═══════════ -->
 <div id="sec-reeb-receive" class="section">
-  <div class="container reeb-recv-scope">
-    <div class="rr-card" style="padding: 16px 24px;">
-      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+  <div class="container">
+    <div class="card" style="padding:16px 24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
-          <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .5px;">Active ASN Batch</div>
-          <div style="font-size: 16px; font-weight: 700; color: var(--dark-green);" id="rr-batch-name">—</div>
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;">Active ASN Batch</div>
+          <div style="font-size:16px;font-weight:700;color:var(--dark-green);" id="rr-batch-name">—</div>
         </div>
         <div id="rr-batch-badge"></div>
-        <div style="display: flex; gap: 8px;">
-          <button class="rr-btn rr-btn-secondary rr-btn-sm" onclick="sidebarNav('reeb-receive-batches')">&#8592; Back to Batches</button>
-          <button class="rr-btn rr-btn-primary rr-btn-sm" onclick="ReebRecv.completeBatch()" id="rr-btn-complete">&#10003; Complete Batch</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline btn-sm" onclick="sidebarNav('reeb-receive-batches')">&#8592; Back to Batches</button>
+          <button class="btn btn-primary btn-sm" onclick="ReebRecv.completeBatch()" id="rr-btn-complete">&#10003; Complete Batch</button>
         </div>
       </div>
     </div>
 
-    <div class="rr-stats" id="rr-stats"></div>
+    <div id="rr-stats" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;"></div>
 
-    <div class="rr-receive-layout">
+    <div class="reeb-receive-layout">
       <div>
-        <div class="rr-card">
-          <div class="rr-card-header">
-            <div class="ico">&#128225;</div>
-            <div>
-              <h2>Receiving Information</h2>
-              <div class="subtitle">Scan or enter tracking details to begin receiving</div>
-            </div>
-          </div>
-          <div class="rr-form-row" style="grid-template-columns: 1fr auto;">
-            <div class="rr-form-group">
-              <label>Scan Tracking / Order Number <span class="req">*</span></label>
-              <input type="text" id="rr-scan-input" class="scan-input" placeholder="Scan tracking barcode or enter order number..."
+        <div class="card">
+          <h2>&#128225; Receiving Information</h2>
+          <p style="font-size:13px;color:#888;margin-bottom:12px;">Scan or enter tracking details to begin receiving.</p>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:end;margin-bottom:8px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Scan Tracking / Order Number <span style="color:var(--alert-red);">*</span></label>
+              <input type="text" id="rr-scan-input" placeholder="Scan tracking barcode or enter order number..."
                      onkeydown="if(event.key==='Enter') ReebRecv.doLookup()">
             </div>
-            <div class="rr-form-group" style="display: flex; align-items: flex-end;">
-              <button class="rr-btn rr-btn-primary" onclick="ReebRecv.doLookup()" style="height: 46px;">&#128269; Lookup</button>
-            </div>
+            <button class="btn btn-primary" onclick="ReebRecv.doLookup()" style="height:46px;">&#128269; Lookup</button>
           </div>
 
           <div id="rr-lookup-result"></div>
 
-          <div id="rr-triage-form" style="display: none;">
-            <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;">
-            <div class="rr-form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
-              <div class="rr-form-group"><label>Order #</label><input type="text" id="rr-tf-order" readonly style="background: #f8f8f8;"></div>
-              <div class="rr-form-group"><label>Seller</label><input type="text" id="rr-tf-seller" readonly style="background: #f8f8f8;"></div>
-              <div class="rr-form-group"><label>Return Reason</label><input type="text" id="rr-tf-return-reason" readonly style="background: #f8f8f8;"></div>
-              <div class="rr-form-group"><label>Vendor IMEI</label><input type="text" id="rr-tf-imei" readonly style="background: #f8f8f8;"></div>
+          <div id="rr-triage-form" style="display:none;">
+            <hr style="border:none;border-top:1px solid var(--medium-gray);margin:16px 0;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;">
+              <div class="form-group"><label>Order #</label><input type="text" id="rr-tf-order" readonly style="background:#f8f8f8;"></div>
+              <div class="form-group"><label>Seller</label><input type="text" id="rr-tf-seller" readonly style="background:#f8f8f8;"></div>
+              <div class="form-group"><label>Return Reason</label><input type="text" id="rr-tf-return-reason" readonly style="background:#f8f8f8;"></div>
+              <div class="form-group"><label>Vendor IMEI</label><input type="text" id="rr-tf-imei" readonly style="background:#f8f8f8;"></div>
             </div>
-            <div class="rr-form-row" style="grid-template-columns: 1fr 1fr;">
-              <div class="rr-form-group">
-                <label>Device Type <span class="req">*</span></label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div class="form-group">
+                <label>Device Type <span style="color:var(--alert-red);">*</span></label>
                 <select id="rr-tf-device-type" onchange="ReebRecv.updateAccessories()">
                   <option value="">Select...</option>
                   <option value="Mobile">Mobile</option>
@@ -1002,25 +942,19 @@
                   <option value="Other">Other</option>
                 </select>
               </div>
-              <div class="rr-form-group"><label>Bin Location</label><input type="text" id="rr-tf-bin" placeholder="e.g. 17809"></div>
+              <div class="form-group"><label>Bin Location</label><input type="text" id="rr-tf-bin" placeholder="e.g. 17809"></div>
             </div>
-            <div class="rr-form-group" style="margin-bottom: 16px;">
+            <div class="form-group">
               <label>Device Description</label>
-              <input type="text" id="rr-tf-description" readonly style="background: #f8f8f8;">
+              <input type="text" id="rr-tf-description" readonly style="background:#f8f8f8;">
             </div>
-            <div class="rr-card" style="padding: 16px; border: 1.5px solid #dde; box-shadow: none; margin-bottom: 16px;">
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                <span style="font-size: 18px;">&#127991;</span>
-                <span style="font-weight: 700; font-size: 14px;">Device Accessories</span>
-              </div>
-              <div class="rr-choice-group" id="rr-tf-accessories"></div>
+            <div class="card" style="padding:16px;box-shadow:none;border:1px solid var(--medium-gray);margin-bottom:16px;">
+              <h3 style="margin-bottom:10px;">&#127991; Device Accessories</h3>
+              <div class="reeb-choice-group" id="rr-tf-accessories"></div>
             </div>
-            <div class="rr-card" style="padding: 16px; border: 1.5px solid #dde; box-shadow: none; margin-bottom: 16px;">
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                <span style="font-size: 18px;">&#9989;</span>
-                <span style="font-weight: 700; font-size: 14px;">Condition <span style="color: var(--alert-red);">*</span></span>
-              </div>
-              <div class="rr-choice-group">
+            <div class="card" style="padding:16px;box-shadow:none;border:1px solid var(--medium-gray);margin-bottom:16px;">
+              <h3 style="margin-bottom:10px;">&#9989; Condition <span style="color:var(--alert-red);">*</span></h3>
+              <div class="reeb-choice-group">
                 <label><input type="radio" name="rr-tf-condition" value="Broken"> <span>Broken</span></label>
                 <label><input type="radio" name="rr-tf-condition" value="Excellent"> <span>Excellent</span></label>
                 <label><input type="radio" name="rr-tf-condition" value="Good"> <span>Good</span></label>
@@ -1028,8 +962,8 @@
                 <label><input type="radio" name="rr-tf-condition" value="Used"> <span>Used</span></label>
               </div>
             </div>
-            <div class="rr-form-row" style="grid-template-columns: 1fr 1fr 1fr;">
-              <div class="rr-form-group">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+              <div class="form-group">
                 <label>Functional Test</label>
                 <select id="rr-tf-functional-test">
                   <option value="">Not tested</option>
@@ -1038,7 +972,7 @@
                   <option value="Partial">Partial</option>
                 </select>
               </div>
-              <div class="rr-form-group">
+              <div class="form-group">
                 <label>Cosmetic Grade</label>
                 <select id="rr-tf-cosmetic-grade">
                   <option value="">Not graded</option>
@@ -1049,39 +983,39 @@
                   <option value="Poor">Poor</option>
                 </select>
               </div>
-              <div class="rr-form-group" style="display: flex; align-items: flex-end; gap: 20px; padding-bottom: 4px;">
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 0;"><input type="checkbox" id="rr-tf-unlocked"> <span>Device Unlocked</span></label>
-                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 0;"><input type="checkbox" id="rr-tf-empty-box"> <span>Empty Box</span></label>
+              <div class="form-group" style="display:flex;align-items:flex-end;gap:20px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:0;font-weight:500;font-size:13px;color:var(--dark-gray);"><input type="checkbox" id="rr-tf-unlocked"> <span>Device Unlocked</span></label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:0;font-weight:500;font-size:13px;color:var(--dark-gray);"><input type="checkbox" id="rr-tf-empty-box"> <span>Empty Box</span></label>
               </div>
             </div>
-            <div class="rr-form-group" style="margin-bottom: 16px;">
+            <div class="form-group">
               <label>Notes</label>
               <input type="text" id="rr-tf-notes" placeholder="Optional notes...">
             </div>
-            <div style="margin-bottom: 16px;">
-              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--warn-orange);">
+            <div style="margin-bottom:16px;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--warn-orange);margin-bottom:0;">
                 <input type="checkbox" id="rr-tf-exception" onchange="document.getElementById('rr-tf-exception-reason-wrap').style.display = this.checked ? 'block' : 'none'">
                 &#9888; Mark as Exception
               </label>
-              <div id="rr-tf-exception-reason-wrap" style="display: none; margin-top: 8px;">
-                <input type="text" id="rr-tf-exception-reason" placeholder="Exception reason..." style="width: 100%; padding: 8px 12px; border: 1.5px solid var(--warn-orange); border-radius: 8px;">
+              <div id="rr-tf-exception-reason-wrap" style="display:none;margin-top:8px;">
+                <input type="text" id="rr-tf-exception-reason" placeholder="Exception reason..." style="width:100%;padding:10px 14px;border:2px solid var(--warn-orange);border-radius:8px;font-size:14px;">
               </div>
             </div>
-            <div style="display: flex; gap: 12px; justify-content: flex-end;">
-              <button class="rr-btn rr-btn-danger" onclick="ReebRecv.cancelReceive()">&#10005; Cancel</button>
-              <button class="rr-btn rr-btn-primary rr-btn-lg" onclick="ReebRecv.submitReceive()">&#10148; Next Item</button>
+            <div style="display:flex;gap:12px;justify-content:flex-end;">
+              <button class="btn btn-danger" onclick="ReebRecv.cancelReceive()">&#10005; Cancel</button>
+              <button class="btn btn-primary" onclick="ReebRecv.submitReceive()">&#10148; Next Item</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="rr-processed">
-        <div class="panel-header">
+      <div class="reeb-processed-panel">
+        <div class="pp-header">
           <h3>&#128203; Processed Items</h3>
-          <div class="count-badge" id="rr-processed-count">0</div>
+          <div class="pp-count" id="rr-processed-count">0</div>
         </div>
-        <div class="panel-body" id="rr-processed-list">
-          <div class="empty-state"><div class="ico">&#128230;</div><div>No items processed yet</div></div>
+        <div class="pp-body" id="rr-processed-list">
+          <div class="empty-state" style="padding:32px 20px;"><div class="icon">&#128230;</div><div>No items processed yet</div></div>
         </div>
       </div>
     </div>
@@ -10125,15 +10059,7 @@ async function reebeloSaveSettings() {
     Other:   ['Cable', 'Box', 'Power Supply', 'Adapter']
   };
 
-  function rrToast(msg, type) {
-    const stack = document.getElementById('rr-toasts');
-    if (!stack) return;
-    const el = document.createElement('div');
-    el.className = 'rr-toast ' + (type || 'success');
-    el.textContent = msg;
-    stack.appendChild(el);
-    setTimeout(() => el.remove(), 4000);
-  }
+  function rrNotify(msg) { alert(msg); }
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -10156,13 +10082,13 @@ async function reebeloSaveSettings() {
     try {
       const res = await fetch('/api/reeb/upload-asn', { method: 'POST', body: fd });
       const data = await res.json();
-      if (data.error) { rrToast(data.error, 'error'); fname.textContent = ''; return; }
+      if (data.error) { rrNotify(data.error, 'error'); fname.textContent = ''; return; }
       dz.classList.add('loaded');
       fname.textContent = `${data.filename} — ${Number(data.totalItems).toLocaleString()} items loaded`;
-      rrToast(`ASN uploaded: ${Number(data.totalItems).toLocaleString()} items`);
+      rrNotify(`ASN uploaded: ${Number(data.totalItems).toLocaleString()} items`);
       loadBatches();
     } catch (err) {
-      rrToast('Upload failed: ' + err.message, 'error');
+      rrNotify('Upload failed: ' + err.message, 'error');
       fname.textContent = '';
     }
   }
@@ -10174,27 +10100,27 @@ async function reebeloSaveSettings() {
       const container = document.getElementById('rr-batch-list-container');
       if (!container) return;
       if (!batches.length) {
-        container.innerHTML = '<div class="rr-card" style="text-align:center; color:#aaa; padding: 40px;">No ASN batches uploaded yet. Upload a Reebelo CSV above to get started.</div>';
+        container.innerHTML = '<div class="card"><div class="empty-state"><div class="icon">&#128230;</div><p>No ASN batches uploaded yet. Upload a Reebelo CSV above to get started.</p></div></div>';
         return;
       }
-      let html = '<div class="rr-batch-list">';
+      let html = '<div class="reeb-batch-list">';
       for (const b of batches) {
         const total = Number(b.total_items) || 0;
         const recv = Number(b.received_count) || 0;
         const pct = total > 0 ? Math.round(recv / total * 100) : 0;
         const statusBadge = b.status === 'COMPLETED'
-          ? '<span class="rr-badge rr-badge-pass">Completed</span>'
-          : '<span class="rr-badge rr-badge-info">Open</span>';
+          ? '<span class="badge badge-pass">Completed</span>'
+          : '<span class="badge badge-review">Open</span>';
         html += `
-          <div class="rr-batch-card" onclick="ReebRecv.startReceiving(${b.id})">
+          <div class="reeb-batch-card" onclick="ReebRecv.startReceiving(${b.id})">
             <div>
               <div class="bc-name">${escapeHtml(b.filename)}</div>
               <div class="bc-meta">Uploaded ${escapeHtml(new Date(b.uploaded_at).toLocaleString())} &middot; ${total.toLocaleString()} items ${statusBadge}</div>
-              <div class="rr-progress" style="width: 200px;"><div class="fill" style="width: ${pct}%;"></div></div>
+              <div class="reeb-progress" style="width:200px;"><div class="fill" style="width:${pct}%;"></div></div>
             </div>
             <div class="bc-progress">
               <div class="pct">${pct}%</div>
-              <div style="font-size: 11px; color: #888;">${recv}/${total}</div>
+              <div style="font-size:11px;color:#888;">${recv}/${total}</div>
             </div>
           </div>`;
       }
@@ -10202,7 +10128,7 @@ async function reebeloSaveSettings() {
       container.innerHTML = html;
       batchesLoaded = true;
     } catch (err) {
-      rrToast('Failed to load batches', 'error');
+      rrNotify('Failed to load batches', 'error');
     }
   }
 
@@ -10217,13 +10143,13 @@ async function reebeloSaveSettings() {
     try {
       const res = await fetch(`/api/reeb/batch/${currentBatchId}`);
       const data = await res.json();
-      if (data.error) { rrToast(data.error, 'error'); return; }
+      if (data.error) { rrNotify(data.error, 'error'); return; }
       currentBatch = data.batch;
       document.getElementById('rr-batch-name').textContent = data.batch.filename;
       document.getElementById('rr-batch-badge').innerHTML =
         data.batch.status === 'COMPLETED'
-          ? '<span class="rr-locked-banner">&#128274; Batch Completed</span>'
-          : '<span class="rr-locked-banner" style="border-color: var(--info-blue); background: var(--info-bg); color: var(--info-blue);">&#128994; Receiving Active</span>';
+          ? '<span class="reeb-locked-banner">&#128274; Batch Completed</span>'
+          : '<span class="reeb-locked-banner" style="border-color:var(--info-blue);background:var(--info-bg);color:var(--info-blue);">&#128994; Receiving Active</span>';
       processedItems = (data.received || []).map(r => {
         const asnItem = data.items.find(i => i.id === r.asn_item_id);
         return { ...r, product_name: asnItem ? asnItem.product_name : '—', order_number: asnItem ? asnItem.order_number : '' };
@@ -10232,7 +10158,7 @@ async function reebeloSaveSettings() {
       await refreshStats();
       setTimeout(() => { const el = document.getElementById('rr-scan-input'); if (el) el.focus(); }, 100);
     } catch (err) {
-      rrToast('Failed to load batch', 'error');
+      rrNotify('Failed to load batch', 'error');
     }
   }
 
@@ -10244,17 +10170,17 @@ async function reebeloSaveSettings() {
       const el = document.getElementById('rr-stats');
       if (!el) return;
       el.innerHTML = `
-        <div class="rr-stat"><div class="num">${Number(s.total).toLocaleString()}</div><div class="label">Total Items</div></div>
-        <div class="rr-stat"><div class="num">${s.received}</div><div class="label">Received</div></div>
-        <div class="rr-stat warn"><div class="num">${s.pending}</div><div class="label">Pending</div></div>
-        <div class="rr-stat alert"><div class="num">${s.exceptions}</div><div class="label">Exceptions</div></div>
-        <div class="rr-stat info"><div class="num">${s.percentComplete}%</div><div class="label">Complete</div></div>
+        <div class="stat-card"><div class="num">${Number(s.total).toLocaleString()}</div><div class="label">Total Items</div></div>
+        <div class="stat-card"><div class="num">${s.received}</div><div class="label">Received</div></div>
+        <div class="stat-card warn"><div class="num">${s.pending}</div><div class="label">Pending</div></div>
+        <div class="stat-card fail"><div class="num">${s.exceptions}</div><div class="label">Exceptions</div></div>
+        <div class="stat-card info"><div class="num">${s.percentComplete}%</div><div class="label">Complete</div></div>
       `;
     } catch (err) { /* silent */ }
   }
 
   async function doLookup() {
-    if (!currentBatchId) { rrToast('Select a batch first', 'warn'); return; }
+    if (!currentBatchId) { rrNotify('Select a batch first', 'warn'); return; }
     const query = document.getElementById('rr-scan-input').value.trim();
     if (!query) return;
     const resultDiv = document.getElementById('rr-lookup-result');
@@ -10264,14 +10190,14 @@ async function reebeloSaveSettings() {
       const data = await res.json();
       if (data.items.length === 0) {
         if (data.alreadyReceived && data.alreadyReceived.length > 0) {
-          resultDiv.innerHTML = `<div class="rr-search-result" style="border-color: var(--warn-orange); background: var(--warn-bg);">
-            <div class="sr-header"><span style="font-size: 18px;">&#9888;</span> <strong>Already Received</strong></div>
-            <div style="font-size: 13px;">This item has already been received: <strong>${escapeHtml(data.alreadyReceived[0].product_name)}</strong></div>
+          resultDiv.innerHTML = `<div class="reeb-search-result" style="border-color:var(--warn-orange);background:var(--warn-bg);">
+            <div class="sr-header"><span style="font-size:18px;">&#9888;</span> <strong>Already Received</strong></div>
+            <div style="font-size:13px;">This item has already been received: <strong>${escapeHtml(data.alreadyReceived[0].product_name)}</strong></div>
           </div>`;
         } else {
-          resultDiv.innerHTML = `<div class="rr-search-result" style="border-color: var(--alert-red); background: var(--alert-bg);">
-            <div class="sr-header"><span style="font-size: 18px;">&#10060;</span> <strong>Not Found</strong></div>
-            <div style="font-size: 13px;">No pending ASN item matches "<strong>${escapeHtml(query)}</strong>". Check the tracking number or order number.</div>
+          resultDiv.innerHTML = `<div class="reeb-search-result" style="border-color:var(--alert-red);background:var(--alert-bg);">
+            <div class="sr-header"><span style="font-size:18px;">&#10060;</span> <strong>Not Found</strong></div>
+            <div style="font-size:13px;">No pending ASN item matches "<strong>${escapeHtml(query)}</strong>". Check the tracking number or order number.</div>
           </div>`;
         }
         document.getElementById('rr-triage-form').style.display = 'none';
@@ -10280,11 +10206,11 @@ async function reebeloSaveSettings() {
       if (data.items.length === 1) {
         selectItem(data.items[0], data.matchMethod, query);
       } else {
-        let html = `<div class="rr-multi-match"><h4>&#128269; ${data.items.length} items found (matched by ${escapeHtml(data.matchMethod.replace('_', ' '))})</h4>`;
+        let html = `<div class="reeb-multi-match"><h4>&#128269; ${data.items.length} items found (matched by ${escapeHtml(data.matchMethod.replace('_', ' '))})</h4>`;
         for (const item of data.items) {
-          html += `<div class="rr-match-option" onclick='ReebRecv.selectItem(${JSON.stringify(item).replace(/'/g, "&#39;")}, "${escapeHtml(data.matchMethod)}", "${escapeHtml(query)}")'>
+          html += `<div class="reeb-match-option" onclick='ReebRecv.selectItem(${JSON.stringify(item).replace(/'/g, "&#39;")}, "${escapeHtml(data.matchMethod)}", "${escapeHtml(query)}")'>
             <strong>${escapeHtml(item.product_name)}</strong><br>
-            <span style="color: #888;">Order ${escapeHtml(item.order_number)} &middot; Seller: ${escapeHtml(item.seller)} &middot; IMEI: ${escapeHtml(item.vendor_imei || 'N/A')}</span>
+            <span style="color:#888;">Order ${escapeHtml(item.order_number)} &middot; Seller: ${escapeHtml(item.seller)} &middot; IMEI: ${escapeHtml(item.vendor_imei || 'N/A')}</span>
           </div>`;
         }
         html += '</div>';
@@ -10293,7 +10219,7 @@ async function reebeloSaveSettings() {
       }
     } catch (err) {
       resultDiv.innerHTML = '';
-      rrToast('Lookup failed: ' + err.message, 'error');
+      rrNotify('Lookup failed: ' + err.message, 'error');
     }
   }
 
@@ -10301,9 +10227,9 @@ async function reebeloSaveSettings() {
     currentItem = item;
     matchMethod = method;
     const resultDiv = document.getElementById('rr-lookup-result');
-    resultDiv.innerHTML = `<div class="rr-search-result">
+    resultDiv.innerHTML = `<div class="reeb-search-result">
       <div class="sr-header">
-        <span style="font-size: 18px;">&#9989;</span>
+        <span style="font-size:18px;">&#9989;</span>
         <span class="sr-product">${escapeHtml(item.product_name)}</span>
       </div>
       <div class="sr-details">
@@ -10358,8 +10284,8 @@ async function reebeloSaveSettings() {
     if (!currentItem) return;
     const condition = document.querySelector('input[name="rr-tf-condition"]:checked');
     const deviceType = document.getElementById('rr-tf-device-type').value;
-    if (!deviceType) { rrToast('Please select a Device Type', 'warn'); return; }
-    if (!condition) { rrToast('Please select a Condition', 'warn'); return; }
+    if (!deviceType) { rrNotify('Please select a Device Type', 'warn'); return; }
+    if (!condition) { rrNotify('Please select a Condition', 'warn'); return; }
     const accessories = Array.from(document.querySelectorAll('input[name="rr-acc"]:checked')).map(c => c.value);
     const payload = {
       asnItemId: currentItem.id,
@@ -10382,7 +10308,7 @@ async function reebeloSaveSettings() {
     try {
       const res = await fetch('/api/reeb/receive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await res.json();
-      if (data.error) { rrToast(data.error, 'error'); return; }
+      if (data.error) { rrNotify(data.error, 'error'); return; }
       processedItems.unshift({
         product_name: currentItem.product_name,
         order_number: currentItem.order_number,
@@ -10391,7 +10317,7 @@ async function reebeloSaveSettings() {
         received_at: new Date().toISOString()
       });
       renderProcessedItems();
-      rrToast(`Received: ${(currentItem.product_name || '').substring(0, 40)}`);
+      rrNotify(`Received: ${(currentItem.product_name || '').substring(0, 40)}`);
       currentItem = null;
       document.getElementById('rr-scan-input').value = '';
       document.getElementById('rr-lookup-result').innerHTML = '';
@@ -10399,7 +10325,7 @@ async function reebeloSaveSettings() {
       document.getElementById('rr-scan-input').focus();
       await refreshStats();
     } catch (err) {
-      rrToast('Failed to save: ' + err.message, 'error');
+      rrNotify('Failed to save: ' + err.message, 'error');
     }
   }
 
@@ -10417,11 +10343,11 @@ async function reebeloSaveSettings() {
     if (!list || !count) return;
     count.textContent = processedItems.length;
     if (processedItems.length === 0) {
-      list.innerHTML = '<div class="empty-state"><div class="ico">&#128230;</div><div>No items processed yet</div></div>';
+      list.innerHTML = '<div class="empty-state" style="padding:32px 20px;"><div class="icon">&#128230;</div><div>No items processed yet</div></div>';
       return;
     }
     list.innerHTML = processedItems.map(p => `
-      <div class="rr-processed-item ${p.exception ? 'exception' : ''}">
+      <div class="reeb-processed-item ${p.exception ? 'exception' : ''}">
         <div class="pi-product">${escapeHtml(p.product_name)}</div>
         <div class="pi-meta">${escapeHtml(p.order_number || '')} &middot; ${escapeHtml(p.condition || '')} ${p.exception ? '&#9888; Exception' : ''}</div>
       </div>
@@ -10433,10 +10359,10 @@ async function reebeloSaveSettings() {
     if (!confirm('Mark this batch as completed? This will close the batch for receiving.')) return;
     try {
       await fetch(`/api/reeb/batch/${currentBatchId}/complete`, { method: 'PATCH' });
-      rrToast('Batch marked as completed');
+      rrNotify('Batch marked as completed');
       sidebarNav('reeb-receive-batches');
     } catch (err) {
-      rrToast('Failed to complete batch', 'error');
+      rrNotify('Failed to complete batch', 'error');
     }
   }
 
