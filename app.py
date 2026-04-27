@@ -1511,6 +1511,97 @@ def reebelo_save_config():
 
 
 # ════════════════════════════════════
+# REEBELO RECEIVE & TRIAGE
+# ════════════════════════════════════
+
+import csv as _csv
+
+
+@app.route('/api/reeb/upload-asn', methods=['POST'])
+def reeb_upload_asn():
+    """Parse a Reebelo ASN CSV and persist all rows as a new batch."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    fname = file.filename or ''
+    if not fname.lower().endswith('.csv'):
+        return jsonify({'error': 'File must be a CSV'}), 400
+    try:
+        content = file.read().decode('utf-8-sig')
+        rows = list(_csv.DictReader(io.StringIO(content)))
+        if not rows:
+            return jsonify({'error': 'CSV is empty'}), 400
+        uploader = (request.headers.get('X-User') or '').strip()
+        batch_id = db.save_reeb_asn_batch(fname, rows, uploaded_by=uploader)
+        return jsonify({
+            'batchId': batch_id,
+            'filename': fname,
+            'totalItems': len(rows),
+            'status': 'OPEN',
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/reeb/batches', methods=['GET'])
+def reeb_list_batches():
+    return jsonify(db.get_reeb_asn_batches())
+
+
+@app.route('/api/reeb/batch/<int:batch_id>', methods=['GET'])
+def reeb_get_batch(batch_id):
+    detail = db.get_reeb_asn_batch(batch_id)
+    if not detail:
+        return jsonify({'error': 'Batch not found'}), 404
+    return jsonify(detail)
+
+
+@app.route('/api/reeb/batch/<int:batch_id>/stats', methods=['GET'])
+def reeb_batch_stats(batch_id):
+    stats = db.get_reeb_batch_stats(batch_id)
+    if stats is None:
+        return jsonify({'error': 'Batch not found'}), 404
+    return jsonify(stats)
+
+
+@app.route('/api/reeb/lookup', methods=['GET'])
+def reeb_lookup():
+    """Scan lookup: tracking → order # → IMEI → partial tracking."""
+    query = (request.args.get('q') or '').strip()
+    try:
+        batch_id = int(request.args.get('batch_id', ''))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'q and batch_id required'}), 400
+    if not query or not batch_id:
+        return jsonify({'error': 'q and batch_id required'}), 400
+    return jsonify(db.lookup_reeb_item(query, batch_id))
+
+
+@app.route('/api/reeb/receive', methods=['POST'])
+def reeb_receive():
+    """Record a triage decision for a scanned item."""
+    data = request.get_json(silent=True) or {}
+    if not data.get('asnItemId') or not data.get('batchId'):
+        return jsonify({'error': 'asnItemId and batchId required'}), 400
+    result = db.save_reeb_received_item(data)
+    if result is None:
+        return jsonify({'error': 'Item not found'}), 404
+    return jsonify(result)
+
+
+@app.route('/api/reeb/batch/<int:batch_id>/complete', methods=['PATCH'])
+def reeb_complete_batch(batch_id):
+    db.complete_reeb_batch(batch_id)
+    return jsonify({'status': 'completed', 'batchId': batch_id})
+
+
+@app.route('/api/reeb/batch/<int:batch_id>', methods=['DELETE'])
+def reeb_delete_batch(batch_id):
+    db.delete_reeb_batch(batch_id)
+    return jsonify({'status': 'deleted'})
+
+
+# ════════════════════════════════════
 # STARTUP
 # ════════════════════════════════════
 
