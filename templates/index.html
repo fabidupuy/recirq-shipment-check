@@ -5427,7 +5427,7 @@ async function sendHistoryToSlack(batchId) {
   }
 
   // Upload shipment photos to thread
-  const photos = batch.shipmentPhotos || ppAllPhotos['shipment-' + batchId] || [];
+  const photos = (batch.shipmentPhotos && batch.shipmentPhotos.length) ? batch.shipmentPhotos : (ppAllPhotos['shipment-' + batchId] || []);
   if (photos.length > 0) {
     // Post a thread reply mentioning photos
     try {
@@ -5648,7 +5648,7 @@ async function sendVictraEmail(batchId) {
   const removed = batch.units.filter(u => isRemoved(u));
 
   // Collect photo URLs
-  const photos = batch.shipmentPhotos || ppAllPhotos['shipment-' + batchId] || [];
+  const photos = (batch.shipmentPhotos && batch.shipmentPhotos.length) ? batch.shipmentPhotos : (ppAllPhotos['shipment-' + batchId] || []);
   const photoUrls = photos.map(p => ({ viewUrl: p.viewUrl, key: p.key }));
 
   // Build CSV data — use actual ship advice (same as download reports)
@@ -5751,7 +5751,7 @@ async function sendEmailMe(batchId) {
   const activeUnits = batch.units.filter(u => !isRemoved(u));
   const removed = batch.units.filter(u => isRemoved(u));
 
-  const photos = batch.shipmentPhotos || ppAllPhotos['shipment-' + batchId] || [];
+  const photos = (batch.shipmentPhotos && batch.shipmentPhotos.length) ? batch.shipmentPhotos : (ppAllPhotos['shipment-' + batchId] || []);
   const photoUrls = photos.map(p => ({ viewUrl: p.viewUrl, key: p.key }));
 
   // Build CSV data — same as sendVictraEmail, with Ship date column truncation
