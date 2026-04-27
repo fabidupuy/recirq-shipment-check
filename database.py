@@ -315,6 +315,88 @@ def init_db():
         value TEXT
     )''')
 
+    # ── Reebelo Receive & Triage tables ──
+    c.execute(f'''CREATE TABLE IF NOT EXISTS reeb_asn_batches (
+        id {serial},
+        filename TEXT NOT NULL,
+        uploaded_at TEXT NOT NULL,
+        uploaded_by TEXT DEFAULT '',
+        total_items INTEGER DEFAULT 0,
+        received_count INTEGER DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        notes TEXT DEFAULT ''
+    )''')
+
+    asn_item_batch_ref = ('BIGINT NOT NULL REFERENCES reeb_asn_batches(id) ON DELETE CASCADE'
+                          if DATABASE_URL else
+                          'INTEGER NOT NULL REFERENCES reeb_asn_batches(id) ON DELETE CASCADE')
+    c.execute(f'''CREATE TABLE IF NOT EXISTS reeb_asn_items (
+        id {serial},
+        batch_id {asn_item_batch_ref},
+        asn_key TEXT,
+        order_number TEXT,
+        order_date TEXT,
+        return_initiated_date TEXT,
+        sales_channel TEXT,
+        sales_channel_order_number TEXT,
+        sales_channel_tracking_number TEXT,
+        return_reason TEXT,
+        seller TEXT,
+        store TEXT,
+        sku TEXT,
+        product_name TEXT,
+        asn_status TEXT,
+        is_device_unlocked TEXT,
+        functional_test_status TEXT,
+        cosmetic_condition TEXT,
+        empty_box TEXT,
+        notes TEXT,
+        vendor_imei TEXT,
+        logistics_imei TEXT,
+        logistics_tracking_number TEXT,
+        logistics_tracking_carrier TEXT,
+        logistics_tracking_url TEXT,
+        refunded_by TEXT,
+        receive_status TEXT DEFAULT 'PENDING'
+    )''')
+
+    recv_asn_ref = ('BIGINT NOT NULL REFERENCES reeb_asn_items(id)'
+                    if DATABASE_URL else
+                    'INTEGER NOT NULL REFERENCES reeb_asn_items(id)')
+    recv_batch_ref = ('BIGINT NOT NULL REFERENCES reeb_asn_batches(id)'
+                      if DATABASE_URL else
+                      'INTEGER NOT NULL REFERENCES reeb_asn_batches(id)')
+    c.execute(f'''CREATE TABLE IF NOT EXISTS reeb_received_items (
+        id {serial},
+        asn_item_id {recv_asn_ref},
+        batch_id {recv_batch_ref},
+        received_at TEXT NOT NULL,
+        received_by TEXT DEFAULT '',
+        scan_input TEXT,
+        match_method TEXT,
+        device_type TEXT,
+        device_description TEXT,
+        condition TEXT,
+        functional_test TEXT,
+        cosmetic_grade TEXT,
+        is_unlocked INTEGER DEFAULT 0,
+        empty_box INTEGER DEFAULT 0,
+        accessories_json TEXT DEFAULT '[]',
+        bin_location TEXT,
+        notes TEXT DEFAULT '',
+        exception INTEGER DEFAULT 0,
+        exception_reason TEXT DEFAULT '',
+        label_captured INTEGER DEFAULT 0,
+        label_skipped INTEGER DEFAULT 0,
+        label_refs_json TEXT DEFAULT '[]'
+    )''')
+
+    c.execute('CREATE INDEX IF NOT EXISTS idx_reeb_asn_items_tracking ON reeb_asn_items(sales_channel_tracking_number)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_reeb_asn_items_order ON reeb_asn_items(sales_channel_order_number)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_reeb_asn_items_imei ON reeb_asn_items(vendor_imei)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_reeb_asn_items_batch ON reeb_asn_items(batch_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_reeb_received_batch ON reeb_received_items(batch_id)')
+
     conn.commit()
     conn.close()
 
@@ -951,6 +1033,265 @@ def get_activity_log(batch_id=None, limit=100):
     rows = _fetchall(c)
     conn.close()
     return rows
+
+
+# ════════════════════════════════════
+# REEBELO RECEIVE & TRIAGE
+# ════════════════════════════════════
+
+_REEB_ASN_COLS = (
+    'asn_key', 'order_number', 'order_date', 'return_initiated_date',
+    'sales_channel', 'sales_channel_order_number', 'sales_channel_tracking_number',
+    'return_reason', 'seller', 'store', 'sku', 'product_name', 'asn_status',
+    'is_device_unlocked', 'functional_test_status', 'cosmetic_condition',
+    'empty_box', 'notes', 'vendor_imei', 'logistics_imei',
+    'logistics_tracking_number', 'logistics_tracking_carrier',
+    'logistics_tracking_url', 'refunded_by',
+)
+
+_REEB_CSV_FIELD_MAP = {
+    'asn_key': 'Key',
+    'order_number': 'Order',
+    'order_date': 'Order Date',
+    'return_initiated_date': 'Return Initiated Date',
+    'sales_channel': 'Sales Channel',
+    'sales_channel_order_number': 'Sales Channel Order Number',
+    'sales_channel_tracking_number': 'Sales Channel Tracking Number',
+    'return_reason': 'Return Reason',
+    'seller': 'Seller',
+    'store': 'Store',
+    'sku': 'SKU',
+    'product_name': 'Product Name',
+    'asn_status': 'Status',
+    'is_device_unlocked': 'Is Device Unlocked',
+    'functional_test_status': 'Functional Test Status',
+    'cosmetic_condition': 'Cosmetic Condition',
+    'empty_box': 'Empty Box',
+    'notes': 'Notes',
+    'vendor_imei': 'Vendor IMEI',
+    'logistics_imei': 'Logistics IMEI',
+    'logistics_tracking_number': 'Logistics Tracking Number',
+    'logistics_tracking_carrier': 'Logistics Tracking Carrier',
+    'logistics_tracking_url': 'Logistics Tracking URL',
+    'refunded_by': 'Refunded By',
+}
+
+
+def save_reeb_asn_batch(filename, csv_rows, uploaded_by=''):
+    """Insert a batch + all CSV rows. Returns the new batch id."""
+    conn = get_db()
+    c = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    total = len(csv_rows)
+
+    if DATABASE_URL:
+        c.execute(f'''INSERT INTO reeb_asn_batches (filename, uploaded_at, uploaded_by, total_items, status)
+                      VALUES ({_ph(5)}) RETURNING id''',
+                  (filename, now, uploaded_by, total, 'OPEN'))
+        batch_id = c.fetchone()[0]
+    else:
+        c.execute(f'''INSERT INTO reeb_asn_batches (filename, uploaded_at, uploaded_by, total_items, status)
+                      VALUES ({_ph(5)})''',
+                  (filename, now, uploaded_by, total, 'OPEN'))
+        batch_id = c.lastrowid
+
+    cols = ('batch_id',) + _REEB_ASN_COLS + ('receive_status',)
+    placeholders = _ph(len(cols))
+    insert_sql = f"INSERT INTO reeb_asn_items ({','.join(cols)}) VALUES ({placeholders})"
+
+    for row in csv_rows:
+        params = [batch_id]
+        for k in _REEB_ASN_COLS:
+            params.append(row.get(_REEB_CSV_FIELD_MAP[k], '') or '')
+        params.append('PENDING')
+        c.execute(insert_sql, tuple(params))
+
+    conn.commit()
+    conn.close()
+    return batch_id
+
+
+def get_reeb_asn_batches():
+    """List all ASN batches, newest first."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT * FROM reeb_asn_batches ORDER BY id DESC')
+    rows = _fetchall(c)
+    conn.close()
+    return rows
+
+
+def get_reeb_asn_batch(batch_id):
+    """Get one batch with items + received records. Returns None if not found."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f'SELECT * FROM reeb_asn_batches WHERE id = {_PH}', (batch_id,))
+    batch = _fetchone(c)
+    if not batch:
+        conn.close()
+        return None
+    c.execute(f'SELECT * FROM reeb_asn_items WHERE batch_id = {_PH} ORDER BY id', (batch_id,))
+    items = _fetchall(c)
+    c.execute(f'SELECT * FROM reeb_received_items WHERE batch_id = {_PH} ORDER BY id', (batch_id,))
+    received = _fetchall(c)
+    conn.close()
+    return {'batch': batch, 'items': items, 'received': received}
+
+
+def get_reeb_batch_stats(batch_id):
+    """Return progress stats for a batch."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f'SELECT id FROM reeb_asn_batches WHERE id = {_PH}', (batch_id,))
+    if not c.fetchone():
+        conn.close()
+        return None
+    c.execute(f'SELECT COUNT(*) FROM reeb_asn_items WHERE batch_id = {_PH}', (batch_id,))
+    total = c.fetchone()[0]
+    c.execute(f"SELECT COUNT(*) FROM reeb_asn_items WHERE batch_id = {_PH} AND receive_status = 'RECEIVED'", (batch_id,))
+    received = c.fetchone()[0]
+    c.execute(f"SELECT COUNT(*) FROM reeb_received_items WHERE batch_id = {_PH} AND exception = 1", (batch_id,))
+    exceptions = c.fetchone()[0]
+    conn.close()
+    return {
+        'total': total,
+        'received': received,
+        'pending': total - received,
+        'exceptions': exceptions,
+        'percentComplete': round(received / total * 100, 1) if total > 0 else 0,
+    }
+
+
+def lookup_reeb_item(query, batch_id):
+    """Multi-strategy lookup: tracking → order # → IMEI → partial tracking. Returns dict
+    with items, matchMethod, matchCount, alreadyReceived."""
+    conn = get_db()
+    c = conn.cursor()
+
+    strategies = [
+        ('tracking',         f"SELECT * FROM reeb_asn_items WHERE batch_id = {_PH} AND sales_channel_tracking_number = {_PH} AND receive_status = 'PENDING' ORDER BY id"),
+        ('order_number',     f"SELECT * FROM reeb_asn_items WHERE batch_id = {_PH} AND sales_channel_order_number = {_PH} AND receive_status = 'PENDING' ORDER BY id"),
+        ('imei',             f"SELECT * FROM reeb_asn_items WHERE batch_id = {_PH} AND vendor_imei = {_PH} AND receive_status = 'PENDING' ORDER BY id"),
+        ('tracking_partial', f"SELECT * FROM reeb_asn_items WHERE batch_id = {_PH} AND sales_channel_tracking_number LIKE {_PH} AND receive_status = 'PENDING' ORDER BY id"),
+    ]
+
+    items = []
+    method = 'tracking'
+    for label, sql in strategies:
+        param = f'%{query}%' if label == 'tracking_partial' else query
+        c.execute(sql, (batch_id, param))
+        items = _fetchall(c)
+        method = label
+        if items:
+            break
+
+    already_received = []
+    if not items:
+        c.execute(
+            f"""SELECT * FROM reeb_asn_items
+                WHERE batch_id = {_PH}
+                  AND (sales_channel_tracking_number = {_PH} OR sales_channel_order_number = {_PH} OR vendor_imei = {_PH})
+                  AND receive_status = 'RECEIVED'
+                ORDER BY id""",
+            (batch_id, query, query, query),
+        )
+        already_received = _fetchall(c)
+
+    conn.close()
+    return {
+        'items': items,
+        'matchMethod': method,
+        'matchCount': len(items),
+        'alreadyReceived': already_received,
+    }
+
+
+def save_reeb_received_item(data):
+    """Persist a triage record, mark the ASN item RECEIVED, refresh batch counter.
+    Returns updated stats or None if the ASN item is missing."""
+    asn_item_id = data.get('asnItemId')
+    batch_id = data.get('batchId')
+    if not asn_item_id or not batch_id:
+        return None
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f'SELECT id FROM reeb_asn_items WHERE id = {_PH} AND batch_id = {_PH}', (asn_item_id, batch_id))
+    if not c.fetchone():
+        conn.close()
+        return None
+
+    now = datetime.utcnow().isoformat()
+    accessories_json = json.dumps(data.get('accessories', []))
+    label_refs_json = json.dumps(data.get('labelRefs', []))
+
+    c.execute(f'''INSERT INTO reeb_received_items (
+        asn_item_id, batch_id, received_at, received_by, scan_input, match_method,
+        device_type, device_description, condition, functional_test, cosmetic_grade,
+        is_unlocked, empty_box, accessories_json, bin_location, notes,
+        exception, exception_reason, label_captured, label_skipped, label_refs_json
+    ) VALUES ({_ph(21)})''', (
+        asn_item_id, batch_id, now,
+        data.get('receivedBy', ''),
+        data.get('scanInput', ''),
+        data.get('matchMethod', ''),
+        data.get('deviceType', ''),
+        data.get('deviceDescription', ''),
+        data.get('condition', ''),
+        data.get('functionalTest', ''),
+        data.get('cosmeticGrade', ''),
+        1 if data.get('isUnlocked') else 0,
+        1 if data.get('emptyBox') else 0,
+        accessories_json,
+        data.get('binLocation', ''),
+        data.get('notes', ''),
+        1 if data.get('exception') else 0,
+        data.get('exceptionReason', ''),
+        1 if data.get('labelCaptured') else 0,
+        1 if data.get('labelSkipped') else 0,
+        label_refs_json,
+    ))
+
+    c.execute(f"UPDATE reeb_asn_items SET receive_status = 'RECEIVED' WHERE id = {_PH}", (asn_item_id,))
+    c.execute(f'''UPDATE reeb_asn_batches
+                  SET received_count = (SELECT COUNT(*) FROM reeb_asn_items
+                                        WHERE batch_id = {_PH} AND receive_status = 'RECEIVED')
+                  WHERE id = {_PH}''', (batch_id, batch_id))
+    conn.commit()
+
+    c.execute(f'SELECT COUNT(*) FROM reeb_asn_items WHERE batch_id = {_PH}', (batch_id,))
+    total = c.fetchone()[0]
+    c.execute(f"SELECT COUNT(*) FROM reeb_asn_items WHERE batch_id = {_PH} AND receive_status = 'RECEIVED'", (batch_id,))
+    received = c.fetchone()[0]
+    conn.close()
+
+    return {
+        'status': 'received',
+        'asnItemId': asn_item_id,
+        'total': total,
+        'received': received,
+        'remaining': total - received,
+    }
+
+
+def complete_reeb_batch(batch_id):
+    """Mark a batch as COMPLETED."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f"UPDATE reeb_asn_batches SET status = 'COMPLETED' WHERE id = {_PH}", (batch_id,))
+    conn.commit()
+    conn.close()
+
+
+def delete_reeb_batch(batch_id):
+    """Cascade-delete a batch and all its received/asn rows."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f'DELETE FROM reeb_received_items WHERE batch_id = {_PH}', (batch_id,))
+    c.execute(f'DELETE FROM reeb_asn_items WHERE batch_id = {_PH}', (batch_id,))
+    c.execute(f'DELETE FROM reeb_asn_batches WHERE id = {_PH}', (batch_id,))
+    conn.commit()
+    conn.close()
 
 
 # Initialize on import
