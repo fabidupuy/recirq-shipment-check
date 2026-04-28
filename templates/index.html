@@ -11777,11 +11777,9 @@ function renderLabelThumbs() {
 }
 
 function proceedToReceiveForm() {
-  // Hard guard: label is mandatory and must be captured via camera.
-  if (!currentItem || !currentItem._labelFiles || currentItem._labelFiles.length === 0) {
-    toast('A shipping label photo is required — take one with the camera before proceeding', 'warn');
-    return;
-  }
+  // Label photos are now captured via the phone QR handoff (uploaded to S3
+  // under the order number key). Operator self-attests by clicking Proceed.
+  if (!currentItem) return;
   document.getElementById('label-capture-step').style.display = 'none';
   document.getElementById('receive-form').style.display = 'block';
   populateReceiveForm();
