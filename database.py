@@ -315,6 +315,15 @@ def init_db():
         value TEXT
     )''')
 
+    # ── Reebelo Receive & Triage shared state (server-side persistence) ──
+    # Single key/value table keyed by concern: 'asn', 'rules', 'issues'.
+    # Replaces browser localStorage so every operator sees the same data.
+    c.execute('''CREATE TABLE IF NOT EXISTS reeb_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )''')
+
     # ── Reebelo Receive & Triage tables ──
     c.execute(f'''CREATE TABLE IF NOT EXISTS reeb_asn_batches (
         id {serial},
@@ -1290,6 +1299,48 @@ def delete_reeb_batch(batch_id):
     c.execute(f'DELETE FROM reeb_received_items WHERE batch_id = {_PH}', (batch_id,))
     c.execute(f'DELETE FROM reeb_asn_items WHERE batch_id = {_PH}', (batch_id,))
     c.execute(f'DELETE FROM reeb_asn_batches WHERE id = {_PH}', (batch_id,))
+    conn.commit()
+    conn.close()
+
+
+# ════════════════════════════════════
+# REEBELO STATE (server-side state for Receive & Triage UI)
+# ════════════════════════════════════
+
+def get_reeb_state(key):
+    """Return the JSON-encoded value for a given state key, or None."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(f'SELECT value FROM reeb_state WHERE key = {_PH}', (key,))
+    row = _fetchone(c)
+    conn.close()
+    return row['value'] if row else None
+
+
+def get_all_reeb_state():
+    """Return a dict of all state keys to JSON-encoded values."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT key, value FROM reeb_state')
+    rows = _fetchall(c)
+    conn.close()
+    return {r['key']: r['value'] for r in rows}
+
+
+def set_reeb_state(key, value_json):
+    """Upsert a state value (caller passes already-encoded JSON string)."""
+    conn = get_db()
+    c = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    if DATABASE_URL:
+        c.execute(f'''INSERT INTO reeb_state (key, value, updated_at)
+                      VALUES ({_ph(3)})
+                      ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at''',
+                  (key, value_json, now))
+    else:
+        c.execute(f'''INSERT OR REPLACE INTO reeb_state (key, value, updated_at)
+                      VALUES ({_ph(3)})''',
+                  (key, value_json, now))
     conn.commit()
     conn.close()
 

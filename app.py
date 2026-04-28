@@ -1602,6 +1602,48 @@ def reeb_delete_batch(batch_id):
 
 
 # ════════════════════════════════════
+# REEBELO RECEIVE & TRIAGE — v2 shared state (replaces browser localStorage)
+# Three keys: asn (full ASN data + uploads), rules (disposition matrix),
+# issues (issue dropdown options). Writers replace the value wholesale;
+# concurrency is last-writer-wins.
+# ════════════════════════════════════
+
+_REEB_V2_KEYS = ('asn', 'rules', 'issues')
+
+
+@app.route('/api/reeb/v2/state', methods=['GET'])
+def reeb_v2_get_state():
+    """Return all three state blobs as parsed JSON. Missing keys default to None."""
+    raw = db.get_all_reeb_state()
+    out = {}
+    for k in _REEB_V2_KEYS:
+        v = raw.get(k)
+        try:
+            out[k] = json.loads(v) if v else None
+        except Exception:
+            out[k] = None
+    return jsonify(out)
+
+
+@app.route('/api/reeb/v2/state/<key>', methods=['PUT'])
+def reeb_v2_put_state(key):
+    """Replace the value for a single state key. Body is the JSON value."""
+    if key not in _REEB_V2_KEYS:
+        return jsonify({'error': 'unknown key'}), 400
+    if not request.is_json:
+        return jsonify({'error': 'expected application/json'}), 415
+    payload = request.get_json(silent=True)
+    if payload is None and request.data:
+        # Allow explicit null/empty string body
+        payload = None
+    try:
+        db.set_reeb_state(key, json.dumps(payload))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return jsonify({'status': 'saved', 'key': key})
+
+
+# ════════════════════════════════════
 # STARTUP
 # ════════════════════════════════════
 
