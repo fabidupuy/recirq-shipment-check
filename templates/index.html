@@ -12557,14 +12557,14 @@ function showPrintLabelModal(labelsArray) {
     : 'Preview — this will print on your DYMO label printer';
 
   document.getElementById('label-modal-container').innerHTML = `
-    <div class="label-modal-overlay" onclick="closePrintModal(event)">
+    <div class="label-modal-overlay" onclick="ReebRecv.closePrintModal(event)">
       <div class="label-modal" onclick="event.stopPropagation()" style="max-height: 90vh; overflow-y: auto;">
         <h3>&#128424; Print DYMO Label${labelsArray.length > 1 ? 's' : ''}</h3>
         <div style="text-align:center; margin-bottom: 12px; font-size: 12px; color: #888;">${countMsg}</div>
         ${allLabelsHTML}
         <div class="actions">
-          <button class="btn btn-secondary" onclick="closePrintModal()">Skip</button>
-          <button class="btn btn-primary btn-lg" onclick="printDymoLabel()">&#128424; Print ${labelsArray.length > 1 ? labelsArray.length + ' Labels' : 'Label'}</button>
+          <button class="btn btn-secondary" onclick="ReebRecv.closePrintModal()">Skip</button>
+          <button class="btn btn-primary btn-lg" onclick="ReebRecv.printDymoLabel()">&#128424; Print ${labelsArray.length > 1 ? labelsArray.length + ' Labels' : 'Label'}</button>
         </div>
       </div>
     </div>
@@ -12846,22 +12846,14 @@ function triageLookup() {
     document.getElementById('tq-imei-result').style.background = 'var(--warn-bg)';
     document.getElementById('tq-imei-result').style.color = 'var(--warn-orange)';
     document.getElementById('tq-imei-block').style.borderColor = 'var(--warn-orange)';
-  } else if (vendorImei) {
-    // Has vendor IMEI → operator must scan device IMEI to compare
-    document.getElementById('tq-vendor-imei').value = vendorImei;
-    document.getElementById('tq-scan-imei-group').style.display = 'block';
-    document.getElementById('tq-imei-match').value = ''; // will be set by checkImeiMatch()
-    document.getElementById('tq-imei-block').style.borderColor = 'var(--medium-green)';
   } else {
-    // No vendor IMEI → auto-set and skip scan
-    document.getElementById('tq-vendor-imei').value = '— No Vendor IMEI —';
-    document.getElementById('tq-scan-imei-group').style.display = 'none';
-    document.getElementById('tq-imei-match').value = 'NO VENDOR IMEI';
-    document.getElementById('tq-imei-result').style.display = 'block';
-    document.getElementById('tq-imei-result').textContent = 'NO VENDOR IMEI — Skipped';
-    document.getElementById('tq-imei-result').style.background = 'var(--warn-bg)';
-    document.getElementById('tq-imei-result').style.color = 'var(--warn-orange)';
-    document.getElementById('tq-imei-block').style.borderColor = 'var(--warn-orange)';
+    // Operator must always scan device IMEI on triage. If no Vendor IMEI is
+    // on the ASN, we still capture the device IMEI for the record — match
+    // status is just set to NO VENDOR IMEI via checkImeiMatch().
+    document.getElementById('tq-vendor-imei').value = vendorImei || '— No Vendor IMEI —';
+    document.getElementById('tq-scan-imei-group').style.display = 'block';
+    document.getElementById('tq-imei-match').value = ''; // will be set by checkImeiMatch() once a value is entered
+    document.getElementById('tq-imei-block').style.borderColor = 'var(--medium-green)';
   }
 
   // Show form + compute initial disposition preview
@@ -12990,7 +12982,17 @@ function checkImeiMatch() {
 
   resultDiv.style.display = 'block';
 
-  if (scanned === vendor) {
+  const hasVendor = vendor && vendor !== '— No Vendor IMEI —' && vendor !== '— Exception Item —';
+
+  if (!hasVendor) {
+    // We still capture the scanned IMEI on the record, but the match status
+    // is NO VENDOR IMEI for downstream disposition rules.
+    document.getElementById('tq-imei-match').value = 'NO VENDOR IMEI';
+    resultDiv.textContent = 'NO VENDOR IMEI on ASN — Device IMEI captured: ' + scanned;
+    resultDiv.style.background = 'var(--warn-bg)';
+    resultDiv.style.color = 'var(--warn-orange)';
+    block.style.borderColor = 'var(--warn-orange)';
+  } else if (scanned === vendor) {
     document.getElementById('tq-imei-match').value = 'MATCH';
     resultDiv.textContent = '✓ MATCH — Device IMEI matches Vendor IMEI';
     resultDiv.style.background = 'var(--success-bg)';
@@ -13023,7 +13025,7 @@ function submitTriage() {
   if (!functionalTest) { toast('Please select Functional Test result', 'warn'); return; }
   if (functionalTest === 'NOK' && !issue) { toast('Please select an Issue for the failed functional test', 'warn'); return; }
   const isExc = imeiMatch === 'EXCEPTION';
-  if (vendorImei && !scannedImei && !isExc) { toast('Please scan the device IMEI', 'warn'); document.getElementById('tq-scanned-imei').focus(); return; }
+  if (!scannedImei && !isExc) { toast('Please scan the device IMEI', 'warn'); document.getElementById('tq-scanned-imei').focus(); return; }
   if (!imeiMatch) { toast('IMEI match could not be determined', 'warn'); return; }
   if (!cosmetic) { toast('Please select Cosmetic Condition', 'warn'); return; }
 
