@@ -1652,13 +1652,13 @@
         </div>
       </div>
 
-      <div class="dropzone" id="asn-dropzone"
+      <div class="reebelo-dropzone" id="asn-dropzone"
            onclick="document.getElementById('asn-file').click()"
            ondrop="ReebRecv.handleDrop(event)" ondragover="event.preventDefault(); this.classList.add('over')"
            ondragleave="this.classList.remove('over')">
-        <div class="dz-icon">&#128196;</div>
-        <div class="dz-text">Drop Reebelo ASN CSV here or click to upload</div>
-        <div class="dz-fname" id="asn-fname"></div>
+        <div class="reebelo-dz-ico">&#128196;</div>
+        <div class="reebelo-dz-txt">Drop Reebelo ASN CSV here or click to upload</div>
+        <div class="reebelo-dz-fname" id="asn-fname"></div>
         <input type="file" id="asn-file" accept=".csv" style="display:none" onchange="ReebRecv.uploadASN(this.files[0])">
       </div>
     </div>
@@ -11527,7 +11527,7 @@ function renderAsnStatusBar() {
   const bar = document.getElementById('asn-status-bar');
   if (ASN.items.length === 0) {
     bar.innerHTML = `<div class="asn-indicator empty">
-      &#9888; No ASN data loaded. <a href="#" onclick="event.preventDefault(); showSection('asn');" style="color: inherit; text-decoration: underline; margin-left: 4px;">Go to ASN Data to upload.</a>
+      &#9888; No ASN data loaded. <a href="#" onclick="event.preventDefault(); ReebRecv.showSection('asn');" style="color: inherit; text-decoration: underline; margin-left: 4px;">Go to ASN Data to upload.</a>
     </div>`;
   } else {
     const pending = ASN.items.filter(i => i._status === 'PENDING').length;
@@ -12677,7 +12677,7 @@ function triageLookup() {
       <div class="sr-header"><span style="font-size: 18px;">&#128269;</span> <strong style="color: var(--warn-orange);">Not Found</strong></div>
       <div style="padding: 12px 16px; font-size: 13px;">
         No received item matches "<strong>${query}</strong>" by LPN, order number, SC order, tracking, or vendor IMEI.<br>
-        <span style="color: #64748b; font-size: 12px;">LPN matching is case-insensitive and ignores spaces. For empty boxes, scan the shipping label's tracking number or order number instead — they are auto-disputed and appear in the <a href="#" onclick="event.preventDefault(); showSection('disputes');" style="color: var(--info-blue); text-decoration: underline;">Disputes tab</a>.</span>
+        <span style="color: #64748b; font-size: 12px;">LPN matching is case-insensitive and ignores spaces. For empty boxes, scan the shipping label's tracking number or order number instead — they are auto-disputed and appear in the <a href="#" onclick="event.preventDefault(); ReebRecv.showSection('disputes');" style="color: var(--info-blue); text-decoration: underline;">Disputes tab</a>.</span>
         ${recentList}
       </div>
     </div>`;
@@ -12699,7 +12699,7 @@ function triageLookup() {
             &#9432; This package arrived empty and was auto-routed to <strong>Dispute</strong> at receive time. No Triage needed.
           </div>
           <div style="margin-top: 10px;">
-            <button class="btn btn-primary btn-sm" onclick="showSection('disputes');">&#9888; Open in Disputes &rarr;</button>
+            <button class="btn btn-primary btn-sm" onclick="ReebRecv.showSection('disputes');">&#9888; Open in Disputes &rarr;</button>
           </div>
         </div>
       </div>`;
