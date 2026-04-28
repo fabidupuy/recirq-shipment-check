@@ -518,6 +518,20 @@
 
   .empty-box-banner input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; flex-shrink: 0; }
 
+  /* .choice-group: radio button chips used in the receive condition picker.
+     The deployed app didn't have these, so the Condition radios were
+     rendering as plain text labels. */
+  .choice-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choice-group label {
+    display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+    border: 1.5px solid #dde; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: all .15s;
+    text-transform: none; letter-spacing: 0; color: var(--dark-gray);
+    margin-bottom: 0;
+  }
+  .choice-group label:hover { border-color: var(--medium-green); background: var(--light-green); }
+  .choice-group label.selected { border-color: var(--medium-green); background: var(--light-green); font-weight: 600; }
+
   .acc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
   .acc-chip {
@@ -678,6 +692,9 @@
 
 <!-- Toast container used by Reebelo Receive & Triage IIFE (window.ReebRecv) -->
 <div class="toast-container" id="toasts"></div>
+<!-- DYMO label print scaffolding (must be in DOM before showPrintLabelModal is called) -->
+<div id="dymo-print-area" style="position: absolute; left: -9999px;"></div>
+<div id="label-modal-container"></div>
 
 <!-- ═══ SIDEBAR NAVIGATION ═══ -->
 <nav class="sidebar" id="app-sidebar">
@@ -11848,6 +11865,13 @@ function toggleEmptyBox() {
     nextBtn.style.display = 'inline-flex';
     nextBtn.textContent = '📦 Receive Empty Box';
     nextBtn.onclick = function() { completeBox(); };
+    // Render anonymous QR for the empty-package photo handoff
+    _renderReebQR('eb-qr-code', {
+      imei: (currentItem && currentItem.order ? currentItem.order : 'reeb-empty-' + Date.now()) + '-empty',
+      vendor: 'Reebelo',
+      type: 'unit',
+      rma: currentItem ? (currentItem.salesChannelOrderNumber || '') : '',
+    });
   } else {
     banner.classList.remove('active');
     fields.style.display = 'block';
@@ -12843,6 +12867,15 @@ function triageLookup() {
   // Show form + compute initial disposition preview
   document.getElementById('triage-form').style.display = 'block';
   updateDispositionPreview();
+
+  // Render anonymous QR for the device photo handoff (uses same /photo/<token>
+  // flow as Victra Pictures so phones don't see the auth gate).
+  _renderReebQR('tq-photo-qr', {
+    imei: (foundItem.vendorImei || foundLpnData.lpn || foundItem.order || ('reeb-triage-' + Date.now())) + '-triage',
+    vendor: 'Reebelo',
+    type: 'unit',
+    rma: foundItem.salesChannelOrderNumber || foundItem.order || '',
+  });
 }
 
 // ════════════════════════════════════
