@@ -12837,12 +12837,14 @@ function triageLookup() {
   document.getElementById('tq-imei-result').style.display = 'none';
 
   if (isException) {
-    // Exception item → no vendor IMEI to compare, skip entirely
+    // Exception item → no Vendor IMEI to compare, but operator still scans
+    // and records the device IMEI. Match status is fixed to EXCEPTION
+    // (used by the disposition rules engine).
     document.getElementById('tq-vendor-imei').value = '— Exception Item —';
-    document.getElementById('tq-scan-imei-group').style.display = 'none';
+    document.getElementById('tq-scan-imei-group').style.display = 'block';
     document.getElementById('tq-imei-match').value = 'EXCEPTION';
     document.getElementById('tq-imei-result').style.display = 'block';
-    document.getElementById('tq-imei-result').textContent = 'EXCEPTION — No vendor IMEI for unexpected items';
+    document.getElementById('tq-imei-result').textContent = 'EXCEPTION — capture the device IMEI for the record';
     document.getElementById('tq-imei-result').style.background = 'var(--warn-bg)';
     document.getElementById('tq-imei-result').style.color = 'var(--warn-orange)';
     document.getElementById('tq-imei-block').style.borderColor = 'var(--warn-orange)';
@@ -12982,9 +12984,18 @@ function checkImeiMatch() {
 
   resultDiv.style.display = 'block';
 
-  const hasVendor = vendor && vendor !== '— No Vendor IMEI —' && vendor !== '— Exception Item —';
+  const isException = vendor === '— Exception Item —';
+  const noVendor = !vendor || vendor === '— No Vendor IMEI —';
 
-  if (!hasVendor) {
+  if (isException) {
+    // Exception items always carry the EXCEPTION match status — we still
+    // record the scanned IMEI but it's not compared against anything.
+    document.getElementById('tq-imei-match').value = 'EXCEPTION';
+    resultDiv.textContent = 'EXCEPTION — Device IMEI captured: ' + scanned;
+    resultDiv.style.background = 'var(--warn-bg)';
+    resultDiv.style.color = 'var(--warn-orange)';
+    block.style.borderColor = 'var(--warn-orange)';
+  } else if (noVendor) {
     // We still capture the scanned IMEI on the record, but the match status
     // is NO VENDOR IMEI for downstream disposition rules.
     document.getElementById('tq-imei-match').value = 'NO VENDOR IMEI';
@@ -13025,7 +13036,7 @@ function submitTriage() {
   if (!functionalTest) { toast('Please select Functional Test result', 'warn'); return; }
   if (functionalTest === 'NOK' && !issue) { toast('Please select an Issue for the failed functional test', 'warn'); return; }
   const isExc = imeiMatch === 'EXCEPTION';
-  if (!scannedImei && !isExc) { toast('Please scan the device IMEI', 'warn'); document.getElementById('tq-scanned-imei').focus(); return; }
+  if (!scannedImei) { toast('Please scan the device IMEI', 'warn'); document.getElementById('tq-scanned-imei').focus(); return; }
   if (!imeiMatch) { toast('IMEI match could not be determined', 'warn'); return; }
   if (!cosmetic) { toast('Please select Cosmetic Condition', 'warn'); return; }
 
