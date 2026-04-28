@@ -1231,35 +1231,14 @@
               <div style="font-size: 12px; color: #555; margin-bottom: 14px;">
                 Capture the return shipping label for <strong id="lbl-order-ref">—</strong> before proceeding.
               </div>
-              <div style="padding: 10px 12px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 6px; margin-bottom: 12px; font-size: 12px; color: #92400e;">
-                <strong>&#9888; Required:</strong> A photo of the shipping label must be <strong>taken with the device camera</strong>. Uploading existing files is not allowed — this step is mandatory for every package.
-              </div>
-              <div class="ls-body">
-                <div class="label-qr-panel">
-                  <div style="font-size: 12px; font-weight: 600; color: var(--info-blue); margin-bottom: 4px;">Scan QR to photograph label on phone</div>
-                  <div class="qr-placeholder" id="label-qr-code">&#128247;</div>
-                  <div style="font-size: 11px; color: #999; margin-top: 8px;">
-                    In production: scan this QR with your phone to open the camera.
-                    <br>Or use the Take Photo button &#8594;
-                  </div>
-                </div>
-                <div class="label-upload-panel">
-                  <div style="font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px;">Take label photo on this device <span class="req">*</span></div>
-                  <div class="label-upload-zone" id="label-upload-zone"
-                       onclick="document.getElementById('label-file-input').click()">
-                    <div class="uz-icon">&#128247;</div>
-                    <div class="uz-text">Click to open camera and take label photo</div>
-                    <div class="uz-fname" id="label-file-name"></div>
-                    <!-- capture="environment" forces the rear camera on mobile / webcam on desktop -->
-                    <input type="file" id="label-file-input" accept="image/*" capture="environment"
-                           style="display:none" onchange="ReebRecv.handleLabelUpload(this)">
-                  </div>
-                  <div class="label-thumb-row" id="label-thumbs"></div>
-                  <div style="margin-top: 8px;">
-                    <button class="btn btn-primary btn-sm" id="btn-proceed-form" onclick="ReebRecv.proceedToReceiveForm()" style="width: 100%;" disabled>
-                      &#10148; Proceed
-                    </button>
-                  </div>
+              <div class="label-qr-panel" style="max-width: 360px; margin: 0 auto;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--info-blue); margin-bottom: 4px;">Scan QR with your phone to photograph the label</div>
+                <div class="qr-placeholder" id="label-qr-code"></div>
+                <div style="font-size: 11px; color: #999; margin-top: 8px;">Scan the QR with your phone camera, take a photo of the shipping label, then click Proceed.</div>
+                <div style="margin-top: 12px;">
+                  <button class="btn btn-primary" id="btn-proceed-form" onclick="ReebRecv.proceedToReceiveForm()" style="width: 100%;">
+                    &#10148; Proceed
+                  </button>
                 </div>
               </div>
             </div>
@@ -11746,14 +11725,13 @@ function selectItem(matchedItems, primaryItem, method, trackingUsed) {
   document.getElementById('label-capture-step').style.display = 'block';
   document.getElementById('receive-form').style.display = 'none';
 
-  // Reset label state
+  // Reset label state. The single-panel layout no longer has a per-device
+  // upload zone, so we just track whatever the operator captures via phone.
   currentItem._labelFiles = [];
   currentItem._trackingUsed = trackingUsed || '';
-  document.getElementById('label-file-name').textContent = '';
-  document.getElementById('label-upload-zone').classList.remove('has-label');
-  document.getElementById('label-thumbs').innerHTML = '';
-  document.getElementById('btn-proceed-form').disabled = true;
-  document.getElementById('label-file-input').value = '';
+
+  // Render the QR for the operator to scan with their phone.
+  _renderReebQR('label-qr-code', window.location.href);
 }
 
 // ════════════════════════════════════
@@ -13896,6 +13874,25 @@ updateRulesNavDot();
   function _navTo(id) {
     const target = _sectionIdMap[id] || id;
     if (typeof window.sidebarNav === 'function') window.sidebarNav(target);
+  }
+
+  // Render a real QR into a placeholder div (uses the qrcodejs lib already
+  // loaded in <head>). Caller passes the element id and the encoded text.
+  // Empty/missing inputs are no-ops so this is safe to call before init.
+  function _renderReebQR(elementId, text) {
+    const el = document.getElementById(elementId);
+    if (!el || !text || typeof QRCode === 'undefined') return;
+    el.innerHTML = '';
+    el.style.background = 'white';
+    el.style.border = 'none';
+    new QRCode(el, {
+      text: text,
+      width: 180,
+      height: 180,
+      colorDark: '#1B4D3E',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
   }
 
   // ── Server bootstrap ─────────────────────────────────────────────────
