@@ -1282,19 +1282,15 @@
                   <span style="font-size: 18px;">&#128247;</span>
                   <span style="font-weight: 700; font-size: 14px; color: var(--alert-red);">Capture Photos of Empty Package <span style="font-weight: 400; font-size: 12px;">(required)</span></span>
                 </div>
-                <div class="ls-body">
+                <div class="ls-body" style="grid-template-columns: 1fr;">
                   <!-- QR Panel -->
-                  <div class="label-qr-panel" style="border-color: var(--alert-red);">
-                    <div style="font-size: 12px; font-weight: 600; color: var(--alert-red); margin-bottom: 4px;">Scan QR to photograph package</div>
-                    <div class="qr-placeholder" id="eb-qr-code" style="border-color: #f5a5a5;">&#128247;</div>
-                    <div style="font-size: 11px; color: #999; margin-top: 8px;">
-                      In production: scan this QR with your phone to open the camera.
-                      <br>For now, use the upload option &#8594;
-                    </div>
+                  <div class="label-qr-panel" style="border-color: var(--alert-red); max-width: 360px; margin: 0 auto;">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--alert-red); margin-bottom: 4px;">Scan QR with your phone to photograph the package</div>
+                    <div class="qr-placeholder" id="eb-qr-code" style="border-color: #f5a5a5;"></div>
+                    <div style="font-size: 11px; color: #999; margin-top: 8px;">Scan the QR with your phone camera, take photos of the empty package, then continue.</div>
                   </div>
-                  <!-- Upload Panel -->
-                  <div class="label-upload-panel">
-                    <div style="font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px;">Or upload photos directly</div>
+                  <!-- Upload Panel kept in DOM (existing JS references it) but hidden -->
+                  <div class="label-upload-panel" style="display: none;">
                     <div class="label-upload-zone" id="eb-photo-zone"
                          onclick="document.getElementById('eb-photo-input').click()"
                          style="border-color: var(--alert-red);">
@@ -1561,27 +1557,15 @@
                 <span style="font-size: 11px; color: #888; margin-left: auto;" id="tq-photo-count">0 / 5</span>
               </div>
 
-              <div class="ls-body">
+              <div class="ls-body" style="grid-template-columns: 1fr;">
                 <!-- QR Panel -->
-                <div class="label-qr-panel">
-                  <div style="font-size: 12px; font-weight: 600; color: var(--dark-green); margin-bottom: 4px;">Scan QR to photograph device</div>
-                  <div class="qr-placeholder" id="tq-photo-qr">&#128247;</div>
-                  <div style="font-size: 11px; color: #999; margin-top: 8px;">
-                    In production: scan this QR with your phone to open the camera.
-                    <br>For now, use the upload option &#8594;
-                  </div>
+                <div class="label-qr-panel" style="max-width: 360px; margin: 0 auto;">
+                  <div style="font-size: 12px; font-weight: 600; color: var(--dark-green); margin-bottom: 4px;">Scan QR with your phone to photograph the device</div>
+                  <div class="qr-placeholder" id="tq-photo-qr"></div>
+                  <div style="font-size: 11px; color: #999; margin-top: 8px;">Scan the QR with your phone camera, take photos of the device (front, back, serial), then continue.</div>
                 </div>
-                <!-- Upload Panel -->
-                <div class="label-upload-panel">
-                  <div style="font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px;">Or upload photos directly</div>
-                  <!-- Slot selector -->
-                  <div style="display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;">
-                    <span style="font-size: 11px; color: #888; padding-top: 5px;">Tag as:</span>
-                    <label class="acc-chip checked" onclick="ReebRecv.selectPhotoSlot(this, 'FRONT')"><input type="radio" name="photo-slot" value="FRONT" checked hidden> &#128241; Front</label>
-                    <label class="acc-chip" onclick="ReebRecv.selectPhotoSlot(this, 'BACK')"><input type="radio" name="photo-slot" value="BACK" hidden> &#128242; Back</label>
-                    <label class="acc-chip" onclick="ReebRecv.selectPhotoSlot(this, 'SERIAL')"><input type="radio" name="photo-slot" value="SERIAL" hidden> &#128290; Serial/IMEI</label>
-                    <label class="acc-chip" onclick="ReebRecv.selectPhotoSlot(this, 'OTHER')"><input type="radio" name="photo-slot" value="OTHER" hidden> Other</label>
-                  </div>
+                <!-- Upload Panel kept in DOM (existing JS references it) but hidden -->
+                <div class="label-upload-panel" style="display: none;">
                   <div class="label-upload-zone" id="tq-photo-zone"
                        onclick="document.getElementById('tq-photo-input').click()">
                     <div class="uz-icon">&#128247;</div>
@@ -1590,7 +1574,6 @@
                     <input type="file" id="tq-photo-input" accept="image/*" multiple
                            style="display:none" onchange="ReebRecv.handleTriagePhotos(this)">
                   </div>
-                  <!-- Photo cards with tags -->
                   <div id="tq-photo-cards" style="margin-top: 10px;"></div>
                 </div>
               </div>
