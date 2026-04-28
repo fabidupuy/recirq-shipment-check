@@ -10983,40 +10983,37 @@ async function reebeloSaveSettings() {
 // ════════════════════════════════════════════════════════════════════
 (function () {
 // ════════════════════════════════════
-// PERSISTENT DATA STORE — localStorage backed
+// PERSISTENT DATA STORE — server-backed (replaces localStorage so all
+// operators share the same state). See /api/reeb/v2/state on the backend.
 // ════════════════════════════════════
-const STORAGE_KEY = 'recirq_reebelo_data';
+
+// Debounced PUT to /api/reeb/v2/state/<key>. Coalesces rapid edits.
+const _saveTimers = {};
+function _debouncedSave(key, getValue, delay) {
+  clearTimeout(_saveTimers[key]);
+  _saveTimers[key] = setTimeout(async () => {
+    try {
+      const resp = await fetch(`/api/reeb/v2/state/${key}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getValue()),
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    } catch (e) {
+      console.warn(`Failed to save ${key}`, e);
+      if (typeof toast === 'function') toast(`Save failed (${key}): ${e.message}`, 'error');
+    }
+  }, delay || 400);
+}
 
 function loadData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { items: [], uploads: [], nextId: 1 };
-    // Format detection: legacy uncompressed JSON starts with '{', LZString
-    // compressed payloads do not.
-    if (raw.charCodeAt(0) === 123 /* '{' */) return JSON.parse(raw);
-    if (typeof LZString !== 'undefined') {
-      const json = LZString.decompressFromUTF16(raw);
-      if (json) return JSON.parse(json);
-    }
-  } catch(e) { console.warn('Failed to load stored data', e); }
+  // Returns empty initial state — server data is fetched async via
+  // ensureInit() on page load and mutated into ASN below.
   return { items: [], uploads: [], nextId: 1 };
 }
 
 function saveData() {
-  try {
-    const json = JSON.stringify(ASN);
-    // 9k+ ASN items push a raw payload past Chrome's ~5MB localStorage cap.
-    // Compress with LZString (typical 10x shrink) so saves don't silently fail.
-    const payload = (typeof LZString !== 'undefined')
-      ? LZString.compressToUTF16(json)
-      : json;
-    localStorage.setItem(STORAGE_KEY, payload);
-  } catch(e) {
-    console.warn('Failed to save data', e);
-    if (typeof toast === 'function') {
-      toast('Could not save ASN data — browser storage is full. Clear old data or back up the export.', 'error');
-    }
-  }
+  _debouncedSave('asn', () => ASN, 400);
 }
 
 const ASN = loadData();
@@ -11103,19 +11100,13 @@ const DEFAULT_DISPOSITION_RULES = [
 ];
 
 function loadDispositionRules() {
-  try {
-    const raw = localStorage.getItem(DISPOSITION_RULES_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch(e) { console.warn('Failed to load disposition rules', e); }
+  // Returns defaults — server-side rules (if any) are loaded async via
+  // ensureInit() and replace DISPOSITION_RULES.
   return JSON.parse(JSON.stringify(DEFAULT_DISPOSITION_RULES));
 }
 
 function saveDispositionRules() {
-  try { localStorage.setItem(DISPOSITION_RULES_KEY, JSON.stringify(DISPOSITION_RULES)); } catch(e) {}
-  // Keep the nav-tab warning dot in sync
+  _debouncedSave('rules', () => DISPOSITION_RULES, 200);
   if (typeof updateRulesNavDot === 'function') updateRulesNavDot();
 }
 
@@ -12893,16 +12884,16 @@ const DEFAULT_ISSUES = [
   'Other'
 ];
 
+// In-memory cache; populated by ensureInit() from /api/reeb/v2/state.
+let _issuesCache = [...DEFAULT_ISSUES];
+
 function loadIssueOptions() {
-  try {
-    const raw = localStorage.getItem(ISSUE_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch(e) {}
-  return [...DEFAULT_ISSUES];
+  return _issuesCache;
 }
 
 function saveIssueOptions(options) {
-  localStorage.setItem(ISSUE_STORAGE_KEY, JSON.stringify(options));
+  _issuesCache = options;
+  _debouncedSave('issues', () => _issuesCache, 200);
 }
 
 function populateIssueDropdown() {
@@ -13906,6 +13897,62 @@ updateRulesNavDot();
     const target = _sectionIdMap[id] || id;
     if (typeof window.sidebarNav === 'function') window.sidebarNav(target);
   }
+
+  // ── Server bootstrap ─────────────────────────────────────────────────
+  // Pull the three persisted blobs (asn, rules, issues) from
+  // /api/reeb/v2/state once per page load and mutate the in-memory copies
+  // in place. ensureInit() is idempotent — it returns the cached promise
+  // on subsequent calls so onSectionEnter awaits the same fetch.
+  let _initPromise = null;
+  function ensureInit() {
+    if (_initPromise) return _initPromise;
+    _initPromise = (async () => {
+      try {
+        const resp = await fetch('/api/reeb/v2/state');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        if (data.asn && typeof data.asn === 'object') {
+          ASN.items = Array.isArray(data.asn.items) ? data.asn.items : [];
+          ASN.uploads = Array.isArray(data.asn.uploads) ? data.asn.uploads : [];
+          ASN.nextId = data.asn.nextId || 1;
+        }
+        if (Array.isArray(data.rules) && data.rules.length > 0) {
+          DISPOSITION_RULES = data.rules;
+        }
+        if (Array.isArray(data.issues) && data.issues.length > 0) {
+          _issuesCache = data.issues;
+        }
+      } catch (e) {
+        console.warn('Reeb init failed:', e);
+      }
+    })();
+    return _initPromise;
+  }
+
+  // Triggered by the deployed showSection() router whenever the user
+  // navigates into one of the five Reeb sections. Awaits init so the first
+  // render uses real server data, then dispatches to the section's render.
+  async function onSectionEnter(section) {
+    await ensureInit();
+    if (section === 'asn') {
+      if (typeof renderAsnPage === 'function') renderAsnPage();
+    } else if (section === 'disputes') {
+      if (typeof renderDisputes === 'function') renderDisputes();
+    } else if (section === 'rules') {
+      if (typeof renderRulesPage === 'function') renderRulesPage();
+      else if (typeof renderRulesTable === 'function') renderRulesTable();
+    } else if (section === 'receive') {
+      if (typeof renderAsnStatusBar === 'function') renderAsnStatusBar();
+      if (typeof renderRecvStats === 'function') renderRecvStats();
+    } else if (section === 'triage') {
+      if (typeof renderTriageStats === 'function') renderTriageStats();
+    }
+  }
+
+  // Kick off init immediately so by the time the user navigates, data is
+  // loaded. ensureInit handles its own errors.
+  ensureInit();
+
   // Replace the local showSection (defined above) with the integrated nav.
   // We can't reassign a function declaration, so we patch via window.ReebRecv.
   window.ReebRecv = {
@@ -14002,6 +14049,8 @@ updateRulesNavDot();
     showMultiMatch: showMultiMatch,
     showPrintLabelModal: showPrintLabelModal,
     showSection: _navTo,
+    onSectionEnter: onSectionEnter,
+    ensureInit: ensureInit,
     submitEmptyBox: submitEmptyBox,
     submitTriage: submitTriage,
     toast: toast,
