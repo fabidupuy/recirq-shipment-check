@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -10989,15 +10990,33 @@ const STORAGE_KEY = 'recirq_reebelo_data';
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (!raw) return { items: [], uploads: [], nextId: 1 };
+    // Format detection: legacy uncompressed JSON starts with '{', LZString
+    // compressed payloads do not.
+    if (raw.charCodeAt(0) === 123 /* '{' */) return JSON.parse(raw);
+    if (typeof LZString !== 'undefined') {
+      const json = LZString.decompressFromUTF16(raw);
+      if (json) return JSON.parse(json);
+    }
   } catch(e) { console.warn('Failed to load stored data', e); }
   return { items: [], uploads: [], nextId: 1 };
 }
 
 function saveData() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ASN));
-  } catch(e) { console.warn('Failed to save data', e); }
+    const json = JSON.stringify(ASN);
+    // 9k+ ASN items push a raw payload past Chrome's ~5MB localStorage cap.
+    // Compress with LZString (typical 10x shrink) so saves don't silently fail.
+    const payload = (typeof LZString !== 'undefined')
+      ? LZString.compressToUTF16(json)
+      : json;
+    localStorage.setItem(STORAGE_KEY, payload);
+  } catch(e) {
+    console.warn('Failed to save data', e);
+    if (typeof toast === 'function') {
+      toast('Could not save ASN data — browser storage is full. Clear old data or back up the export.', 'error');
+    }
+  }
 }
 
 const ASN = loadData();
