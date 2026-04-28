@@ -1168,6 +1168,8 @@
   <!-- SECTION: RECEIVING (default, always on) -->
   <!-- ════════════════════════════════════ -->
   <div id="sec-reeb-receiving" class="section">
+  <div class="container">
+
 
     <!-- ASN status indicator -->
     <div id="asn-status-bar"></div>
@@ -1383,11 +1385,14 @@
       </div>
     </div>
   </div>
+</div>
 
   <!-- ════════════════════════════════════ -->
   <!-- SECTION: TRIAGE -->
   <!-- ════════════════════════════════════ -->
   <div id="sec-reeb-triage" class="section">
+  <div class="container">
+
 
     <!-- Stats row -->
     <div class="stats-row" id="triage-stats" style="grid-template-columns: repeat(4, 1fr);"></div>
@@ -1629,11 +1634,14 @@
       </div>
     </div>
   </div>
+</div>
 
   <!-- ════════════════════════════════════ -->
   <!-- SECTION: ASN DATA MANAGEMENT -->
   <!-- ════════════════════════════════════ -->
   <div id="sec-reeb-asn" class="section">
+  <div class="container">
+
 
     <div class="card" style="margin-bottom: 16px;">
       <div class="card-header">
@@ -1741,18 +1749,21 @@
       </div>
     </div>
   </div>
+</div>
 
   <!-- ══════════════════════════════════════ -->
   <!-- DISPUTES SECTION                       -->
   <!-- ══════════════════════════════════════ -->
   <div id="sec-reeb-disputes" class="section">
+  <div class="container">
+
     <div class="page-header">
       <h2>&#9888; Disputes</h2>
       <div class="subtitle">Items flagged for dispute on Cobalt. Download photos, record dispute dates, and archive once filed.</div>
     </div>
 
     <!-- Stats -->
-    <div class="stat-row" style="margin-bottom: 14px;">
+    <div class="stats-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px;">
       <div class="stat-card alert"><div class="num" id="disp-pending">0</div><div class="label">Pending Disputes</div></div>
       <div class="stat-card" style="border-top-color:#ef4444;"><div class="num" id="disp-urgent">0</div><div class="label">Urgent (≤5 days)</div></div>
       <div class="stat-card warn"><div class="num" id="disp-warn">0</div><div class="label">Warning (≤15 days)</div></div>
@@ -1781,11 +1792,14 @@
     <!-- List container -->
     <div id="disputes-list"></div>
   </div>
+</div>
 
   <!-- ══════════════════════════════════════ -->
   <!-- DISPOSITION RULES SECTION             -->
   <!-- ══════════════════════════════════════ -->
   <div id="sec-reeb-rules" class="section">
+  <div class="container">
+
     <div class="page-header">
       <h2>&#9878; Disposition Rules</h2>
       <div class="subtitle">Configure the QC-to-Disposition matrix. Triage uses this table to auto-assign dispositions.</div>
@@ -1829,7 +1843,7 @@
     </div>
 
     <!-- Rule stats + Add -->
-    <div class="stat-row" style="margin-bottom: 14px;">
+    <div class="stats-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px;">
       <div class="stat-card"><div class="num" id="rules-total">0</div><div class="label">Total Rules</div></div>
       <div class="stat-card" style="border-top-color:#8b5cf6;"><div class="num" id="rules-review">0</div><div class="label">Needs Review</div></div>
       <div class="stat-card"><div class="num" id="rules-rtv">0</div><div class="label">RTV_Reeb</div></div>
@@ -1931,6 +1945,7 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 
 
