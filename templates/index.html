@@ -11313,7 +11313,7 @@ function uploadASN(file) {
           key: key,
           order: row['Order'] || '',
           orderDate: row['Order Date'] || '',
-          returnInitiatedDate: row['Return Initiated Date'] || '',
+          returnInitiatedDate: row['Return Initiated'] || row['Return Initiated Date'] || '',
           salesChannel: row['Sales Channel'] || '',
           salesChannelOrderNumber: row['Sales Channel Order Number'] || '',
           salesChannelTrackingNumber: row['Sales Channel Tracking Number'] || '',
