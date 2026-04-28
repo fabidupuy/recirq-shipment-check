@@ -11730,8 +11730,15 @@ function selectItem(matchedItems, primaryItem, method, trackingUsed) {
   currentItem._labelFiles = [];
   currentItem._trackingUsed = trackingUsed || '';
 
-  // Render the QR for the operator to scan with their phone.
-  _renderReebQR('label-qr-code', window.location.href);
+  // Render the QR for the operator to scan with their phone. Uses the same
+  // anonymous /photo/<token> handoff as Victra Pictures so the phone doesn't
+  // see the login gate.
+  _renderReebQR('label-qr-code', {
+    imei: primaryItem.order || ('reeb-label-' + Date.now()),
+    vendor: 'Reebelo',
+    type: 'unit',
+    rma: primaryItem.salesChannelOrderNumber || '',
+  });
 }
 
 // ════════════════════════════════════
@@ -13876,17 +13883,38 @@ updateRulesNavDot();
     if (typeof window.sidebarNav === 'function') window.sidebarNav(target);
   }
 
-  // Render a real QR into a placeholder div (uses the qrcodejs lib already
-  // loaded in <head>). Caller passes the element id and the encoded text.
-  // Empty/missing inputs are no-ops so this is safe to call before init.
-  function _renderReebQR(elementId, text) {
+  // Render a real QR into a placeholder div for a phone-camera handoff.
+  // Uses the same anonymous /photo/<token> route as the Victra Pictures flow
+  // (POST /api/photos/token → short token → /photo/<token>) so scanning on
+  // a phone doesn't hit the auth gate. Falls back to a base64 token if the
+  // server call fails.
+  async function _renderReebQR(elementId, payload) {
     const el = document.getElementById(elementId);
-    if (!el || !text || typeof QRCode === 'undefined') return;
-    el.innerHTML = '';
+    if (!el || typeof QRCode === 'undefined') return;
+    el.innerHTML = '<div style="font-size:11px;color:#888;padding-top:80px;">Generating QR...</div>';
     el.style.background = 'white';
     el.style.border = 'none';
+    const tokenPayload = Object.assign(
+      { vendor: 'Reebelo', type: 'unit', expires: Date.now() + 30 * 60 * 1000 },
+      payload || {}
+    );
+    let url;
+    try {
+      const resp = await fetch('/api/photos/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tokenPayload),
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      url = window.location.origin + '/photo/' + data.token;
+    } catch (e) {
+      // Fallback: encode the payload directly (legacy long-token path)
+      url = window.location.origin + '/photo/' + encodeURIComponent(btoa(JSON.stringify(tokenPayload)));
+    }
+    el.innerHTML = '';
     new QRCode(el, {
-      text: text,
+      text: url,
       width: 180,
       height: 180,
       colorDark: '#1B4D3E',
