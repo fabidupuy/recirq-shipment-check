@@ -401,7 +401,7 @@
   </div>
   <div class="sidebar-nav">
     <!-- Pick & Pack -->
-    <div class="sidebar-section">
+    <div class="sidebar-section" id="sidebar-pick-pack">
       <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
         Pick &amp; Pack <span class="arrow open">&#9654;</span>
       </div>
@@ -421,7 +421,7 @@
       </div>
     </div>
     <!-- Shipment Check -->
-    <div class="sidebar-section">
+    <div class="sidebar-section" id="sidebar-shipment-check">
       <div class="sidebar-section-header" onclick="toggleSidebarSection(this)">
         Shipment Check <span class="arrow open">&#9654;</span>
       </div>
@@ -1754,16 +1754,22 @@ let currentCustomer = 'victra';
 
 function switchCustomer(customer) {
   currentCustomer = customer;
-  // Toggle Reebelo-only sidebar sections
+  const isReebelo = customer === 'reebelo';
+  // Reebelo-only sidebar sections
   const reconSection = document.getElementById('sidebar-reconciliation');
   const reconAlerts = document.getElementById('sidebar-reebelo-settings');
   const reebReceive = document.getElementById('sidebar-reeb-receive');
-  if (reconSection) reconSection.style.display = customer === 'reebelo' ? '' : 'none';
-  if (reconAlerts) reconAlerts.style.display = customer === 'reebelo' ? '' : 'none';
-  if (reebReceive) reebReceive.style.display = customer === 'reebelo' ? '' : 'none';
+  if (reconSection) reconSection.style.display = isReebelo ? '' : 'none';
+  if (reconAlerts) reconAlerts.style.display = isReebelo ? '' : 'none';
+  if (reebReceive) reebReceive.style.display = isReebelo ? '' : 'none';
+  // Sections not yet wired for Reebelo — hide when Reeb is selected
+  const pickPack = document.getElementById('sidebar-pick-pack');
+  const shipmentCheck = document.getElementById('sidebar-shipment-check');
+  if (pickPack) pickPack.style.display = isReebelo ? 'none' : '';
+  if (shipmentCheck) shipmentCheck.style.display = isReebelo ? 'none' : '';
 
   // Navigate to a sensible default for the customer
-  if (customer === 'reebelo') {
+  if (isReebelo) {
     showSection('reebelo-reconcile');
   } else {
     showSection('dashboard');
