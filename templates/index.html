@@ -675,14 +675,24 @@
   }
 
   @media print {
+  @page { size: 4in 2.3125in; margin: 0; }
   body * { visibility: hidden !important; }
   #dymo-print-area, #dymo-print-area * { visibility: visible !important; }
   #dymo-print-area {
-  position: fixed !important; top: 0 !important; left: 0 !important; width: 4in; padding: 0; margin: 0;
+  position: fixed !important; top: 0 !important; left: 0 !important;
+  width: 4in; height: 2.3125in; padding: 0; margin: 0;
   }
   #dymo-print-area .dymo-label {
-  width: 100%; border: none; padding: 4mm 6mm; border-radius: 0;
+  width: 4in; height: 2.3125in; box-sizing: border-box;
+  border: none; padding: 0.08in 0.15in; border-radius: 0;
+  overflow: hidden;
   }
+  #dymo-print-area .dl-row { padding: 1px 0; }
+  #dymo-print-area .dl-key { font-size: 8px; min-width: 56px; }
+  #dymo-print-area .dl-val { font-size: 10px; }
+  #dymo-print-area .dl-val.big { font-size: 12px; }
+  #dymo-print-area .dl-barcode { font-size: 22px; padding: 1px 0; margin: 1px 0; }
+  #dymo-print-area .dl-desc { font-size: 8px; padding: 2px 0 0; }
   .label-modal-overlay { display: none !important; }
   }
 
@@ -12374,22 +12384,22 @@ function completeBox() {
   const itemLabel = isEmptyBox ? 'EMPTY BOX' : currentItem.productName.substring(0, 50);
   toast(`Received: ${itemLabel} (${qtyReceived} item${qtyReceived > 1 ? 's' : ''})`);
 
-  // Prepare per-item DYMO labels
+  // One DYMO label per receive event (not per scanned LPN). Primary item's REID
+  // goes on the label; QTY shows total items received.
   const labelsToprint = [];
-  if (!isEmptyBox) {
-    for (const item of itemsData) {
-      labelsToprint.push({
-        seller: currentItem.seller,
-        qty: 1,
-        order: currentItem.order,
-        scOrderNumber: currentItem.salesChannelOrderNumber,
-        tracking: currentItem._trackingUsed || currentItem.salesChannelTrackingNumber || '',
-        description: item.descText,
-        lpn: item.lpn,
-        condition: item.condition,
-        deviceType: item.deviceType
-      });
-    }
+  if (!isEmptyBox && itemsData.length > 0) {
+    const primary = itemsData[0];
+    labelsToprint.push({
+      seller: currentItem.seller,
+      qty: itemsData.length,
+      order: currentItem.order,
+      scOrderNumber: currentItem.salesChannelOrderNumber,
+      tracking: currentItem._trackingUsed || currentItem.salesChannelTrackingNumber || '',
+      description: primary.descText,
+      lpn: primary.lpn,
+      condition: primary.condition,
+      deviceType: primary.deviceType
+    });
   }
 
   currentItem = null;
