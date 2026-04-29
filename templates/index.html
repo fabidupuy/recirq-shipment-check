@@ -12175,11 +12175,11 @@ function renderCurrentItemCard() {
   html += `<div>
     <label style="display:block; font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">Condition <span class="req">*</span></label>
     <div class="choice-group" id="cond-group-0">
-      <label onclick="selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Broken" hidden> <span>Broken</span></label>
-      <label onclick="selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Excellent" hidden> <span>Excellent</span></label>
-      <label onclick="selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Good" hidden> <span>Good</span></label>
-      <label onclick="selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Scratched" hidden> <span>Scratched</span></label>
-      <label onclick="selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Used" hidden> <span>Used</span></label>
+      <label onclick="ReebRecv.selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Broken" hidden> <span>Broken</span></label>
+      <label onclick="ReebRecv.selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Excellent" hidden> <span>Excellent</span></label>
+      <label onclick="ReebRecv.selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Good" hidden> <span>Good</span></label>
+      <label onclick="ReebRecv.selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Scratched" hidden> <span>Scratched</span></label>
+      <label onclick="ReebRecv.selectRadio(this, 'cond-group-0')"><input type="radio" name="tf-condition-0" value="Used" hidden> <span>Used</span></label>
     </div>
   </div>`;
 
@@ -13390,7 +13390,7 @@ function renderRulesTable() {
           <option value="Dispute">→ Dispute</option>
           <option value="Exception">→ Exception</option>
         </select>
-        <button class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:11px;" onclick="deleteRule(${absIdx})">&#10005;</button>
+        <button class="btn btn-danger btn-sm" style="padding:3px 8px;font-size:11px;" onclick="ReebRecv.deleteRule(${absIdx})">&#10005;</button>
       </td>
     </tr>`;
   }).join('');
